@@ -6,9 +6,17 @@
  */
 import { ROOM_BY_ID, AGENT_BY_ID, AGENTS, WING_BY_ID, VENTURE_BY_ID, CAPS, DASHBOARD_FRAME, SKILL_BY_ID } from '@arcane/config';
 
+/** Who is physically in the room right now, from the sim. */
+function hereNow(roomId, sim) {
+  if (!sim) return '';
+  const here = sim.occupants(roomId);
+  const verb = (a) => a.state === 'walk' ? 'arriving' : a.state === 'drift' ? 'moving about' : a.room === a.home ? 'at station' : 'visiting';
+  return `<p style="margin-top:8px;color:var(--ash)">Here now: ${here.length ? here.map((a) => `<span class="dot" style="background:${a.cfg.colour}"></span>${esc(a.cfg.name)} <span style="color:var(--faint)">(${verb(a)})</span>`).join(' · ') : '<span class="empty">nobody</span>'}</p>`;
+}
+
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-export function renderPanel(el, roomId) {
+export function renderPanel(el, roomId, sim = null) {
   if (!roomId) {
     el.innerHTML = `
       <h1>THE ARCANE</h1>
@@ -30,12 +38,12 @@ export function renderPanel(el, roomId) {
       ${venture ? `<p><span class="chip">${esc(venture.name)}</span> ${venture.facts.map((f) => `<span class="chip">${esc(f)}</span>`).join('')}</p>` : ''}
       <p>${room.widgets.map((w) => `<span class="chip">${esc(w)}</span>`).join('')}</p>`,
     orders: `<p class="empty">No orders routed here yet. Orders land from brain/06-Orders on day 8.</p>`,
-    crew: agent ? `
+    crew: (agent ? `
       <p><span class="dot" style="background:${agent.colour}"></span><strong>${esc(agent.name)}</strong> · ${esc(agent.role)} · <code>${esc(agent.call)}</code></p>
       <p style="color:var(--ash)">${esc(agent.brief)}</p>
       <p>${CAPS.map((c) => `<span class="chip ${agent.caps[c.id]}">${esc(c.name)}: ${agent.caps[c.id]}</span>`).join('')}</p>
       ${agent.skills.length ? `<p>Skills: ${agent.skills.map((s) => `<span class="chip">${esc(SKILL_BY_ID[s].invoke)}</span>`).join('')}</p>` : ''}`
-      : `<p class="empty">No resident. Nine seats convene here.</p>`,
+      : `<p class="empty">No resident. Nine seats convene here.</p>`) + hereNow(roomId, sim),
     files: room.brain ? `<p><code>brain/${esc(room.brain)}</code></p><p class="empty">Newest files appear here once the vault export is wired (day 8).</p>` : `<p class="empty">This room reads shared memory only.</p>`,
   };
   el.innerHTML = `

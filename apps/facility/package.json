@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/floorplan.test.mjs"
+    "test": "node test/floorplan.test.mjs && node test/sprites.test.mjs && node test/props.test.mjs"
   },
   "dependencies": {
     "@arcane/config": "*"

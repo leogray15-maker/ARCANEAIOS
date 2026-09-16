@@ -1,7 +1,7 @@
 {
   "name": "the-arcane",
   "version": "3.0.0",
-  "description": "THE ARCANE — LEOOS v3. An agentic operating system rendered as a facility you can walk.",
+  "description": "THE ARCANE \u2014 LEOOS v3. An agentic operating system rendered as a facility you can walk.",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -18,7 +18,7 @@
     "herald:emit": "node .claude/skills/herald/scripts/emit.mjs",
     "facility": "npm --workspace apps/facility run dev",
     "facility:build": "npm --workspace apps/facility run build",
-    "test": "node tools/validate-config.mjs && node .claude/skills/herald/scripts/lint.mjs --self-test"
+    "test": "node tools/validate-config.mjs && node .claude/skills/herald/scripts/lint.mjs --self-test && npm --workspace apps/facility test"
   },
   "engines": {
     "node": ">=20"

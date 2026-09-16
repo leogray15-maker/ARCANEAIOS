@@ -14,8 +14,8 @@ fractional scale — it makes uneven pixels and shimmer.
 | Thing | v2 | v3 | Why |
 | --- | --- | --- | --- |
 | Buffer | 640×460 | **960×640** | Room for 16px figures and dense props without crowding |
-| Crew sprite | 9×15 | **12×20** (12 wide, 16 to the crown, 20 with hat/hair/gear) | Enough for a face, a posture, and a held object |
-| ARCANE | 9×15 | **14×24**, plus a 2px hooded outline and a slow violet glow | The commander reads at a glance from across the floor |
+| Crew sprite | 9×15 | **12×18** (12 wide, 17 from crown to feet; hats and hair use the top 4 rows) | Enough for a face, a posture, a hat and a held object |
+| ARCANE | 9×15 | **14×22**, hooded, long coat, 1px rim light on the hood, a pulsing violet pool on the floor | The commander reads at a glance from across the floor |
 | Room (typical) | 138×88 | **210×120** | Props at real density; a desk is 24×14, not 9×5 |
 | Corridor width | 28 | **36** | Two figures pass without overlapping |
 | Door | 1 tile | **12px wide**, with frame and a 1px light spill | Doors are where the eye goes |
@@ -67,25 +67,25 @@ plus shared `o` outline (#0b0b12), `s` skin (#e7c9a8 / #b98a68 shade),
 `e` visor/eye (cyan for crew, arcaneLt for ARCANE), `k`/`a` for an
 accessory (dark/accent) that says what they do.
 
-## Anatomy of a crew sprite (12×20)
+## Anatomy of a crew sprite (12×18) — as shipped in `render/sprites.js`
 
 ```
-row  0-3   hair / hat / hood        (identity: KEEPER has a beanie, WARDEN a peaked cap,
-                                     MERIDIAN a lab visor, HERALD a headset)
-row  4-7   head, 2px eyes, 1px mouth line on 'talk'
-row  8-13  torso, arms; held object at rows 9-12 on the working frames
-row 14-17  legs
-row 18-19  feet + 1px contact shadow (drawn in the room, not the sprite)
+row  0-3   head kit: hair / cap / beanie / hard hat / bandana / bun / goggles / hood
+row  4-7   face — 2px eyes, skin tone per agent; visor, glasses, monocle, headset, long hair paint here
+row  8-13  torso and arms — main colour `c`, shade `d`, lit `l`; chest accent `a`
+row 12     hands `g` — the held item (vial, clipboard, ledger, wrench, quill, tray…) overlays here
+row 14-17  trousers `t`, boots `b`, feet outline; a 2px contact shadow is drawn on the floor
 ```
 
-Frames per facing (front, back, side; left is side mirrored at bake):
-- **stand**, **step A**, **step B** — 4-beat walk cycle at 6 fps
-- **work** ×2 — at a station: typing / stirring / reading, 2-frame loop at 3 fps
-- **talk** ×1 — mouth line + hand raised, used during Counsel/Council
-- **idle bob** is procedural: ±1px every 45 frames when standing
+One body is authored (front, back, side × stand, stepA, stepB — side has a
+real stepB, front/back derive it by mirroring stepA so the arm swing
+alternates). Identity is composed on top: the agent's colour drives `c/d/l`,
+`IDENTITY[agent]` picks the head kit, hair colour, skin tone, held item and
+accent. Left facing is the right facing mirrored at bake. 19 agents × 9
+frames = 171 matrices, validated by `test/sprites.test.mjs`.
 
-That is 3 facings × 6 frames = 18 matrices per agent, most of which are
-edits of the stand frame. Author the front stand first, then derive.
+Walk: 4-beat cycle `stand → A → stand → B` at ~7 cels/s. Idle bob is
+procedural (1px, occasional). `work` and `talk` cels are the next step.
 
 ## ARCANE (14×24)
 

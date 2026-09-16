@@ -9,6 +9,7 @@ dist/
 .env.*
 !.env.example
 *service-account*.json
+*firebase-adminsdk*.json
 serviceAccountKey.json
 
 # regenerable data
