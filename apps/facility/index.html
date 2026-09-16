@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>THE ARCANE</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --space: #05050a; --hull: #171722; --ink: #ecebf5; --ash: #7e7c94; --faint: #4a4860;
+      --arcane: #8b5cf6; --arcaneLt: #a98bff; --cyan: #56c9f0; --vital: #3ecf8e; --flare: #e8b64c;
+      --gold: #d9a441; --rose: #e0609a; --breach: #f44d52;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--space); color: var(--ink); font: 13px/1.4 var(--mono); overflow: hidden; }
+    #app { display: grid; grid-template-columns: 1fr 360px; height: 100%; }
+    #stage { position: relative; overflow: hidden; cursor: grab; }
+    #stage.dragging { cursor: grabbing; }
+    canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+    #hud { position: absolute; left: 12px; top: 10px; display: flex; gap: 6px; }
+    #hud button { background: #0e0e1a; color: var(--ash); border: 1px solid #2a2a3c; padding: 4px 10px; font: inherit; cursor: pointer; }
+    #hud button.on { color: var(--ink); border-color: var(--arcane); }
+    #panel { border-left: 1px solid #1c1c2a; background: #0a0a13; padding: 18px; overflow: auto; }
+    #panel h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: .08em; }
+    #panel .sub { color: var(--ash); margin-bottom: 14px; }
+    #panel h2 { margin: 18px 0 6px; font-size: 11px; letter-spacing: .12em; color: var(--ash); text-transform: uppercase; border-bottom: 1px solid #1c1c2a; padding-bottom: 4px; }
+    #panel p { margin: 4px 0; }
+    #panel .chip { display: inline-block; padding: 1px 6px; border: 1px solid #2a2a3c; margin: 2px 4px 2px 0; color: var(--ash); }
+    #panel .chip.deny { color: var(--breach); } #panel .chip.approval, #panel .chip.draft { color: var(--flare); }
+    #panel .chip.analyse { color: var(--cyan); } #panel .chip.recommend { color: var(--arcaneLt); }
+    #panel .empty { color: var(--faint); font-style: italic; }
+    #panel .dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: -1px; }
+    @media (max-width: 900px) { #app { grid-template-columns: 1fr; grid-template-rows: 1fr 40vh; } #panel { border-left: 0; border-top: 1px solid #1c1c2a; } }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="stage">
+      <canvas id="floor"></canvas>
+      <div id="hud">
+        <button data-zoom="fit">FIT</button>
+        <button data-zoom="2">2x</button>
+        <button data-zoom="3">3x</button>
+      </div>
+    </div>
+    <aside id="panel"></aside>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

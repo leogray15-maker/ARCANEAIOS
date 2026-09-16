@@ -1,0 +1,18 @@
+{
+  "name": "@arcane/config",
+  "version": "3.0.0",
+  "description": "The single source of truth for THE ARCANE: agents, rooms, wings, permissions, ventures, loop vocabulary.",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./agents": "./src/agents.js",
+    "./rooms": "./src/rooms.js",
+    "./wings": "./src/wings.js",
+    "./permissions": "./src/permissions.js",
+    "./ventures": "./src/ventures.js",
+    "./loop": "./src/loop.js",
+    "./skills": "./src/skills.js"
+  }
+}

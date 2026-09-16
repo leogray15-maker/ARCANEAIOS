@@ -1,0 +1,87 @@
+#!/usr/bin/env node
+/**
+ * Refuse a config that breaks the standing rules.
+ *
+ * Runs in `npm test` and should run in CI before any deploy or vault write.
+ * Every rule here is one the operator stated; if a rule is not here it is
+ * not enforced, and if it is here it cannot be argued with by prose.
+ */
+import {
+  AGENTS, ARCANE, CREW, COUNCIL, TOOLS, TOOL_BY_ID,
+  ROOMS, WINGS, roomsInWing,
+  GRADES, CAPS, CAP_IDS, SKILLS, AGENT_BY_ID, ROOM_BY_ID, VENTURES,
+} from '../packages/config/src/index.js';
+
+const fails = [];
+const ok = (cond, msg) => { if (!cond) fails.push(msg); };
+
+/* ---- roster shape ---- */
+ok(AGENTS.length === 19, `expected 19 agents, found ${AGENTS.length}`);
+ok(AGENTS.filter((a) => a.kind === 'arcane').length === 1, 'exactly one Commander');
+ok(CREW.length === 18, `expected 18 crew, found ${CREW.length}`);
+ok(new Set(AGENTS.map((a) => a.id)).size === AGENTS.length, 'agent ids unique');
+ok(new Set(AGENTS.map((a) => a.name)).size === AGENTS.length, 'agent names unique');
+ok(new Set(AGENTS.map((a) => a.colour.toLowerCase())).size === AGENTS.length, 'agent colours unique (colour is identity on the floor)');
+ok(COUNCIL.length === 9, `expected 9 council seats, found ${COUNCIL.length}`);
+ok(COUNCIL[0]?.id === 'arcane', 'ARCANE speaks last but is weighted first');
+
+/* ---- floor shape ---- */
+ok(ROOMS.length === 20, `expected 20 rooms, found ${ROOMS.length}`);
+ok(WINGS.length === 4, `expected 4 wings, found ${WINGS.length}`);
+for (const w of WINGS) {
+  const rs = roomsInWing(w.id);
+  ok(rs.length === 5, `wing ${w.name} has ${rs.length} rooms, expected 5`);
+  ok(rs.map((r) => r.row).join() === '0,1,2,3,4', `wing ${w.name} rows must be 0..4`);
+}
+ok(new Set(ROOMS.map((r) => r.id)).size === 20, 'room ids unique');
+
+/* ---- agents ↔ rooms ---- */
+for (const a of AGENTS) {
+  ok(ROOM_BY_ID[a.room], `${a.name} is stationed in unknown room "${a.room}"`);
+  for (const t of a.tools) ok(TOOL_BY_ID[t], `${a.name} lists unknown tool "${t}"`);
+}
+const residents = ROOMS.filter((r) => r.agent).map((r) => r.agent);
+ok(new Set(residents).size === residents.length, 'no two rooms share a resident agent');
+for (const r of ROOMS) {
+  if (r.agent) ok(AGENT_BY_ID[r.agent]?.room === r.id, `${r.name} names ${r.agent} as resident but that agent is stationed elsewhere`);
+  if (r.venture) ok(VENTURES.some((v) => v.id === r.venture), `${r.name} names unknown venture "${r.venture}"`);
+}
+ok(ROOMS.filter((r) => !r.agent).length === 1 && ROOM_BY_ID.council.agent === null,
+  'exactly one room has no resident, and it is THE COUNCIL');
+
+/* ---- permissions: the standing rules ---- */
+for (const a of AGENTS) {
+  for (const cap of CAP_IDS) {
+    const g = a.caps[cap];
+    ok(GRADES.includes(g), `${a.name}.${cap} has invalid grade "${g}"`);
+    ok(g !== 'allow', `${a.name} holds "allow" on ${cap} — no agent may`);
+  }
+  ok(a.caps.spend === 'deny', `${a.name} holds "${a.caps.spend}" on spend — spend is deny for the entire network`);
+}
+ok(TOOL_BY_ID.notion?.state === 'read-only', 'Notion must be read-only for the entire network');
+
+/* ---- skills cannot out-rank their agent ---- */
+for (const s of SKILLS) {
+  const a = AGENT_BY_ID[s.agent];
+  ok(a, `skill ${s.id} names unknown agent "${s.agent}"`);
+  ok(ROOM_BY_ID[s.room], `skill ${s.id} names unknown room "${s.room}"`);
+  if (a) {
+    ok(a.skills.includes(s.id), `${a.name} does not list skill "${s.id}" — register it on the agent`);
+    ok(a.caps.write !== 'deny' && a.caps.write !== 'read', `skill ${s.id} writes drafts but ${a.name} cannot draft`);
+    for (const w of s.writes) {
+      ok(!w.startsWith('01-System'), `skill ${s.id} may not write to 01-System (that is the change capability, graded ${a.caps.change})`);
+    }
+    for (const t of s.reads) {
+      if (TOOL_BY_ID[t]) ok(a.tools.includes(t), `skill ${s.id} reads tool "${t}" its agent does not carry`);
+    }
+  }
+}
+
+/* ---- report ---- */
+if (fails.length) {
+  console.error(`\n✗ config invalid — ${fails.length} problem${fails.length > 1 ? 's' : ''}:\n`);
+  for (const f of fails) console.error('  · ' + f);
+  console.error();
+  process.exit(1);
+}
+console.log(`✓ config valid — ${AGENTS.length} agents (${COUNCIL.length} seated), ${ROOMS.length} rooms in ${WINGS.length} wings, ${SKILLS.length} skill${SKILLS.length === 1 ? '' : 's'}, ${TOOLS.filter((t) => t.state !== 'not wired').length}/${TOOLS.length} tools wired. No agent holds allow. Spend is deny everywhere. Notion is read-only.`);

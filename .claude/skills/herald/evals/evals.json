@@ -1,0 +1,23 @@
+{
+  "skill_name": "herald",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "run herald — one module from the mindset lane, full set",
+      "expected_output": "Five drafts (short, medium, thread, email, teaser) from one non-sensitive module land in brain/02-Content/Drafts with ids HER-YYYYMMDD-NNN, status draft, hook matching line one, lint pass, Content-Log rows, Shared-Memory updated, a Trace entry and a Daily-Log line. Report gives run id, module, count, path.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "give me three shorts for X from the copywriting stuff in the archives",
+      "expected_output": "Three short drafts from three different sales-lane modules (copywriting), platform X, one emit run. No thread/email/teaser. Voice: hook line one, no hashtags/emojis.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "do a thread and an email from the biohacking course, the sleep one",
+      "expected_output": "HERALD names the subject as sensitive, proceeds because Leo named it, cuts to principle not physiology. Lint hard-fails any dose/compound/claim; HERALD rewrites rather than dodging. Emits a thread and an email only if clean; otherwise reports the refusal and picks a different angle or module.",
+      "files": []
+    }
+  ]
+}

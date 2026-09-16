@@ -1,0 +1,23 @@
+# deps / builds
+node_modules/
+dist/
+.vercel/
+.DS_Store
+
+# secrets — never commit
+.env
+.env.*
+!.env.example
+*service-account*.json
+serviceAccountKey.json
+
+# regenerable data
+data/archives/index.json
+data/archives/modules/
+
+# HERALD staging (drafts before they are emitted into the brain)
+.herald-staging/
+
+# Obsidian workspace state (per-device); keep app/core-plugins config
+brain/.obsidian/workspace*.json
+brain/.obsidian/cache
