@@ -16,7 +16,9 @@ import { ROOM_PROPS } from '../config/props.js';
 
 const CREW_SPEED = 38;    // px per second — purposeful, not frantic
 const ARCANE_SPEED = 68;
-const CEL_TIME = 0.14;    // seconds per walk cel
+const CEL_TIME = 0.12;    // seconds per walk cel
+const BLINK_EVERY = [2.5, 6];
+const BLINK_FOR = 0.14;
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -48,7 +50,7 @@ export class Sim {
         id: a.id, cfg: a, room: a.room, home: a.room,
         x: st.x, y: st.y, face: st.face, cel: 0, celClock: 0,
         state: 'idle', path: [], speed: a.kind === 'arcane' ? ARCANE_SPEED : CREW_SPEED,
-        idleUntil: this.t + rand(3, 14), bob: 0, target: null,
+        idleUntil: this.t + rand(3, 14), bob: 0, target: null, blinkAt: rand(...BLINK_EVERY), blinking: false,
       };
     });
     this.byId = Object.fromEntries(this.agents.map((a) => [a.id, a]));
@@ -112,6 +114,8 @@ export class Sim {
       if (a.state === 'walk' || a.state === 'drift') this.step(a, dt);
       else {
         a.bob = Math.sin(this.t * 2.2 + a.x * 0.1) > 0.92 ? 1 : 0;
+        // A blink every few seconds, held for a few frames. Only when standing — a walker's eyes are busy.
+        if (this.t > a.blinkAt) { a.blinking = true; if (this.t > a.blinkAt + BLINK_FOR) { a.blinking = false; a.blinkAt = this.t + rand(...BLINK_EVERY); } }
         if (a.cfg.kind === 'arcane') continue;
         if (a.homeAt && this.t > a.homeAt) { const st = stationOf(a.room); a.homeAt = null; a.path = [{ x: st.x, y: st.y }]; a.state = 'drift'; }
         else if (!a.homeAt && this.t > a.idleUntil) this.drift(a);

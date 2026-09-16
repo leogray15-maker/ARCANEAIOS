@@ -9,5 +9,5 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // for the tests, so there is exactly one resolution path.
 export default defineConfig({
   server: { fs: { allow: [path.resolve(here, '../..')] } },
-  build: { target: 'es2022', sourcemap: true },
+  build: { target: 'es2022', sourcemap: true, rollupOptions: { input: { main: path.resolve(here, 'index.html'), sheet: path.resolve(here, 'sheet.html') } } },
 });

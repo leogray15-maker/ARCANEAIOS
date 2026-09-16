@@ -14,8 +14,8 @@ fractional scale — it makes uneven pixels and shimmer.
 | Thing | v2 | v3 | Why |
 | --- | --- | --- | --- |
 | Buffer | 640×460 | **960×640** | Room for 16px figures and dense props without crowding |
-| Crew sprite | 9×15 | **12×18** (12 wide, 17 from crown to feet; hats and hair use the top 4 rows) | Enough for a face, a posture, a hat and a held object |
-| ARCANE | 9×15 | **14×22**, hooded, long coat, 1px rim light on the hood, a pulsing violet pool on the floor | The commander reads at a glance from across the floor |
+| Crew sprite | 9×15 | **16×20** (16 wide; hats and hair use the top 4 rows, face rows 4–8, jacket with zip and belt, boots) | Enough for a face, a posture, a hat, a jacket and a held object |
+| ARCANE | 9×15 | **20×26**, hooded cloak with a near-black cowl and lit eyes, rim-lit hood, clasp, sigil, cloak folds, a pulsing violet pool on the floor | The commander reads at a glance from across the floor |
 | Room (typical) | 138×88 | **210×120** | Props at real density; a desk is 24×14, not 9×5 |
 | Corridor width | 28 | **36** | Two figures pass without overlapping |
 | Door | 1 tile | **12px wide**, with frame and a 1px light spill | Doors are where the eye goes |
@@ -67,25 +67,30 @@ plus shared `o` outline (#0b0b12), `s` skin (#e7c9a8 / #b98a68 shade),
 `e` visor/eye (cyan for crew, arcaneLt for ARCANE), `k`/`a` for an
 accessory (dark/accent) that says what they do.
 
-## Anatomy of a crew sprite (12×18) — as shipped in `render/sprites.js`
+## Anatomy of a crew sprite (16×20) — as shipped in `render/sprites.js`
 
 ```
-row  0-3   head kit: hair / cap / beanie / hard hat / bandana / bun / goggles / hood
-row  4-7   face — 2px eyes, skin tone per agent; visor, glasses, monocle, headset, long hair paint here
-row  8-13  torso and arms — main colour `c`, shade `d`, lit `l`; chest accent `a`
-row 12     hands `g` — the held item (vial, clipboard, ledger, wrench, quill, tray…) overlays here
-row 14-17  trousers `t`, boots `b`, feet outline; a 2px contact shadow is drawn on the floor
+row  0-3   head kit: hair / cap / beanie / hard hat / bandana / bun / goggles / slick / bald
+row  4-8   face — 2px eyes with blink cel, skin tone per agent; visor, glasses, monocle, headset, long hair paint here
+row  9     neck
+row 10-14  torso and arms — undershirt `u` at the collar, main `c`, shade `d`, lit `l`, jacket zip `k`; hands `g` at row 14
+row 12-15  the held item (vial, clipboard, ledger, wrench, quill, tray, sextant, lens, bulb, scroll) overlays at the leading hand
+row 15     belt `k` with buckle `a`
+row 16-19  trousers `t`, boots `b`, feet outline; a 2px contact shadow is drawn on the floor
 ```
 
-One body is authored (front, back, side × stand, stepA, stepB — side has a
-real stepB, front/back derive it by mirroring stepA so the arm swing
-alternates). Identity is composed on top: the agent's colour drives `c/d/l`,
-`IDENTITY[agent]` picks the head kit, hair colour, skin tone, held item and
-accent. Left facing is the right facing mirrored at bake. 19 agents × 9
-frames = 171 matrices, validated by `test/sprites.test.mjs`.
+One body is authored per facing (front, back, side) with cels stand, stepA
+(contact), stepB (pass), stepC (other contact) — side authors all three,
+front/back derive stepC by mirroring stepA so the arm swing alternates —
+plus a derived blink. Identity is composed on top: the agent's colour drives
+`c/d/l`, `IDENTITY[agent]` picks the head kit, hair colour, skin tone, held
+item and accent. Left facing is the right facing mirrored at bake. 19 agents
+× 15 frames = 285 matrices, validated by `test/sprites.test.mjs`. Review them
+all at `/sheet.html` (4x, every facing and cel).
 
-Walk: 4-beat cycle `stand → A → stand → B` at ~7 cels/s. Idle bob is
-procedural (1px, occasional). `work` and `talk` cels are the next step.
+Walk: `A → B → C → B` at ~8 cels/s, the pass cel lifted 1px so the body
+bobs. Idle: stand, a 1px bob now and then, a blink every 2.5–6 s. `work`
+and `talk` cels are the next step.
 
 ## ARCANE (14×24)
 

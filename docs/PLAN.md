@@ -22,6 +22,7 @@ Dates assume a start of 2026-09-17.
 - [x] Static/live renderer at 30 fps, depth-sorted props and crew, emitters and ambient motion
 - [x] Sim: ARCANE routes door-to-door on click, crew idle and drift, "Here now" in the dashboard
 - [x] Deep links `?zoom=3&room=beacon`
+- [x] Second pass: 16×20 crew / 20×26 ARCANE with 4-cel walk + blink, 72 painters, 366 placements, static props baked, floor/wall/fixture atmosphere, `/sheet.html` review page
 - Pulled forward from Days 4–7. What remains of those days: work/talk cels, attention routing from orders, prop density pass (target 16–24), sprite-sheet review tool.
 
 ## Day 1 · Thu 17 — Brain in Obsidian, HERALD in the hand
