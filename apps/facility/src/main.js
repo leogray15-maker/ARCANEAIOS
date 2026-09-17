@@ -16,6 +16,7 @@ import { createBuffer, bakeStatic, drawLive, present } from './render/factory.js
 import { bakeSprites } from './render/sprites.js';
 import { renderDash, bindDash } from './render/panel.js';
 import { renderJournal, bindJournal } from './render/journal.js';
+import { renderContent, bindContent } from './render/content.js';
 import { BrainGraph } from './render/graph.js';
 import { Sim } from './core/sim.js';
 import { Store } from './core/store.js';
@@ -27,7 +28,7 @@ const $ = (id) => document.getElementById(id);
 // Back from a magic link? Take the session out of the URL before the router sees the hash.
 auth.acceptHash();
 const stage = $('stage'), canvas = $('floor'), tip = $('tip');
-const views = { dash: $('dash'), journal: $('journal'), graph: $('graph') };
+const views = { dash: $('dash'), content: $('content'), journal: $('journal'), graph: $('graph') };
 const staticBuf = createBuffer();
 const buf = createBuffer();
 const sprites = bakeSprites(AGENTS);
@@ -146,13 +147,14 @@ function go(hash) { if (location.hash !== hash) location.hash = hash; else route
 function route() {
   const h = location.hash || '#';
   const room = /^#room\/([a-z]+)/.exec(h)?.[1];
-  const screen = room && ROOM_BY_ID[room] ? 'dash' : h.startsWith('#journal') ? 'journal' : h.startsWith('#graph') ? 'graph' : 'floor';
+  const screen = room && ROOM_BY_ID[room] ? 'dash' : h.startsWith('#journal') ? 'journal' : h.startsWith('#content') ? 'content' : h.startsWith('#graph') ? 'graph' : 'floor';
   state.screen = screen;
   state.selected = room && ROOM_BY_ID[room] ? room : null;
   for (const [k, el] of Object.entries(views)) el.classList.toggle('hidden', k !== screen);
   for (const b of document.querySelectorAll('#views button')) b.classList.toggle('on', b.dataset.view === (screen === 'dash' ? 'floor' : screen));
   if (screen === 'dash') { sim.command(state.selected); renderDash(views.dash, state.selected, ctx); views.dash.scrollTop = 0; }
   if (screen === 'journal') renderJournal(views.journal, ctx, h);
+  if (screen === 'content') renderContent(views.content, ctx, h);
   if (screen === 'graph') graph.show();
   else graph.hide();
   state.staticDirty = true;
@@ -162,9 +164,11 @@ window.addEventListener('hashchange', route);
 for (const b of document.querySelectorAll('#views button')) b.addEventListener('click', () => go(b.dataset.view === 'floor' ? '#' : `#${b.dataset.view}`));
 bindDash(views.dash, { store, getRoom: () => state.selected, go });
 bindJournal(views.journal, { store, go });
+bindContent(views.content, { store, go });
 store.onChange(() => {
   if (state.screen === 'dash') renderDash(views.dash, state.selected, ctx, { keepScroll: true });
   if (state.screen === 'journal') renderJournal(views.journal, ctx, location.hash, { keepScroll: true });
+  if (state.screen === 'content') renderContent(views.content, ctx, location.hash, { keepScroll: true });
   barStatus();
 });
 store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } });

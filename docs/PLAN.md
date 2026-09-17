@@ -44,6 +44,8 @@ Dates assume a start of 2026-09-17.
 - [x] Thin rooms made real: watchlist (Intelligence), pipeline (Deal Room), idea queue with verdicts (Inventor), next three moves (War Room), stop-doing (Lounge), daily protocol with streaks (Sanctum)
 - [x] Brain Graph at `#graph` is the Obsidian vault itself: 1,663 notes and 1,724 links laid out at export (`npm run vault:graph`), grouped by folder, hub flowers and a dust ring, rooms anchored to their brain folders, agents orbiting live; click a note to open it in Obsidian
 - [x] The v3 brain is inside the vault by symlink (`ARCANE-AI-OS-v3`); drafts link to their Archives page via `source_note`
+- [x] HERALD on Obsidian: the index reads the vault's Archives notes, an Allowed/Never gate in `05-Knowledge/Archives-Sources.md`, copy-first into `02-Content/Sources/`, a daemon (`herald:auto`) that writes through the Claude API with a launchd schedule, `vault:sync` for the site's decisions, `Board.md` and the CONTENT view (`docs/HERALD-AUTO.md`)
+- [x] The floor spread: staggered rooms, door passages, an atrium with a plaza
 - [x] Supabase wired: migration `supabase/migrations/0001_arcane_state.sql`, magic-link sign-in in the bar, the store syncs the operator's own row and polls every 30 s (`docs/SUPABASE.md`)
 
 ## Day 1 · Thu 17 — Brain in Obsidian, HERALD in the hand

@@ -21,9 +21,16 @@
     "test": "node tools/validate-config.mjs && node .claude/skills/herald/scripts/lint.mjs --self-test && npm --workspace apps/facility test",
     "vault:export": "node tools/vault-export.mjs",
     "vault:graph": "node tools/vault-graph.mjs",
-    "vault:all": "npm run vault:write && npm run vault:export && npm run vault:graph"
+    "vault:all": "npm run vault:write && npm run vault:export && npm run vault:graph",
+    "herald:auto": "node .claude/skills/herald/scripts/auto.mjs",
+    "content:board": "node tools/content-board.mjs",
+    "vault:sync": "node tools/vault-sync.mjs",
+    "herald:schedule": "tools/herald-schedule.sh"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0"
   }
 }

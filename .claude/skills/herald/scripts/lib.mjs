@@ -75,6 +75,7 @@ export const CTAS = ['none', 'archives', 'reply', 'follow', 'link'];
  * compliance gate and are excluded from picks unless asked for by name.
  */
 export const LANES = [
+  { id: 'external',   sensitive: true,  match: /^$/ },   // set by the indexer for reposted third-party pieces; never matched by name
   { id: 'meta',       sensitive: false, match: /welcome|^\+ courses/i },
   { id: 'health',     sensitive: true,  match: /biohack|bulking|health|healing|glitched brain|vessel|diet|sleep|skin|gut/i },
   { id: 'lifestyle',  sensitive: false, match: /playboy|ai girl|terminate|premium archive/i },
@@ -194,3 +195,25 @@ export function nextId(prefix, day, taken) {
   for (const id of taken) { const m = re.exec(id); if (m) max = Math.max(max, Number(m[1])); }
   return `${prefix}-${day}-${String(max + 1).padStart(3, '0')}`;
 }
+
+/* ---------- the operator's source gate ---------- */
+
+/** Allowed / Never subject lists from brain/05-Knowledge/Archives-Sources.md. */
+export function sourceGate(brainDir_) {
+  const out = { allowed: [], never: [] };
+  try {
+    const md = fs.readFileSync(path.join(brainDir_, '05-Knowledge', 'Archives-Sources.md'), 'utf8');
+    let cur = null;
+    for (const line of md.split('\n')) {
+      if (/^## Allowed/i.test(line)) cur = 'allowed'; else if (/^## Never/i.test(line)) cur = 'never'; else if (/^## /.test(line)) cur = null;
+      else if (cur && /^- /.test(line)) out[cur].push(line.replace(/^- /, '').trim().toLowerCase());
+    }
+  } catch {}
+  return out;
+}
+export const subjectAllowed = (subject, gate, any = false) => {
+  const s = String(subject).toLowerCase();
+  if (gate.never.some((n) => n && s.includes(n))) return false;
+  if (any || !gate.allowed.length) return true;
+  return gate.allowed.some((a) => a && s.includes(a));
+};

@@ -22,7 +22,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { STAGING_DIR, REPO, AGENT, SKILL, ID_PREFIX, INDEX_FILE, slugify, nextId, archivesNote } from './lib.mjs';
+import { STAGING_DIR, REPO, AGENT, SKILL, ID_PREFIX, INDEX_FILE, slugify, nextId, archivesNote, vaultDir } from './lib.mjs';
 import { lintPath } from './lint.mjs';
 import { brainDir, serializeFrontmatter, appendTo, touchUpdated, trace, stamp, compact } from '../../../../tools/lib/brain.mjs';
 
@@ -91,6 +91,21 @@ if (dry) {
   process.exit(0);
 }
 
+/* ---------- 3a. copy first: the source notes, verbatim ---------- */
+const sourcesDir = path.join(brain, '02-Content', 'Sources');
+fs.mkdirSync(sourcesDir, { recursive: true });
+const copied = [];
+for (const ref of new Set(landed.map((l) => l.fm.source_ref))) {
+  const m = modulesById[ref]; if (!m?.note) continue;
+  const src = path.join(vaultDir(), 'Arcane ARCHIVES', `${m.note}.md`);
+  const dest = path.join(sourcesDir, `${m.note}.md`);
+  if (!fs.existsSync(src) || fs.existsSync(dest)) continue;
+  const original = fs.readFileSync(src, 'utf8');
+  const head = serializeFrontmatter({ type: 'source-copy', copied_from: `[[${m.note}]]`, copied_at: stamp(now), agent: AGENT, subject: m.subject, status: 'archived', tags: ['content', 'source'] });
+  fs.writeFileSync(dest, head + `> Copied verbatim from the Archives by HERALD before any content was cut from it. The original is never edited; this copy is the working reference.\n\n` + original.replace(/^---[\s\S]*?---\n/, ''));
+  copied.push(m.note);
+}
+
 fs.mkdirSync(draftsDir, { recursive: true });
 for (const l of landed) fs.writeFileSync(path.join(draftsDir, l.file), serializeFrontmatter(l.fm) + l.body + '\n');
 
@@ -113,13 +128,13 @@ const { traceFile: tf } = trace(brain, {
   inputs: sources.join('; '),
   outputs: landed.map((l) => `[[${l.file.replace(/\.md$/, '')}]]`).join(', '),
   result: 'ok',
-  notes: [note, landed.some((l) => l.warnings.length) ? `${landed.filter((l) => l.warnings.length).length} with warnings for review` : ''].filter(Boolean).join(' · '),
+  notes: [note, copied.length ? `copied ${copied.length} source note${copied.length === 1 ? '' : 's'} to 02-Content/Sources` : '', landed.some((l) => l.warnings.length) ? `${landed.filter((l) => l.warnings.length).length} with warnings for review` : ''].filter(Boolean).join(' · '),
 }, now);
 
 for (const l of landed) fs.unlinkSync(l.src);
 
 console.log(`✓ run ${run} — ${landed.length} draft${landed.length === 1 ? '' : 's'} landed in 02-Content/Drafts\n`);
 for (const l of landed) console.log(`  ${l.file}${l.warnings.length ? `\n     ~ ${l.warnings.join('\n     ~ ')}` : ''}`);
-console.log(`\n  logged → 02-Content/Content-Log.md, 03-Memory/Shared-Memory.md, ${path.relative(brain, tf)}, 04-Records/Daily-Log`);
+console.log(`\n  logged → 02-Content/Content-Log.md, 03-Memory/Shared-Memory.md, ${path.relative(brain, tf)}, 04-Records/Daily-Log${copied.length ? `\n  copied → 02-Content/Sources/ (${copied.length})` : ''}`);
 
 function cell(s) { return String(s ?? '').replace(/\|/g, '\\|').replace(/\s+/g, ' ').slice(0, 90); }

@@ -95,6 +95,7 @@ export function bindDash(el, { store, getRoom, go }) {
     else if (act === 'draft') store.markDraft(id, b.dataset.status);
     else if (act === 'draft-open') { const pre = el.querySelector(`#draft-${CSS.escape(id)}`); if (pre) pre.classList.toggle('hidden'); }
     else if (act === 'open-journal') go('#journal');
+    else if (act === 'open-content') go('#content');
     else if (act === 'list-remove') store.removeItem(b.dataset.key, id);
     else if (act === 'list-tag') store.tagItem(b.dataset.key, id, b.dataset.tag);
   });

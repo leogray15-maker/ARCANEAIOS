@@ -8,6 +8,7 @@
  *   npm run herald:pick -- --lane philosophy --count 3
  *   npm run herald:pick -- --show <id>           # print the full module text
  *   npm run herald:pick -- --allow-sensitive     # include health/trading lanes (the lint gate still runs)
+ *   npm run herald:pick -- --any-subject         # ignore the Allowed list in Archives-Sources.md (Never still holds)
  *   npm run herald:pick -- --json                # machine output
  *
  * Modules already used as a source (per 02-Content/Content-Log.md) are
@@ -15,7 +16,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadIndex, moduleText, REPO } from './lib.mjs';
+import { loadIndex, moduleText, REPO, sourceGate, subjectAllowed } from './lib.mjs';
 import { brainDir } from '../../../../tools/lib/brain.mjs';
 
 const args = process.argv.slice(2);
@@ -49,9 +50,11 @@ const keyword = opt('--keyword', '');
 const lane = opt('--lane', '');
 const minWords = Number(opt('--min-words', 120));
 const allowSensitive = has('--allow-sensitive') || !!subject;
+const gate = sourceGate(brainDir());
+const anySubject = has('--any-subject');
 const includeUsed = has('--include-used');
 
-let pool = index.modules.filter((m) => m.kind === 'module' && m.words >= minWords && m.lane !== 'meta');
+let pool = index.modules.filter((m) => m.kind === 'module' && m.words >= minWords && m.lane !== 'meta' && m.lane !== 'external' && subjectAllowed(m.subject, gate, anySubject || !!subject));
 if (!allowSensitive) pool = pool.filter((m) => !m.sensitive);
 if (subject) pool = pool.filter((m) => m.subject.toLowerCase().includes(String(subject).toLowerCase()));
 if (lane) pool = pool.filter((m) => m.lane === lane);

@@ -61,6 +61,7 @@ function beacon(store) {
   return `
     <div class="stat-row"><div class="stat"><b>${by('draft')}</b><span>waiting</span></div><div class="stat"><b>${by('review')}</b><span>in review</span></div><div class="stat"><b>${by('approved') + by('scheduled')}</b><span>approved</span></div><div class="stat"><b>${by('posted')}</b><span>posted</span></div></div>
     ${list || '<p class="empty">No drafts in the queue. Run /herald.</p>'}
+    <p><button data-act="open-content">Open the content board</button> <span class="ash">every draft, by status</span></p>
     ${src('The queue is the brain\'s 02-Content at the last build. Status moved here is kept on this device until the vault sync lands; the vault stays the truth.')}`;
 }
 

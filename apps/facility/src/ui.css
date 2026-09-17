@@ -97,7 +97,8 @@ table.grid td.r, table.grid th.r { text-align: right; }
 .stat.vital b { color: var(--vital); } .stat.breach b { color: var(--breach); } .stat.gold b { color: var(--gold); } .stat.arcane b { color: var(--arcaneLt); }
 .card { background: var(--panel); border: 1px solid var(--line); padding: 12px 14px; margin: 8px 0; }
 .card-head { margin-bottom: 6px; } .hook { margin: 6px 0; color: var(--ink); font-size: var(--t1); }
-.acts { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+.acts { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+a.tiny { font-size: var(--t-1); color: var(--ash); }
 pre.body { white-space: pre-wrap; font: inherit; color: var(--ash); border-left: 2px solid var(--line-2); padding-left: 12px; margin: 10px 0 0; }
 .hidden { display: none !important; }
 .order { display: block; padding: 6px 0; border-bottom: 1px solid var(--line); }

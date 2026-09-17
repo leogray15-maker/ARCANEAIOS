@@ -19,6 +19,9 @@ data/archives/modules/
 # derived from the brain at build time
 apps/facility/public/brain.json
 
+# HERALD daemon log
+data/herald-auto.log
+
 # HERALD staging (drafts before they are emitted into the brain)
 .herald-staging/
 
