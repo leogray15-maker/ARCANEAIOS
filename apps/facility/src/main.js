@@ -19,6 +19,7 @@ import { renderJournal, bindJournal } from './render/journal.js';
 import { BrainGraph } from './render/graph.js';
 import { Sim } from './core/sim.js';
 import { Store } from './core/store.js';
+import { exampleTrades } from './core/journal.js';
 
 const $ = (id) => document.getElementById(id);
 const stage = $('stage'), canvas = $('floor'), tip = $('tip');
@@ -204,6 +205,7 @@ window.addEventListener('error', (e) => { $('bar-status').innerHTML = `<span cla
 
 // Deep links: ?zoom=2|3 and ?room=<id> still work; the hash carries the view.
 const params = new URLSearchParams(location.search);
+if (params.get('demo') === 'journal' && !store.trades().length) for (const t of exampleTrades()) store.saveTrade(t);
 resize();
 setZoom(['1', '2', '3', '4'].includes(params.get('zoom')) ? params.get('zoom') : 'fit');
 if (params.get('room') && PLAN_BY_ID[params.get('room')]) { centreOn(params.get('room')); sim.command(params.get('room')); }

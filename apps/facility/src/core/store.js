@@ -16,6 +16,7 @@
 import { VENTURES, ROOMS, ROOM_BY_ID, GOALS_FALLBACK } from './seeds.js';
 import { INVENTORY, BUDGET, FUNNEL, COA_STATES } from '../config/roomdata.js';
 import { cloud } from './cloud.js';
+import { SEED_SETUPS } from './journal.js';
 
 const LS_KEY = 'arcane.v3';
 const DOC_ID = 'leo';
@@ -38,7 +39,7 @@ function seedState(brain) {
   for (const f of BUDGET.fixed) budget.fixed[f.id] = f.amount;
   for (const sp of BUDGET.split) budget.split[sp.id] = sp.pct;
   const stock = INVENTORY.rows.map((r) => ({ id: uid(), ...r }));
-  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, ledger, goals, budget, stock, funnel: { ...FUNNEL.seed }, drafts: {}, positions: {}, log: [] };
+  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, ledger, goals, budget, stock, funnel: { ...FUNNEL.seed }, drafts: {}, positions: {}, log: [], journal: { trades: [], setups: SEED_SETUPS.map((x) => ({ ...x })), checkins: [] } };
 }
 
 export class Store {
@@ -94,6 +95,7 @@ export class Store {
     s.drafts = saved.drafts || {};
     s.positions = saved.positions || {};
     s.log = (saved.log || []).slice(-LOG_MAX);
+    s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups?.length ? saved.journal.setups : fresh.journal.setups, checkins: saved.journal?.checkins || [] };
     this.state = s;
   }
   save() {
@@ -171,6 +173,31 @@ export class Store {
 
   /* ---------- crew positions ---------- */
   setPosition(agentId, room) { if (this.state.positions[agentId]?.room === room) return; this.state.positions[agentId] = { room, ts: Date.now() }; this.save(); }
+
+  /* ---------- the trading journal ---------- */
+  journal() { return this.state.journal; }
+  trades() { return this.state.journal.trades; }
+  trade(id) { return this.trades().find((t) => t.id === id); }
+  saveTrade(t) {
+    const cur = t.id ? this.trade(t.id) : null;
+    if (cur) Object.assign(cur, t, { updated: Date.now() });
+    else if (t.id) this.trades().unshift({ ...t, created: Date.now(), updated: Date.now() });
+    else { const id = `T-${(t.opened || new Date().toISOString()).slice(0, 10).replace(/-/g, '')}-${String(this.trades().length + 1).padStart(2, '0')}`; this.trades().unshift({ ...t, id, created: Date.now(), updated: Date.now() }); t.id = id; }
+    this.log(`Journal: ${cur ? 'updated' : 'logged'} ${t.id}`, 'journal'); this.touch();
+    return t.id;
+  }
+  removeTrade(id) { this.state.journal.trades = this.trades().filter((t) => t.id !== id); this.touch(); }
+  setups() { return this.state.journal.setups; }
+  saveSetup(s) {
+    const cur = s.id ? this.setups().find((x) => x.id === s.id) : null;
+    if (cur) Object.assign(cur, s); else this.setups().push({ ...s, id: s.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || uid() });
+    this.touch();
+  }
+  removeSetup(id) { if (id === 'unplanned') return; this.state.journal.setups = this.setups().filter((x) => x.id !== id); this.touch(); }
+  checkins() { return this.state.journal.checkins; }
+  addCheckin(c) { this.checkins().unshift({ ...c, id: uid(), ts: Date.now() }); this.touch(); }
+  removeCheckin(id) { this.state.journal.checkins = this.checkins().filter((x) => x.id !== id); this.touch(); }
+  importJournal(json) { if (!json || !Array.isArray(json.trades)) throw new Error('not a journal export'); this.state.journal = { trades: json.trades, setups: json.setups?.length ? json.setups : this.setups(), checkins: json.checkins || [] }; this.touch(); }
 
   /* ---------- log ---------- */
   log(text, kind = 'event') { this.state.log.push({ ts: Date.now(), text, kind }); if (this.state.log.length > LOG_MAX) this.state.log.shift(); }

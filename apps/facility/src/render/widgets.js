@@ -88,7 +88,7 @@ function vault(store) {
     <h3>Fixed costs</h3>${table(['Line', '£ / mo'], fixedRows)}
     <h3>The split — ${store.splitTotal()}%${store.splitTotal() !== 100 ? ' <span class="breach">(not 100)</span>' : ''}</h3>${table(['Pot', '%', 'This month', ''], split)}
     ${src(BUDGET.source)}
-    <p class="ash">The Trading Journal belongs to this room: <code>brain/05-Knowledge/Trading-Journal.md</code>.</p>`;
+    <h3>Trading Journal</h3><p><button class="primary" data-act="open-journal">Open the Journal</button> <span class="ash">Trades, R-multiples, setups, psychology. Spec in <code>brain/05-Knowledge/Trading-Journal.md</code>.</span></p>`;
 }
 
 /* ---------------- THE LIBRARY ---------------- */
@@ -120,6 +120,7 @@ const scriptorium = () => `${table(['Title', 'Stage', 'Progress', 'Price'], MANU
 const sanctum = () => `${table(['Protocol', 'Target', ''], PROTOCOL.rows.map((r) => `<tr><td>${esc(r.item)}</td><td><b>${r.target}</b></td><td class="ash">${esc(r.unit)}</td></tr>`))}${src(PROTOCOL.source)}`;
 const records = (store, brain) => `
   <h3>Trace</h3>${brain?.trace?.length ? brain.trace.slice().reverse().map((t) => `<div class="card"><div class="card-head">${chip(t.agent, 'arcane')} <span class="ash">${esc(t.day)} ${esc(t.time)} · ${esc(t.run)}</span></div><p>${esc(t.action)}</p><p class="ash">${esc(t.inputs)}</p><p class="ash">${esc(t.result)}${t.notes && t.notes !== '—' ? ` · ${esc(t.notes)}` : ''}</p></div>`).join('') : '<p class="empty">No runs traced yet.</p>'}
+  <h3>Trading Journal</h3><p><button data-act="open-journal">Open the Journal</button> <span class="ash">the trade record lives beside the trace</span></p>
   <h3>Floor log</h3>${store.records(12).map((r) => `<p class="ash"><span class="faint">${new Date(r.ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span> ${esc(r.text)}</p>`).join('') || '<p class="empty">Nothing yet this session.</p>'}`;
 const council = (store, brain) => `${brain?.decisions?.length ? table(['Date', 'Decision', 'Verdict', 'Via', 'Outcome'], brain.decisions.map((d) => `<tr><td class="ash">${esc(d.date)}</td><td>${esc(d.decision)}</td><td>${chip(d.verdict, d.verdict === 'BUILD' ? 'vital' : d.verdict === 'KILL' ? 'deny' : 'flare')}</td><td class="ash">${esc(d.deliberation)}</td><td class="ash">${esc(d.outcome_later)}</td></tr>`)) : '<p class="empty">No decisions recorded.</p>'}<p class="ash">The Council convenes here once Counsel is wired (plan, day 10). Nine seats, one verdict.</p>`;
 const control = () => `${table(['Agent', ...CAPS.map((c) => c.name)], AGENTS.map((a) => `<tr><td><span class="dot" style="background:${a.colour}"></span>${esc(a.name)}</td>${CAPS.map((c) => `<td>${chip(a.caps[c.id], a.caps[c.id])}</td>`).join('')}</tr>`))}<p class="ash">Grades: ${GRADES.join(' · ')}. No agent holds allow; spend is deny for everyone. Enforced by npm run check.</p>`;

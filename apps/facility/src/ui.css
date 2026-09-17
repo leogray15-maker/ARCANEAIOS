@@ -85,8 +85,8 @@ label.field input, label.field select, label.field textarea { width: 100%; }
 
 /* ---------- tables, stats, cards ---------- */
 table.grid { width: 100%; border-collapse: collapse; margin: 4px 0; }
-table.grid th { text-align: left; color: var(--faint); font-weight: 500; font-size: var(--t-1); letter-spacing: .08em; text-transform: uppercase; padding: 4px 8px 6px 0; border-bottom: 1px solid var(--line-2); }
-table.grid td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.grid th { text-align: left; color: var(--faint); font-weight: 500; font-size: var(--t-1); letter-spacing: .08em; text-transform: uppercase; padding: 4px 14px 6px 0; border-bottom: 1px solid var(--line-2); }
+table.grid td { padding: 6px 14px 6px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
 table.grid tr:hover td { background: rgba(255,255,255,.015); }
 table.grid td.r, table.grid th.r { text-align: right; }
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 8px 0 20px; }
@@ -111,3 +111,9 @@ canvas.chart { display: block; width: 100%; height: 180px; background: var(--pan
 #graph-canvas { display: block; width: 100%; height: 100%; }
 .legend { position: absolute; left: 24px; bottom: 24px; background: rgba(11,11,20,.9); border: 1px solid var(--line-2); padding: 10px 14px; font-size: var(--t-1); color: var(--ash); }
 .legend .dot { width: 10px; height: 10px; }
+
+/* ---------- journal ---------- */
+.checks { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.chk { color: var(--ash); white-space: nowrap; } .chk input { vertical-align: -1px; margin-right: 4px; }
+label.tiny { display: inline; }
+.chart-read { min-height: 18px; margin: 4px 0 0; font-size: var(--t-1); }
