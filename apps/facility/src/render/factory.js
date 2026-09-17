@@ -274,6 +274,22 @@ export function present(canvas, buf, view, { hover, selected } = {}, sim = null)
     g.fillStyle = p.id === selected ? accent(room.accent) : p.id === hover ? PX.ink : PX.ash;
     g.fillText(room.name, px, py);
   }
+  // Equipment labels at 2x and above: a dark plate and the name, like the signage in the references.
+  if (s >= 2) {
+    g.font = `${Math.max(7, 2.6 * s)}px ui-monospace, Menlo, monospace`;
+    for (const p of PLAN) {
+      const [rx, ry] = p.rect;
+      for (const prop of ROOM_PROPS[p.id].props) {
+        const items = prop.opts.labels ? prop.opts.labels.map((l, i, arr) => [l, prop.x + i * ((prop.w - (arr.length - 1) * 2) / arr.length + 2) + 3, prop.y + 2, true]) : prop.opts.label ? (prop.y < 36 ? [[prop.opts.label, prop.x + 3, prop.y + 2, true]] : [[prop.opts.label, prop.x, prop.y - 6, false]]) : [];
+        for (const [text, lx, ly, inside] of items) {
+          const tx = view.x + (rx + lx) * s, ty = view.y + (ry + ly) * s;
+          const tw = g.measureText(text).width + 4;
+          g.fillStyle = inside ? 'rgba(8,10,18,0.85)' : 'rgba(10,10,16,0.82)'; g.fillRect(tx - 2, ty - 1, tw, 3 * s);
+          g.fillStyle = inside ? accent(ROOM_BY_ID[p.id].accent) : '#b8b0c8'; g.fillText(text, tx, ty);
+        }
+      }
+    }
+  }
   // Name tags over the crew at 2x and above, so you can tell who is walking.
   if (sim && s >= 2) {
     g.font = `${Math.max(8, 3.2 * s)}px ui-monospace, Menlo, monospace`;

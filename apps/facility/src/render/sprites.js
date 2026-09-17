@@ -34,7 +34,7 @@ const CREW = {
       '...ohhsssshho...',
       '...osssssssso...',
       '...oseesseeso...',
-      '...osssssssso...',
+      '...osssmmssso...',
       '....osssssso....',
       '.....osssso.....',
       '..oocccuucccoo..',
@@ -56,7 +56,7 @@ const CREW = {
       '...ohhsssshho...',
       '...osssssssso...',
       '...oseesseeso...',
-      '...osssssssso...',
+      '...osssmmssso...',
       '....osssssso....',
       '.....osssso.....',
       '..oocccuucccoo..',
@@ -78,7 +78,7 @@ const CREW = {
       '...ohhsssshho...',
       '...osssssssso...',
       '...oseesseeso...',
-      '...osssssssso...',
+      '...osssmmssso...',
       '....osssssso....',
       '.....osssso.....',
       '..oocccuucccoo..',
@@ -671,7 +671,39 @@ export function paletteFor(agent) {
     h: id.kit === 'hood' ? shade(c, 0.42) : HAIR[id.hair],
     t: '#2c2c46', b: '#4a4a66', k: '#1b1b28', a: id.accent, w: '#ecebf5', g: SKIN[id.skin],
     u: '#c9c7d6', r: tint(c, 0.6),
+    // Derived by the lighting pass — never authored by hand.
+    L: tint(c, 0.5), D: shade(c, 0.6),
+    H: id.kit === 'hood' ? shade(c, 0.2) : tint(HAIR[id.hair], 0.35), x: shade(id.kit === 'hood' ? shade(c, 0.42) : HAIR[id.hair], 0.45),
+    S: shade(SKIN[id.skin], 0.28), m: shade(SKIN[id.skin], 0.45),
+    T: tint('#2c2c46', 0.22), B: tint('#4a4a66', 0.3), p: '#141425', A: shade(id.accent, 0.4), K: tint('#1b1b28', 0.25),
   };
+}
+
+/* ============================================================
+   LIGHTING PASS
+   ============================================================ */
+
+/**
+ * Light comes from the top-left. For each fill slot, a pixel whose
+ * upper or left neighbour is outline or air becomes the lit variant, and
+ * one whose lower or right neighbour is outline or air becomes the shaded
+ * variant. Eyes get a pupil on the trailing pixel, so an 'ee' pair reads
+ * as a white and a pupil at 3x. Nothing about the silhouette changes, so
+ * the matrices stay authorable by hand.
+ */
+const LIT = { c: 'L', h: 'H', s: 'S', t: 'T', b: 'B', k: 'K' };
+const SHADED = { c: 'D', h: 'x', s: 'S', t: 't', b: 'b', k: 'k', a: 'A' };
+const EDGE = (ch) => ch === undefined || ch === '.' || ch === 'o';
+export function shadeFrame(rows) {
+  const out = rows.map((r) => r.split(''));
+  for (let y = 0; y < rows.length; y++) for (let x = 0; x < rows[y].length; x++) {
+    const ch = rows[y][x];
+    const up = rows[y - 1]?.[x], left = rows[y][x - 1], down = rows[y + 1]?.[x], right = rows[y][x + 1];
+    if (ch === 'e' && left === 'e') { out[y][x] = 'p'; continue; }
+    if (LIT[ch] && (EDGE(up) || EDGE(left))) { out[y][x] = LIT[ch]; continue; }
+    if (SHADED[ch] && (EDGE(down) || EDGE(right))) out[y][x] = SHADED[ch];
+  }
+  return out.map((r) => r.join(''));
 }
 
 /* ============================================================
@@ -743,8 +775,8 @@ export function bakeSprites(agents) {
     const frames = { front: {}, back: {}, right: {}, left: {} };
     for (const facing of FACINGS) for (const cel of CELS) {
       const rows = composeFrame(a, facing, cel);
-      if (facing === 'side') { frames.right[cel] = paint(rows, w, h, pal); frames.left[cel] = paint(mirror(rows), w, h, pal); }
-      else frames[facing][cel] = paint(rows, w, h, pal);
+      if (facing === 'side') { frames.right[cel] = paint(shadeFrame(rows), w, h, pal); frames.left[cel] = paint(shadeFrame(mirror(rows)), w, h, pal); }
+      else frames[facing][cel] = paint(shadeFrame(rows), w, h, pal);
     }
     baked.set(a.id, { w, h, frames });
   }

@@ -168,10 +168,6 @@ export const PAINT = {
   telescope(g, x, y, w, h) { g.fillStyle = PX.steel; g.fillRect(x + w / 2 - 1, y + h / 2, 2, h / 2); g.fillRect(x + w / 2 - 6, y + h - 2, 12, 2); g.fillRect(x + w / 2 - 5, y + h / 2 + 2, 3, h / 2 - 2); g.fillRect(x + w / 2 + 2, y + h / 2 + 2, 3, h / 2 - 2); const c = '#5a6a8a'; for (let i = 0; i < w * 0.6; i++) { const px_ = x + w / 2 - 4 + i, py_ = y + h / 2 + 2 - Math.round(i * 0.55); g.fillStyle = OUT; g.fillRect(px_, py_ - 1, 1, 5); g.fillStyle = c; g.fillRect(px_, py_, 1, 3); g.fillStyle = lit(c, 0.3); px(g, px_, py_, lit(c, 0.3)); } g.fillStyle = PX.cyan; g.fillRect(x + w / 2 - 4 + Math.floor(w * 0.6), y + h / 2 + 2 - Math.round(w * 0.6 * 0.55) - 1, 2, 4); },
   ladder(g, x, y, w, h) { g.fillStyle = PX.wood; g.fillRect(x, y, 2, h); g.fillRect(x + w - 2, y, 2, h); for (let yy = y + 3; yy < y + h; yy += 5) g.fillRect(x + 2, yy, w - 4, 1); g.fillStyle = dark(PX.wood, 0.4); g.fillRect(x + w - 1, y, 1, h); },
   mast(g, x, y, w, h, o, t) { box(g, x + w / 2 - 4, y + h - 8, 8, 8, PX.steel, 2); g.fillStyle = PX.steel; g.fillRect(x + w / 2 - 1, y + 8, 2, h - 16); g.fillStyle = '#2a2c38'; g.fillRect(x + w / 2 - 4, y + 2, 8, 8); outline(g, x + w / 2 - 4, y + 2, 8, 8); const a = t * 1.6; const bx = x + w / 2 + Math.cos(a) * 2, by = y + 6 + Math.sin(a) * 1.5; g.fillStyle = PX.flare; g.fillRect(x + w / 2 - 2, y + 4, 4, 4); g.fillStyle = '#ffe9a0'; g.fillRect(Math.round(bx) - 1, Math.round(by) - 1, 2, 2); const beam = g.createLinearGradient(x + w / 2, y + 6, x + w / 2 + Math.cos(a) * 60, y + 6 + Math.sin(a) * 30); beam.addColorStop(0, rgba(PX.flare, 0.35)); beam.addColorStop(1, rgba(PX.flare, 0)); g.fillStyle = beam; g.beginPath(); g.moveTo(x + w / 2, y + 6); g.lineTo(x + w / 2 + Math.cos(a - 0.25) * 70, y + 6 + Math.sin(a - 0.25) * 40); g.lineTo(x + w / 2 + Math.cos(a + 0.25) * 70, y + 6 + Math.sin(a + 0.25) * 40); g.closePath(); g.fill(); glow(g, x + w / 2, y + h - 4, 30, PX.flare, 0.18); },
-  vialrack(g, x, y, w, h, o) { box(g, x, y, w, h, '#3a3e4e', 1); const tint_ = o.tint === 'amber' ? '#e8b64c' : o.tint === 'ghk' ? '#4f8bff' : '#bfe8ff'; const rows = Math.max(1, Math.floor((h - 4) / 8)); for (let r = 0; r < rows; r++) { const sy = y + 3 + r * 8; g.fillStyle = lit('#3a3e4e', 0.3); g.fillRect(x + 1, sy + 6, w - 2, 1); for (let sx = x + 3; sx < x + w - 3; sx += 4) { g.fillStyle = tint_; g.fillRect(sx, sy + 1, 2, 5); g.fillStyle = '#ecebf5'; g.fillRect(sx, sy, 2, 1); g.fillStyle = 'rgba(255,255,255,0.35)'; px(g, sx, sy + 2, 'rgba(255,255,255,0.35)'); } } glow(g, x + w / 2, y + h + 4, w * 0.5, tint_, 0.08); },
-  coldstore(g, x, y, w, h, o, t) { box(g, x, y, w, h, '#3d4656', 2); g.fillStyle = OUT; g.fillRect(x + 3, y + 4, w - 6, h - 8); g.fillStyle = '#1a2a38'; g.fillRect(x + 4, y + 5, w - 8, h - 10); g.fillStyle = rgba(PX.cyan, 0.35); for (let yy = y + 7; yy < y + h - 6; yy += 6) g.fillRect(x + 5, yy, w - 10, 1); const frost = y + 6 + ((t * 4) % (h - 12)); g.fillStyle = rgba('#ffffff', 0.5); g.fillRect(x + 4, Math.round(frost), w - 8, 1); g.fillStyle = PX.steel; g.fillRect(x + w - 6, y + h / 2 - 4, 2, 8); g.fillStyle = PX.cyan; g.fillRect(x + 5, y + 1, 3, 1); glow(g, x + w / 2, y + h + 6, w, PX.cyan, 0.22); },
-  instrument(g, x, y, w, h, o, t) { box(g, x, y, w, h, '#d8d6e0', 2); g.fillStyle = '#b8b6c4'; g.fillRect(x, y + h / 2, w, h / 2); g.fillStyle = '#0a0c14'; g.fillRect(x + 3, y + 3, w - 6, h / 2 - 5); g.fillStyle = PX.vital; const n = w - 8; for (let i = 0; i < n; i++) { const v = Math.abs(Math.sin(i * 0.6 + t * 2)) * (i % 7 === 3 ? 1 : 0.35); px(g, x + 4 + i, y + h / 2 - 3 - Math.round(v * (h / 2 - 6)), PX.vital); } for (let i = 0; i < 4; i++) { g.fillStyle = i === 1 ? PX.flare : PX.cyan; g.fillRect(x + 4 + i * 5, y + h - 6, 3, 2); } g.fillStyle = PX.steel; g.fillRect(x + w - 8, y + h / 2 + 2, 4, 4); },
-  packbench(g, x, y, w, h, o, t) { PAINT.desk(g, x, y + 4, w, h - 4, { tone: 'steel' }, t); box(g, x + 3, y - 2, 10, 8, '#b89a78', 2); box(g, x + 15, y, 8, 6, '#a48a6a', 2); g.fillStyle = PX.rose; g.fillRect(x + 4, y + 1, 8, 1); g.fillStyle = '#ecebf5'; g.fillRect(x + w - 14, y + 2, 8, 3); g.fillStyle = PX.steel; g.fillRect(x + w - 22, y + 1, 4, 4); g.fillStyle = PX.rust; px(g, x + w - 21, y + 2, PX.rust); },
   till(g, x, y, w, h, o, t) { box(g, x, y, w, h, '#4a4e60', 4); g.fillStyle = dark('#4a4e60', 0.3); g.fillRect(x, y + h - 5, w, 1); box(g, x + w - 22, y - 8, 16, 10, '#2a2c38', 2); g.fillStyle = Math.sin(t * 2) > -0.3 ? PX.rose : dark(PX.rose, 0.5); g.fillRect(x + w - 20, y - 6, 12, 3); g.fillStyle = '#ecebf5'; g.fillRect(x + 4, y + 1, 10, 2); g.fillRect(x + 18, y + 1, 6, 2); },
   scales(g, x, y, w, h) { box(g, x, y + h - 4, w, 4, '#d8d6e0', 1); g.fillStyle = '#0a0c14'; g.fillRect(x + 2, y + h - 3, w - 4, 2); g.fillStyle = PX.vital; g.fillRect(x + 3, y + h - 3, 4, 1); g.fillStyle = PX.steel; g.fillRect(x + w / 2 - 1, y, 2, h - 4); g.fillRect(x + w / 2 - 4, y, 8, 1); },
   council(g, x, y, w, h, o, t) {
@@ -188,7 +184,6 @@ export const PAINT = {
 
   /* ---------- equipment for the priority rooms ---------- */
   camera(g, x, y, w, h, o, t) { g.fillStyle = PX.steel; g.fillRect(x + w / 2 - 1, y + 8, 2, h - 10); g.fillRect(x + w / 2 - 5, y + h - 2, 4, 2); g.fillRect(x + w / 2 + 1, y + h - 2, 4, 2); g.fillRect(x + w / 2 - 3, y + h - 5, 1, 4); g.fillRect(x + w / 2 + 2, y + h - 5, 1, 4); box(g, x + 1, y + 2, w - 2, 7, '#2a2c38', 2); g.fillStyle = '#0a0c14'; g.fillRect(x + w - 5, y + 3, 4, 5); g.fillStyle = PX.cyan; g.fillRect(x + w - 4, y + 4, 2, 2); g.fillStyle = Math.sin(t * 4) > 0 ? PX.breach : '#3a1a1c'; g.fillRect(x + 2, y + 3, 2, 1); },
-  coa(g, x, y, w, h, o, t) { PAINT.desk(g, x, y + 8, w, h - 8, { tone: 'steel', items: ['printer', 'papers'] }, t); g.fillStyle = '#e8e6f0'; g.fillRect(x + w - 12, y, 9, 11); g.fillStyle = '#8a8898'; g.fillRect(x + w - 11, y + 2, 7, 1); g.fillRect(x + w - 11, y + 4, 5, 1); g.fillRect(x + w - 11, y + 6, 6, 1); g.fillStyle = PX.vital; g.fillRect(x + w - 6, y + 8, 3, 2); },
   archiveterminal(g, x, y, w, h, o, t) { box(g, x + 2, y + h - 6, w - 4, 6, '#3a3e4e', 2); g.fillStyle = PX.steel; g.fillRect(x + w / 2 - 2, y + h - 12, 4, 6); outline(g, x, y, w, h - 12); g.fillStyle = '#1a1c28'; g.fillRect(x, y, w, h - 12); screenFace(g, x + 1, y + 1, w - 2, h - 15, PX.cyan, t, x * 0.05); g.fillStyle = '#1b1b28'; g.fillRect(x + 2, y + h - 14, w - 4, 2); glow(g, x + w / 2, y + h + 2, w, PX.cyan, 0.14); },
   holo(g, x, y, w, h, o, t) { box(g, x, y + h - 5, w, 5, '#2a2c3c', 2); const c = accent(o.colour) || PX.arcane; const cx = x + w / 2; const gr = g.createLinearGradient(0, y, 0, y + h - 5); gr.addColorStop(0, rgba(c, 0)); gr.addColorStop(1, rgba(c, 0.35)); g.fillStyle = gr; g.fillRect(x + 2, y, w - 4, h - 5); const ry = y + 6 + ((t * 9) % (h - 14)); g.fillStyle = rgba(c, 0.8); g.fillRect(x + 3, Math.round(ry), w - 6, 1); const a = t * 1.4; for (let i = 0; i < 6; i++) { const px_ = cx + Math.round(Math.cos(a + i) * (w / 2 - 3)), py_ = y + h / 2 - 2 + Math.round(Math.sin(a + i) * 2); px(g, px_, py_, i % 2 ? lit(c, 0.5) : c); } glow(g, cx, y + h / 2, w, c, 0.2); },
   secureterminal(g, x, y, w, h, o, t) { PAINT.terminal(g, x, y, w, h, { accent: PX.gold }, t); g.fillStyle = PX.gold; g.fillRect(x + w / 2 - 2, y + 3, 4, 4); g.fillStyle = '#0a0c14'; g.fillRect(x + w / 2 - 1, y + 4, 2, 2); g.fillStyle = PX.gold; g.fillRect(x + w / 2 - 1, y + 2, 2, 1); },
@@ -210,17 +205,183 @@ export const PAINT = {
   partition(g, x, y, w, h) { g.fillStyle = PX.steel; g.fillRect(x, y, w, 2); g.fillRect(x, y + h - 2, w, 2); g.fillRect(x, y, 1, h); g.fillRect(x + w - 1, y, 1, h); g.fillStyle = 'rgba(86,201,240,0.12)'; g.fillRect(x + 1, y + 2, w - 2, h - 4); g.fillStyle = 'rgba(255,255,255,0.18)'; for (let i = 2; i < w - 2; i += 9) g.fillRect(x + i, y + 3, 1, h - 6); },
   stool(g, x, y, w, h) { g.fillStyle = PX.steel; g.fillRect(x + w / 2 - 1, y + 3, 2, h - 4); g.fillRect(x + 1, y + h - 1, w - 2, 1); box(g, x, y, w, 3, '#3a3a52', 1); },
   wallscreen(g, x, y, w, h, o, t) { PAINT.screen(g, x, y, w, h, o, t); g.fillStyle = PX.steel; g.fillRect(x + w / 2 - 1, y + h + 1, 2, 2); },
+
+  /* ---------- THE LAB, to the reference ---------- */
+  /** A storage unit with a glass door: rows of vials inside, a label screen above, a status LED. kind: cold | cryo | reagent */
+  coldstore(g, x, y, w, h, o, t) {
+    const kind = o.kind || 'cold';
+    const tintc = kind === 'cryo' ? '#cfe9ff' : kind === 'reagent' ? '#7fe0a0' : PX.cyan;
+    box(g, x, y, w, h, '#3d4656', 2);
+    g.fillStyle = '#0a0c14'; g.fillRect(x + 2, y + 2, w - 4, 6); g.fillStyle = tintc; g.fillRect(x + 4, y + 4, Math.max(4, w - 12), 1); g.fillRect(x + 4, y + 6, Math.max(3, (w - 12) * 0.6), 1);
+    g.fillStyle = OUT; g.fillRect(x + 2, y + 9, w - 4, h - 12);
+    g.fillStyle = '#12202c'; g.fillRect(x + 3, y + 10, w - 6, h - 14);
+    const rows = Math.max(2, Math.floor((h - 16) / 8));
+    for (let r = 0; r < rows; r++) {
+      const sy = y + 12 + r * 8;
+      g.fillStyle = 'rgba(180,220,255,0.25)'; g.fillRect(x + 4, sy + 6, w - 8, 1);
+      for (let sx = x + 5; sx < x + w - 6; sx += 4) {
+        const on = Math.sin(t * 0.8 + sx * 0.3 + r) > -0.7;
+        g.fillStyle = kind === 'cryo' ? (on ? '#e8f4ff' : '#9fc4e0') : kind === 'reagent' ? (on ? '#8ff0b0' : '#4a9a6a') : (on ? '#8fe0ff' : '#4aa0c8');
+        g.fillRect(sx, sy + 1, 2, 5); g.fillStyle = '#ecebf5'; g.fillRect(sx, sy, 2, 1);
+      }
+    }
+    g.fillStyle = 'rgba(255,255,255,0.10)'; g.fillRect(x + 3, y + 10, 2, h - 14);
+    const frost = y + 11 + ((t * 5) % (h - 16)); g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x + 3, Math.round(frost), w - 6, 1);
+    g.fillStyle = PX.steel; g.fillRect(x + w - 5, y + h / 2 - 5, 2, 10);
+    g.fillStyle = Math.sin(t * 2) > 0 ? PX.vital : dark(PX.vital, 0.5); g.fillRect(x + 4, y + h - 3, 2, 1);
+    glow(g, x + w / 2, y + h + 6, w * 1.1, tintc, 0.22);
+  },
+  /** A shelf unit of vials with a label plate. tint: blue | green | amber | clear */
+  vialrack(g, x, y, w, h, o) {
+    const tint_ = { blue: '#4f8bff', green: '#8ff0b0', amber: '#e8b64c', clear: '#bfe8ff', ghk: '#4f8bff' }[o.tint] || '#bfe8ff';
+    box(g, x, y, w, h, '#2c3140', 1);
+    const rows = Math.max(1, Math.floor((h - 8) / 9));
+    for (let r = 0; r < rows; r++) {
+      const sy = y + 3 + r * 9;
+      g.fillStyle = '#1a1e2a'; g.fillRect(x + 2, sy, w - 4, 8);
+      g.fillStyle = lit('#2c3140', 0.35); g.fillRect(x + 2, sy + 7, w - 4, 1);
+      for (let sx = x + 4; sx < x + w - 4; sx += 4) { g.fillStyle = tint_; g.fillRect(sx, sy + 2, 2, 5); px(g, sx, sy + 3, lit(tint_, 0.6)); g.fillStyle = '#ecebf5'; g.fillRect(sx, sy + 1, 2, 1); }
+    }
+    g.fillStyle = '#0a0c14'; g.fillRect(x + 2, y + h - 5, w - 4, 4); g.fillStyle = tint_; g.fillRect(x + 4, y + h - 3, Math.max(4, (w - 8) * 0.5), 1);
+    glow(g, x + w / 2, y + h + 4, w * 0.6, tint_, 0.14);
+  },
+  /** The HPLC: stacked white modules, each with a small readout, a sample tray, a pump column with cables. */
+  instrument(g, x, y, w, h, o, t) {
+    const tiers = 3, th = Math.floor((h - 6) / tiers);
+    for (let i = 0; i < tiers; i++) {
+      const ty = y + i * th;
+      box(g, x, ty, w - 8, th, i === 1 ? '#c8c6d2' : '#d8d6e0', 2);
+      g.fillStyle = '#0a0c14'; g.fillRect(x + 3, ty + 2, 10, th - 5);
+      g.fillStyle = i === 0 ? PX.vital : PX.cyan; g.fillRect(x + 4, ty + 3, 3 + ((i * 3 + Math.floor(t)) % 5), 1); g.fillRect(x + 4, ty + 5, 6, 1);
+      g.fillStyle = '#8a8898'; for (let k = 0; k < 3; k++) g.fillRect(x + 16 + k * 4, ty + 3, 2, 2);
+      g.fillStyle = Math.sin(t * (2 + i)) > 0.3 ? PX.flare : '#3a3020'; g.fillRect(x + w - 12, ty + 3, 2, 1);
+    }
+    g.fillStyle = '#0a0c14'; g.fillRect(x + 3, y + h - 6, w - 14, 4); for (let k = 0; k < (w - 20) / 3; k++) { g.fillStyle = k % 4 === 1 ? '#8fe0ff' : '#4aa0c8'; g.fillRect(x + 4 + k * 3, y + h - 5, 2, 2); }
+    g.fillStyle = PX.vital; for (let i = 0; i < 9; i++) { const v = Math.abs(Math.sin(i * 0.9 + t * 2)) * (i === 4 ? 1 : 0.3); px(g, x + 4 + i, y + 6 - Math.round(v * 3), PX.vital); }
+    box(g, x + w - 7, y + 4, 7, h - 8, '#3a3e4e', 1); g.fillStyle = '#0e0e16'; g.fillRect(x + w - 5, y + 8, 1, h - 16); g.fillStyle = PX.cyan; g.fillRect(x + w - 5, y + h - 8, 2, 1);
+  },
+  /** Analytical balance on a small bench: a glass box with a pan, a readout. */
+  balance(g, x, y, w, h, o, t) {
+    PAINT.desk(g, x, y + h - 8, w, 8, { tone: 'steel' }, t);
+    g.fillStyle = OUT; g.fillRect(x + 2, y, w - 4, h - 8); g.fillStyle = '#1a2230'; g.fillRect(x + 3, y + 1, w - 6, h - 10);
+    g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x + 3, y + 1, 2, h - 10); g.fillStyle = PX.steel; g.fillRect(x + w / 2 - 3, y + h - 12, 6, 1); g.fillRect(x + w / 2 - 1, y + h - 14, 2, 2);
+    g.fillStyle = '#0a0c14'; g.fillRect(x + 4, y + h - 7, 8, 4); g.fillStyle = PX.vital; g.fillRect(x + 5, y + h - 6, 4 + (Math.floor(t * 2) % 3), 1);
+  },
+  /** The COA station: a terminal running the report, keyboard, printer, certificates, a clipboard with a tick. */
+  coa(g, x, y, w, h, o, t) {
+    PAINT.desk(g, x, y + 10, w, h - 10, { tone: 'steel', items: ['printer'] }, t);
+    const mx = x + 14, mw = Math.min(22, w - 28);
+    outline(g, mx, y, mw, 13); g.fillStyle = '#1a1c28'; g.fillRect(mx, y, mw, 13); g.fillStyle = '#0a1410'; g.fillRect(mx + 1, y + 1, mw - 2, 11);
+    g.fillStyle = PX.vital; g.fillRect(mx + 2, y + 2, mw - 8, 1); for (let i = 0; i < 4; i++) { g.fillStyle = rgba(PX.vital, i === 3 && Math.sin(t * 3) > 0 ? 1 : 0.6); g.fillRect(mx + 2, y + 4 + i * 2, (mw - 6) * (0.4 + 0.5 * Math.abs(Math.sin(i * 1.3 + 1))), 1); }
+    g.fillStyle = PX.steel; g.fillRect(mx + mw / 2 - 1, y + 13, 2, 2);
+    g.fillStyle = '#1b1b28'; g.fillRect(mx + 2, y + 16, mw - 4, 3); g.fillStyle = '#5a5a72'; for (let k = 0; k < (mw - 6) / 2; k++) g.fillRect(mx + 3 + k * 2, y + 17, 1, 1);
+    g.fillStyle = '#b8b6c4'; g.fillRect(x + w - 11, y + 13, 9, 7); g.fillStyle = '#e8e6f0'; g.fillRect(x + w - 12, y + 12, 9, 7); g.fillStyle = '#8a8898'; g.fillRect(x + w - 11, y + 14, 6, 1); g.fillRect(x + w - 11, y + 16, 4, 1);
+    g.fillStyle = '#3a2a1a'; g.fillRect(x + 3, y + 2, 8, 10); g.fillStyle = '#e8e6f0'; g.fillRect(x + 4, y + 4, 6, 7); g.fillStyle = PX.vital; px(g, x + 5, y + 8, PX.vital); px(g, x + 6, y + 9, PX.vital); px(g, x + 7, y + 8, PX.vital); px(g, x + 8, y + 7, PX.vital);
+    glow(g, mx + mw / 2, y + 16, mw, PX.vital, 0.16);
+  },
+  /** Packing bench: an open box with bubble wrap, sealed boxes with a fragile stripe, tape, a scanner, a label printer. */
+  packbench(g, x, y, w, h, o, t) {
+    PAINT.desk(g, x, y + 6, w, h - 6, { tone: 'steel' }, t);
+    box(g, x + 4, y - 2, 14, 10, '#b89a78', 2); g.fillStyle = '#7a5a3a'; g.fillRect(x + 5, y - 1, 12, 1); g.fillStyle = '#e8f4ff'; g.fillRect(x + 6, y, 10, 4); for (let k = 0; k < 5; k++) px(g, x + 7 + k * 2, y + 1 + (k % 2), '#c0d8ea');
+    box(g, x + 22, y + 1, 10, 7, '#a48a6a', 2); g.fillStyle = PX.rose; g.fillRect(x + 23, y + 4, 8, 1); g.fillStyle = '#7a5a3a'; g.fillRect(x + 26, y + 2, 2, 5);
+    box(g, x + 34, y - 1, 8, 9, '#b89a78', 2); g.fillStyle = '#7a5a3a'; g.fillRect(x + 37, y, 2, 7);
+    g.fillStyle = '#e8b64c'; g.fillRect(x + w - 26, y + 3, 5, 5); g.fillStyle = '#7a5a2a'; g.fillRect(x + w - 25, y + 4, 3, 3);
+    g.fillStyle = '#1b1b28'; g.fillRect(x + w - 18, y + 2, 5, 6); g.fillStyle = Math.sin(t * 6) > 0 ? PX.breach : '#3a1a1c'; g.fillRect(x + w - 17, y + 3, 3, 1);
+    box(g, x + w - 11, y + 1, 9, 7, '#d8d6e0', 2); g.fillStyle = '#ecebf5'; g.fillRect(x + w - 9, y - 1, 5, 2); g.fillStyle = PX.vital; g.fillRect(x + w - 4, y + 4, 1, 1);
+  },
+  /** Fraction collector: a rack of small tubes in blue light beside a control box. */
+  fraction(g, x, y, w, h, o, t) {
+    box(g, x, y + 4, w - 10, h - 4, '#2c3140', 1); g.fillStyle = '#12202c'; g.fillRect(x + 2, y + 6, w - 14, h - 8);
+    for (let r = 0; r < 2; r++) for (let sx = x + 4; sx < x + w - 14; sx += 3) { const on = Math.sin(t * 2 + sx + r * 2) > 0; g.fillStyle = on ? '#8fe0ff' : '#4aa0c8'; g.fillRect(sx, y + 8 + r * 6, 2, 4); g.fillStyle = '#ecebf5'; g.fillRect(sx, y + 7 + r * 6, 2, 1); }
+    box(g, x + w - 9, y, 9, h, '#3a3e4e', 1); for (let i = 0; i < 3; i++) { g.fillStyle = i === Math.floor(t * 2) % 3 ? PX.cyan : '#1b1b28'; g.fillRect(x + w - 7, y + 3 + i * 4, 2, 2); } g.fillStyle = PX.steel; g.fillRect(x + w - 4, y + h - 6, 2, 3);
+    glow(g, x + (w - 10) / 2, y + h + 4, w * 0.6, PX.cyan, 0.14);
+  },
+  /** A hazardous-waste bin, lid down, green-lit. */
+  wastebin(g, x, y, w, h, o, t) { box(g, x, y + 2, w, h - 2, '#2a3a2a', 2); g.fillStyle = '#1b2a1b'; g.fillRect(x - 1, y, w + 2, 3); outline(g, x - 1, y, w + 2, 3); g.fillStyle = '#7fe0a0'; g.fillRect(x + w / 2 - 2, y + h / 2 - 1, 4, 3); g.fillStyle = '#2a3a2a'; g.fillRect(x + w / 2 - 1, y + h / 2, 2, 1); glow(g, x + w / 2, y + h, w * 1.2, '#7fe0a0', 0.2 + 0.05 * Math.sin(t * 2)); },
+  /** A small wall status panel: a title bar, two lines, a green dot. */
+  statuspanel(g, x, y, w, h, o, t) { outline(g, x, y, w, h); g.fillStyle = '#1a1c28'; g.fillRect(x, y, w, h); g.fillStyle = '#0a0c14'; g.fillRect(x + 1, y + 1, w - 2, h - 2); const c = accent(o.colour) || PX.cyan; g.fillStyle = c; g.fillRect(x + 3, y + 3, w - 6, 1); g.fillStyle = rgba(c, 0.6); g.fillRect(x + 3, y + 6, (w - 6) * 0.7, 1); g.fillRect(x + 3, y + 8, (w - 6) * 0.45, 1); g.fillStyle = Math.sin(t * 2) > -0.3 ? PX.vital : dark(PX.vital, 0.6); g.fillRect(x + w - 6, y + h - 5, 2, 2); glow(g, x + w / 2, y + h + 3, w * 0.6, c, 0.08); },
+  /** A floor cable tray: a dark channel with three cables and clamps. */
+  cabletray(g, x, y, w, h) { g.fillStyle = '#0e0e16'; g.fillRect(x, y, w, h); g.fillStyle = '#2a2a3a'; g.fillRect(x, y, w, 1); g.fillRect(x, y + h - 1, w, 1); g.fillStyle = '#3a3a4e'; g.fillRect(x + 1, y + 2, w - 2, 1); g.fillStyle = '#4a3a2a'; g.fillRect(x + 1, y + h / 2, w - 2, 1); g.fillStyle = '#2a3a4a'; g.fillRect(x + 1, y + h - 3, w - 2, 1); g.fillStyle = PX.steel; for (let i = x + 6; i < x + w - 4; i += 14) g.fillRect(i, y + 1, 2, h - 2); },
+  /** A floor grate. */
+  grate(g, x, y, w, h) { g.fillStyle = '#0a0a12'; g.fillRect(x, y, w, h); g.fillStyle = '#2a2a3a'; for (let yy = y + 1; yy < y + h; yy += 3) g.fillRect(x + 1, yy, w - 2, 1); g.fillStyle = '#3a3a4e'; g.fillRect(x, y, w, 1); g.fillRect(x, y, 1, h); },
+
+  /* ---------- BEACON, to the reference ---------- */
+  /** A multi-panel screen wall. panels: 'queue' | 'wave' | 'map' | 'post' | 'log' | 'radar' | 'spectrum'. */
+  screenwall(g, x, y, w, h, o, t) {
+    const panels = o.panels || ['queue', 'wave', 'map'];
+    const c = accent(o.colour) || PX.cyan;
+    const pw = Math.floor((w - (panels.length - 1) * 2) / panels.length);
+    panels.forEach((kind, i) => {
+      const px_ = x + i * (pw + 2);
+      outline(g, px_, y, pw, h); g.fillStyle = '#1a1c28'; g.fillRect(px_, y, pw, h); g.fillStyle = '#080a12'; g.fillRect(px_ + 1, y + 1, pw - 2, h - 2);
+      g.fillStyle = rgba(c, 0.9); g.fillRect(px_ + 3, y + 3, Math.max(6, pw * 0.4), 1); g.fillStyle = rgba(c, 0.25); g.fillRect(px_ + 2, y + 5, pw - 4, 1);
+      const ix = px_ + 3, iy = y + 7, iw = pw - 6, ih = h - 10;
+      if (kind === 'queue' || kind === 'post') {
+        const rows = Math.floor(ih / 4); const cols = [PX.cyan, PX.flare, PX.arcane, PX.vital, PX.rose];
+        for (let r = 0; r < rows; r++) { const sy = iy + r * 4; g.fillStyle = cols[(r + i) % cols.length]; g.fillRect(ix, sy, 2, 2); g.fillStyle = r === Math.floor(t) % rows ? '#ecebf5' : '#8a8898'; g.fillRect(ix + 4, sy, (iw - 10) * (0.5 + 0.5 * Math.abs(Math.sin(r * 2.1 + i))), 1); g.fillStyle = '#4a4a62'; g.fillRect(ix + 4, sy + 2, 5, 1); g.fillStyle = kind === 'post' ? PX.flare : '#5a5a72'; g.fillRect(ix + iw - 4, sy, 3, 1); }
+      } else if (kind === 'wave') {
+        const mid = iy + ih / 2; for (let k = 0; k < iw; k++) { const v = Math.sin(k * 0.7 + t * 6) * Math.sin(k * 0.13 + t) * (ih / 2 - 1); g.fillStyle = k > iw - 6 ? '#ecebf5' : c; g.fillRect(ix + k, Math.round(mid + v), 1, 1); }
+        g.fillStyle = rgba(c, 0.35); g.fillRect(ix, Math.round(mid), iw, 1);
+        for (let k = 0; k < 3; k++) { g.fillStyle = '#5a5a72'; g.fillRect(ix, iy + ih - 3 + k, 6 + k * 3, 1); }
+      } else if (kind === 'map') {
+        let k = i * 17 + 5; const pts = [];
+        for (let n = 0; n < 9; n++) { k = (k * 1103515245 + 12345) >>> 0; const nx = ix + 2 + (k % (iw - 4)); k = (k * 1103515245 + 12345) >>> 0; const ny = iy + 1 + (k % (ih - 2)); pts.push([nx, ny]); }
+        g.fillStyle = rgba(c, 0.4); for (let n = 1; n < pts.length; n++) { const [ax, ay] = pts[n - 1], [bx, by] = pts[n]; const len = Math.max(Math.abs(bx - ax), Math.abs(by - ay)); for (let s2 = 0; s2 <= len; s2 += 2) g.fillRect(Math.round(ax + (bx - ax) * s2 / len), Math.round(ay + (by - ay) * s2 / len), 1, 1); }
+        pts.forEach(([nx, ny], n) => { const hot = Math.floor(t * 2) % pts.length === n; g.fillStyle = hot ? '#ecebf5' : c; g.fillRect(nx - (hot ? 1 : 0), ny - (hot ? 1 : 0), hot ? 3 : 2, hot ? 3 : 2); });
+      } else if (kind === 'log') {
+        const rows = Math.floor(ih / 3); for (let r = 0; r < rows; r++) { g.fillStyle = r === rows - 1 && Math.sin(t * 4) > 0 ? c : '#5a5a72'; g.fillRect(ix, iy + r * 3, 7, 1); g.fillStyle = '#8a8898'; g.fillRect(ix + 9, iy + r * 3, (iw - 12) * (0.3 + 0.6 * Math.abs(Math.sin(r * 1.9 + i * 2))), 1); }
+      } else if (kind === 'radar') {
+        const cx = ix + iw / 2, cy = iy + ih / 2, r0 = Math.min(iw, ih) / 2 - 1;
+        for (let a = 0; a < 64; a++) px(g, Math.round(cx + Math.cos(a / 64 * Math.PI * 2) * r0), Math.round(cy + Math.sin(a / 64 * Math.PI * 2) * r0), rgba(c, 0.35));
+        g.fillStyle = rgba(c, 0.35); g.fillRect(cx, cy - r0, 1, r0 * 2); g.fillRect(cx - r0, cy, r0 * 2, 1);
+        const a = t * 1.5; for (let k = 0; k < r0; k++) px(g, Math.round(cx + Math.cos(a) * k), Math.round(cy + Math.sin(a) * k), c);
+        px(g, Math.round(cx + Math.cos(a - 0.9) * r0 * 0.6), Math.round(cy + Math.sin(a - 0.9) * r0 * 0.6), '#ecebf5');
+      } else if (kind === 'spectrum') {
+        const n = Math.floor(iw / 2); for (let k = 0; k < n; k++) { const v = Math.abs(Math.sin(k * 0.5 + t * 3)) * Math.abs(Math.cos(k * 0.1 + t)); g.fillStyle = v > 0.7 ? PX.flare : c; g.fillRect(ix + k * 2, iy + ih - Math.round(v * ih), 1, Math.round(v * ih)); }
+      }
+    });
+    glow(g, x + w / 2, y + h + 8, w * 0.7, c, 0.16);
+  },
+  /** The signal desk: a wide console with three monitors, two keyboards, a lamp, a phone, notes and a mug. */
+  signaldesk(g, x, y, w, h, o, t) {
+    PAINT.desk(g, x, y + 8, w, h - 8, { tone: 'steel' }, t);
+    g.fillStyle = dark(PX.steel, 0.3); g.fillRect(x + w / 2 - 12, y + h - 3, 24, 1);
+    const c = o.accent && o.accent.startsWith('#') ? o.accent : PX.flare;
+    PAINT.terminal(g, x + 6, y - 2, 16, 13, { accent: PX.cyan }, t);
+    PAINT.terminal(g, x + w / 2 - 9, y - 4, 18, 14, { accent: c }, t + 2);
+    PAINT.terminal(g, x + w - 22, y - 2, 16, 13, { accent: PX.arcane }, t + 4);
+    for (const kx of [x + 8, x + w / 2 - 7]) { g.fillStyle = '#1b1b28'; g.fillRect(kx, y + 12, 14, 3); g.fillStyle = '#5a5a72'; for (let k = 0; k < 6; k++) g.fillRect(kx + 1 + k * 2, y + 13, 1, 1); }
+    g.fillStyle = PX.steel; g.fillRect(x + w - 6, y + 2, 1, 10); g.fillStyle = '#3a3020'; g.fillRect(x + w - 9, y, 6, 3); g.fillStyle = PX.flare; g.fillRect(x + w - 8, y + 3, 4, 1); glow(g, x + w - 6, y + 10, 14, PX.flare, 0.3);
+    g.fillStyle = '#1b1b28'; g.fillRect(x + w - 34, y + 12, 6, 4); g.fillStyle = '#5a5a72'; g.fillRect(x + w - 33, y + 13, 4, 1);
+    g.fillStyle = PX.flare; g.fillRect(x + 26, y + 10, 3, 3); g.fillStyle = '#f2d27a'; g.fillRect(x + 30, y + 11, 3, 3);
+    g.fillStyle = '#ecebf5'; g.fillRect(x + w - 26, y + 11, 3, 3); px(g, x + w - 23, y + 12, '#ecebf5');
+    g.fillStyle = '#0e0e16'; g.fillRect(x + 12, y + h - 2, 1, 4); g.fillRect(x + w / 2, y + h - 2, 1, 4); g.fillRect(x + w - 14, y + h - 2, 1, 4);
+  },
+  /** An equipment rack with dials, meters and amber LEDs. */
+  rack(g, x, y, w, h, o, t) {
+    box(g, x, y, w, h, '#23252f', 1); const c = accent(o.colour) || PX.flare;
+    const rows = Math.floor((h - 4) / 6);
+    for (let r = 0; r < rows; r++) {
+      const sy = y + 3 + r * 6; g.fillStyle = '#31343f'; g.fillRect(x + 2, sy, w - 4, 5); g.fillStyle = dark('#31343f', 0.4); g.fillRect(x + 2, sy + 4, w - 4, 1);
+      if (r % 2 === 0) { g.fillStyle = '#1b1b28'; g.fillRect(x + 3, sy + 1, 4, 3); g.fillStyle = c; g.fillRect(x + 4 + (Math.floor(t + r) % 2), sy + 2, 1, 1); }
+      else { g.fillStyle = '#0a0c14'; g.fillRect(x + 3, sy + 1, w - 10, 3); g.fillStyle = rgba(c, 0.8); g.fillRect(x + 4, sy + 2, ((w - 12) * (0.4 + 0.5 * Math.abs(Math.sin(t * 1.3 + r)))) | 0, 1); }
+      for (let i = 0; i < 2; i++) { const on = Math.sin(t * (2 + i) + r) > 0.2; g.fillStyle = on ? c : '#1b1b28'; g.fillRect(x + w - 5 - i * 2, sy + 2, 1, 1); }
+    }
+    glow(g, x + w / 2, y + h + 4, w * 0.6, c, 0.1);
+  },
+  /** A hazard floor mat. */
+  floormat(g, x, y, w, h) { g.fillStyle = '#1b1b28'; g.fillRect(x, y, w, h); PAINT.hazard(g, x + 1, y + 1, w - 2, 2, {}, 0); PAINT.hazard(g, x + 1, y + h - 3, w - 2, 2, {}, 0); g.fillStyle = '#23232f'; g.fillRect(x + 2, y + 4, w - 4, h - 8); },
 };
 
 /** Props painted with the room, behind the crew. */
-export const WALL_MOUNTED = new Set(['screen', 'wallscreen', 'bigscreen', 'board', 'window', 'cardwall', 'productshelf', 'corkboard', 'switchwall', 'maprack', 'shelf', 'vent', 'pipe', 'rug', 'coldstore', 'vialrack', 'servers', 'safe', 'lift', 'mast', 'radio', 'ladder', 'cabinet', 'lockedcabinet', 'locker', 'lever', 'cashdisplay', 'orderboard', 'funnel', 'buildmonitor', 'toolwall', 'healthdash', 'cable', 'sign', 'hazard', 'extinguisher', 'clock', 'archiveterminal', 'partition']);
+export const WALL_MOUNTED = new Set(['screen', 'wallscreen', 'bigscreen', 'board', 'window', 'cardwall', 'productshelf', 'corkboard', 'switchwall', 'maprack', 'shelf', 'vent', 'pipe', 'rug', 'coldstore', 'vialrack', 'servers', 'safe', 'lift', 'mast', 'radio', 'ladder', 'cabinet', 'lockedcabinet', 'locker', 'lever', 'cashdisplay', 'orderboard', 'funnel', 'buildmonitor', 'toolwall', 'healthdash', 'cable', 'sign', 'hazard', 'extinguisher', 'clock', 'archiveterminal', 'partition', 'statuspanel', 'cabletray', 'grate', 'screenwall', 'rack', 'floormat']);
 
 /**
  * Painters that move. Everything else is baked once at startup: wall-mounted
  * pieces straight into the static buffer, floor pieces into their own small
  * canvases so they can still be depth-sorted with the crew.
  */
-export const ANIMATED = new Set(['screen', 'wallscreen', 'bigscreen', 'terminal', 'cardwall', 'coldstore', 'instrument', 'servers', 'radio', 'mast', 'lift', 'lever', 'safe', 'window', 'commandtable', 'till', 'candle', 'council', 'workbench', 'camera', 'coa', 'archiveterminal', 'holo', 'secureterminal', 'cashdisplay', 'lockedcabinet', 'orderboard', 'funnel', 'buildmonitor', 'healthdash', 'clock']);
+export const ANIMATED = new Set(['screen', 'wallscreen', 'bigscreen', 'terminal', 'cardwall', 'coldstore', 'instrument', 'servers', 'radio', 'mast', 'lift', 'lever', 'safe', 'window', 'commandtable', 'till', 'candle', 'council', 'workbench', 'camera', 'coa', 'archiveterminal', 'holo', 'secureterminal', 'cashdisplay', 'lockedcabinet', 'orderboard', 'funnel', 'buildmonitor', 'healthdash', 'clock', 'balance', 'fraction', 'wastebin', 'statuspanel', 'screenwall', 'signaldesk', 'rack']);
 const LIVE_ITEMS = new Set(['terminal', 'dual', 'candle', 'printer', 'secure']);
 /** True when a placement must be painted every frame. */
 export const isAnimated = (p) => ANIMATED.has(p.type) || (p.opts.items || []).some((i) => LIVE_ITEMS.has(i));

@@ -20,17 +20,18 @@ export const ROOM_PROPS = {
   /* ============ C1 · PRODUCTION (doors on the right) ============ */
   apothecary: {
     props: [
-      // back wall: cold store, two vial racks, the HPLC, a chemical shelf, a vent, a sign, the clock
-      P('coldstore', 8, 28, 26, 46), P('vialrack', 40, 30, 40, 22, { tint: 'clear' }), P('vialrack', 84, 30, 40, 22, { tint: 'amber' }),
-      P('instrument', 130, 32, 34, 24), P('shelf', 170, 28, 24, 14, { rows: 1 }), P('vent', 160, 22, 14, 6), P('sign', 126, 22, 20, 6, { colour: 'arcane' }), P('clock', 118, 22, 7, 7),
-      P('cable', 40, 54, 84, 4), P('scales', 128, 58, 12, 8), P('extinguisher', 194, 30, 5, 12), P('pipe', 166, 58, 5, 12),
-      // middle: packing bench, the COA station, a dispatch desk
-      P('packbench', 40, 68, 60, 18), P('coa', 104, 62, 40, 22), P('desk', 150, 72, 40, 14, { tone: 'steel', items: ['terminal', 'vial', 'papers'] }),
-      // front: stock and waste
-      P('boxes', 106, 90, 18, 14), P('barrel', 10, 82, 12, 16, { colour: '#3d4656', mark: '#56c9f0' }), P('barrel', 24, 88, 12, 16, { colour: '#3d4656' }),
-      P('crate', 150, 92, 16, 14), P('boxes', 172, 94, 18, 12), P('bin', 128, 96, 8, 10), P('stool', 48, 92, 8, 8), P('cable', 150, 88, 24, 3),
+      // back wall: the storage bank (cold, cryo, reagent), solvent and standards racks, systems panel
+      P('coldstore', 8, 26, 22, 44, { kind: 'cold', label: 'COLD -80°C' }), P('coldstore', 32, 26, 20, 44, { kind: 'cryo', label: 'CRYO' }), P('coldstore', 54, 26, 20, 44, { kind: 'reagent', label: 'REAGENT' }),
+      P('vialrack', 78, 30, 36, 24, { tint: 'blue', label: 'SOLVENTS' }), P('vialrack', 116, 30, 36, 24, { tint: 'green', label: 'STANDARDS' }),
+      P('statuspanel', 156, 28, 18, 12, { colour: 'cyan', label: 'SYSTEMS' }), P('sign', 176, 22, 18, 6, { colour: 'arcane' }), P('clock', 120, 22, 7, 7), P('vent', 176, 30, 14, 8), P('extinguisher', 194, 30, 5, 12),
+      // middle: balance, the COA station, the HPLC
+      P('balance', 78, 58, 24, 18, { label: 'BALANCE' }), P('coa', 104, 60, 44, 26, { label: 'COA STATION' }), P('instrument', 128, 74, 44, 30, { label: 'HPLC' }),
+      P('cable', 8, 72, 68, 4),
+      // front: packing, fractions, waste, stock
+      P('packbench', 8, 80, 56, 20, { label: 'PACKING' }), P('fraction', 66, 84, 34, 18, { label: 'FRACTIONS' }), P('wastebin', 176, 92, 12, 14, { label: 'WASTE' }),
+      P('boxes', 104, 90, 18, 14), P('barrel', 66, 104, 10, 8, { colour: '#3d4656', mark: '#56c9f0' }), P('grate', 108, 106, 16, 6), P('stool', 100, 100, 8, 8), P('cabletray', 60, 104, 40, 5),
     ],
-    station: { x: 70, y: 98, face: 'back' }, walk: [110, 88, 36, 16],
+    station: { x: 36, y: 104, face: 'back' }, walk: [104, 92, 20, 12],
   },
   vitals: {
     props: [
@@ -62,17 +63,18 @@ export const ROOM_PROPS = {
   },
   beacon: {
     props: [
-      // back wall: the mast, three feeds, the content queue, a small rose feed, sign and clock
-      P('mast', 10, 26, 22, 42), P('screen', 40, 30, 26, 18, { colour: 'flare' }), P('screen', 68, 30, 26, 18, { colour: 'cyan' }), P('screen', 96, 30, 26, 18, { colour: 'arcane' }),
-      P('orderboard', 130, 30, 40, 26), P('wallscreen', 172, 30, 22, 12, { colour: 'rose' }), P('sign', 124, 22, 22, 6, { colour: 'flare' }), P('clock', 172, 22, 7, 7),
-      P('cable', 40, 52, 82, 4), P('extinguisher', 194, 30, 5, 12),
-      // middle: the signal desk with twin monitors, the radio, a cabinet, two cameras
-      P('desk', 46, 66, 60, 16, { tone: 'steel', items: ['dual', 'mug', 'keyboard'], accent: '#e8b64c' }), P('chair', 70, 84, 10, 10),
-      P('radio', 120, 66, 24, 16), P('cabinet', 150, 66, 18, 22), P('camera', 14, 70, 12, 22), P('camera', 176, 74, 12, 22), P('stool', 30, 80, 8, 8),
-      // front: stock, a rug, a bin, a plant
-      P('crate', 10, 94, 16, 14), P('rug', 100, 96, 60, 10, { colour: '#3a3020' }), P('bookstack', 30, 94, 10, 10), P('bin', 110, 84, 8, 10), P('plant', 176, 98, 10, 12),
+      // back wall: the screen wall (content queue, signal, transmission map) and the post queue and room log
+      P('screenwall', 8, 30, 118, 28, { colour: 'cyan', panels: ['queue', 'wave', 'map'], labels: ['CONTENT QUEUE', 'SIGNAL', 'TRANSMISSION'] }),
+      P('screenwall', 128, 30, 46, 28, { colour: 'flare', panels: ['post', 'log'], labels: ['POST QUEUE', 'ROOM LOG'] }),
+      P('statuspanel', 176, 26, 18, 12, { colour: 'cyan', label: 'STATUS' }), P('sign', 128, 22, 20, 6, { colour: 'flare' }), P('clock', 152, 22, 7, 7), P('extinguisher', 194, 30, 5, 12),
+      P('cable', 36, 58, 100, 4),
+      // middle: the signal desk, two equipment racks
+      P('rack', 8, 60, 24, 34, { colour: 'flare', label: 'RACK A' }), P('signaldesk', 36, 62, 100, 26, { accent: '#e8b64c', label: 'SIGNAL DESK' }), P('rack', 140, 60, 22, 30, { colour: 'flare', label: 'UPLINK' }),
+      P('chair', 80, 90, 10, 10),
+      // front: the mast, a camera, cable tray, hazard mat, stock
+      P('mast', 176, 74, 20, 36, { label: 'BEACON' }), P('camera', 150, 92, 12, 18, { label: 'CAM' }), P('cabletray', 36, 100, 40, 5), P('floormat', 112, 94, 24, 12), P('bin', 100, 96, 8, 10), P('boxes', 8, 98, 18, 12), P('stool', 140, 92, 8, 8),
     ],
-    station: { x: 76, y: 100, face: 'back' }, walk: [110, 88, 36, 14],
+    station: { x: 86, y: 100, face: 'back' }, walk: [36, 106, 40, 5],
   },
 
   /* ============ C2 · COMMAND (doors on the left) ============ */

@@ -3,7 +3,7 @@
  * is 12 wide, and every agent composes without an unknown slot.
  */
 import { AGENTS } from '@arcane/config';
-import { BODIES, CELS, validateBody, validateKits, composeFrame, paletteFor } from '../src/render/sprites.js';
+import { BODIES, CELS, validateBody, validateKits, composeFrame, shadeFrame, paletteFor } from '../src/render/sprites.js';
 
 const problems = [
   ...validateBody('crew', BODIES.crew.body, 16, 20),
@@ -14,7 +14,7 @@ let frames = 0;
 for (const a of AGENTS) {
   const pal = paletteFor(a);
   for (const facing of ['front', 'back', 'side']) for (const cel of CELS) {
-    const rows = composeFrame(a, facing, cel);
+    const rows = shadeFrame(composeFrame(a, facing, cel));
     const { w, h } = a.kind === 'arcane' ? BODIES.arcane : BODIES.crew;
     if (rows.length !== h) problems.push(`${a.name} ${facing}/${cel}: ${rows.length} rows`);
     rows.forEach((r, i) => {
