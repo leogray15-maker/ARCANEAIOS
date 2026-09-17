@@ -11,7 +11,7 @@
  *             can stand behind a desk and in front of a rug.
  */
 import { ROOM_BY_ID, WINGS, AGENT_BY_ID } from '@arcane/config';
-import { PW, PH, PLAN, VCORR, CORR_W, HALL_Y, HALL_H, MARGIN, DOOR_W, WALL } from '../config/floorplan.js';
+import { PW, PH, PLAN, VCORR, CORR_X, CORR_WIDTH, HALL_Y, HALL_H, MARGIN, DOOR_W, WALL, PLAZA, ATRIUM_W } from '../config/floorplan.js';
 import { ROOM_PROPS } from '../config/props.js';
 import { PAINT, WALL_MOUNTED, isAnimated } from './props.js';
 import { PX, accent } from './palette.js';
@@ -43,8 +43,13 @@ export function bakeStatic(buf, { hover, selected } = {}) {
   g.fillStyle = PX.hull; g.fillRect(MARGIN - 6, MARGIN - 6, PW - 2 * MARGIN + 12, PH - 2 * MARGIN + 12);
   g.fillStyle = PX.hullLit; g.fillRect(MARGIN - 6, MARGIN - 6, PW - 2 * MARGIN + 12, 1);
 
-  for (const x of VCORR) drawGrate(g, x - CORR_W / 2, MARGIN, CORR_W, PH - 2 * MARGIN, 'v');
-  drawGrate(g, VCORR[0] - CORR_W / 2, HALL_Y, VCORR[2] - VCORR[0] + CORR_W, HALL_H, 'h');
+  // Service corridors either side, the atrium in the middle, the hall across all three, a passage to every door.
+  drawGrate(g, CORR_X[0], MARGIN, CORR_WIDTH[0], PH - 2 * MARGIN, 'v');
+  drawGrate(g, CORR_X[2], MARGIN, CORR_WIDTH[2], PH - 2 * MARGIN, 'v');
+  drawAtrium(g);
+  drawGrate(g, CORR_X[0], HALL_Y, CORR_X[2] + CORR_WIDTH[2] - CORR_X[0], HALL_H, 'h');
+  drawPlaza(g);
+  for (const p of PLAN) { const [px, py, pw, ph] = p.passage; if (pw > 0) drawGrate(g, px, py, pw, ph, 'h'); }
   drawCorridorWear(g);
 
   for (const p of PLAN) {
@@ -94,14 +99,42 @@ function drawGrate(g, x, y, w, h, dir) {
   if (dir === 'v') { g.fillRect(x, y, 3, h); g.fillRect(x + w - 3, y, 3, h); } else { g.fillRect(x, y, w, 3); g.fillRect(x, y + h - 3, w, 3); }
 }
 
+/** The atrium: a polished tile floor rather than grating, a centre line, light strips down both walls. */
+function drawAtrium(g) {
+  const [x, w] = [CORR_X[1], CORR_WIDTH[1]];
+  g.fillStyle = '#101019'; g.fillRect(x, MARGIN, w, PH - 2 * MARGIN);
+  g.fillStyle = 'rgba(255,255,255,0.03)';
+  for (let ty = MARGIN; ty < PH - MARGIN; ty += 24) for (let tx = x + (((ty - MARGIN) / 24) & 1 ? 12 : 0); tx < x + w; tx += 24) g.fillRect(tx, ty, 12, 12);
+  g.fillStyle = 'rgba(0,0,0,0.25)'; for (let ty = MARGIN + 24; ty < PH - MARGIN; ty += 24) g.fillRect(x, ty, w, 1);
+  g.fillStyle = hexA(PX.arcane, 0.35); g.fillRect(x + w / 2, MARGIN, 1, PH - 2 * MARGIN);
+  for (const lx of [x + 2, x + w - 3]) { g.fillStyle = hexA(PX.arcane, 0.55); g.fillRect(lx, MARGIN + 8, 1, PH - 2 * MARGIN - 16); const gl = g.createLinearGradient(lx, 0, lx + (lx < x + w / 2 ? 14 : -14), 0); gl.addColorStop(0, hexA(PX.arcane, 0.16)); gl.addColorStop(1, hexA(PX.arcane, 0)); g.fillStyle = gl; g.fillRect(lx < x + w / 2 ? lx : lx - 14, MARGIN, 14, PH - 2 * MARGIN); }
+  g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x, MARGIN, 4, PH - 2 * MARGIN); g.fillRect(x + w - 4, MARGIN, 4, PH - 2 * MARGIN);
+}
+
+/** The plaza where the hall crosses the atrium: an emblem in the floor, four planters, two benches, a holo pillar. */
+function drawPlaza(g) {
+  const [x, y, w, h] = PLAZA; const cx = x + w / 2, cy = HALL_Y + HALL_H / 2;
+  g.fillStyle = '#12121c'; g.fillRect(x, y, w, h);
+  g.fillStyle = hexA(PX.gold, 0.25); g.fillRect(x + 3, y + 3, w - 6, 1); g.fillRect(x + 3, y + h - 4, w - 6, 1); g.fillRect(x + 3, y + 3, 1, h - 6); g.fillRect(x + w - 4, y + 3, 1, h - 6);
+  // The emblem: a diamond in gold, and its shadow ring.
+  g.strokeStyle = hexA(PX.gold, 0.35); g.lineWidth = 1;
+  for (const r of [26, 18]) { g.beginPath(); g.moveTo(cx, cy - r); g.lineTo(cx + r, cy); g.lineTo(cx, cy + r); g.lineTo(cx - r, cy); g.closePath(); g.stroke(); }
+  g.fillStyle = hexA(PX.gold, 0.5); g.fillRect(cx - 1, cy - 1, 2, 2);
+  // The holo pillar at the centre, and its pool of light.
+  PAINT.holo(g, cx - 8, cy - 22, 16, 18, { colour: 'arcane' }, 0);
+  // Planters in the corners, benches on the long sides.
+  for (const [px, py] of [[x + 6, y + 6], [x + w - 16, y + 6], [x + 6, y + h - 22], [x + w - 16, y + h - 22]]) PAINT.plant(g, px, py, 10, 16, {}, 0);
+  PAINT.sofa(g, x + 8, cy - 5, 22, 10, { colour: '#3a3a52' }, 0); PAINT.sofa(g, x + w - 30, cy - 5, 22, 10, { colour: '#3a3a52' }, 0);
+}
+
 /** Scuff lines along the walking direction, and a little rust where corridors meet the hall. */
 function drawCorridorWear(g) {
   const r = rng('corridors');
   g.fillStyle = 'rgba(0,0,0,0.3)';
-  for (const x of VCORR) for (let i = 0; i < 14; i++) g.fillRect(x - 10 + r() * 20, MARGIN + r() * (PH - 2 * MARGIN), 1, 4 + r() * 12);
+  for (const c of [0, 2]) { const x = VCORR[c]; for (let i = 0; i < 14; i++) g.fillRect(x - 10 + r() * 20, MARGIN + r() * (PH - 2 * MARGIN), 1, 4 + r() * 12); }
   for (let i = 0; i < 20; i++) g.fillRect(VCORR[0] + r() * (VCORR[2] - VCORR[0]), HALL_Y + 4 + r() * (HALL_H - 8), 4 + r() * 10, 1);
   g.fillStyle = hexA(PX.rust, 0.25);
-  for (const x of VCORR) { g.fillRect(x - CORR_W / 2 + 2, HALL_Y - 2, 6, 4); g.fillRect(x + CORR_W / 2 - 8, HALL_Y + HALL_H - 2, 6, 4); }
+  for (const c of [0, 2]) { const x = VCORR[c]; g.fillRect(x - CORR_WIDTH[c] / 2 + 2, HALL_Y - 2, 6, 4); g.fillRect(x + CORR_WIDTH[c] / 2 - 8, HALL_Y + HALL_H - 2, 6, 4); }
 }
 
 function drawRoomFloor(g, p, room) {
@@ -199,6 +232,13 @@ function drawRoomWalls(g, p, room, state) {
 
   g.fillStyle = PX.wallDark; g.fillRect(x + 8, y + WALL + 14, Math.min(w - 40, 14 + room.name.length * 6), 10);
   g.fillStyle = accent(room.accent); g.fillRect(x + 8, y + WALL + 14, 2, 10);
+  // The inner wings show the atrium a window: a glass strip in the wall away from the door.
+  if (p.wing === 1 || p.wing === 2) {
+    const wx = p.wing === 1 ? x + w - WALL : x, wy = y + 30;
+    g.fillStyle = 'rgba(86,201,240,0.28)'; g.fillRect(wx, wy, WALL, 60);
+    g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(p.wing === 1 ? wx : wx + WALL - 1, wy, 1, 60);
+    g.fillStyle = PX.steel; g.fillRect(wx, wy - 2, WALL, 2); g.fillRect(wx, wy + 60, WALL, 2); g.fillRect(wx, wy + 29, WALL, 2);
+  }
 }
 
 /* ============================================================
@@ -307,7 +347,7 @@ export function present(canvas, buf, view, { hover, selected } = {}, sim = null,
   }
   g.font = `${Math.max(9, 4 * s)}px ui-monospace, Menlo, monospace`;
   g.fillStyle = PX.faint;
-  WINGS.forEach((w, i) => g.fillText(`${w.no} ${w.name}`, view.x + (MARGIN + (204 + CORR_W) * i + 2) * s, view.y + (MARGIN - 14) * s));
+  WINGS.forEach((w, i) => { const first = PLAN.find((p) => p.wing === i && p.row === 0); g.fillText(`${w.no} ${w.name}`, view.x + (first.rect[0] + 2) * s, view.y + (MARGIN - 14) * s); });
 
   const vg = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)');
