@@ -148,7 +148,7 @@ for (const mod of picks) {
 if (emitted && !dry) {
   const run = (cmd, argv) => { const r = spawnSync(cmd, argv, { cwd: REPO, encoding: 'utf8' }); if (r.status !== 0) say(`${cmd} ${argv.join(' ')} → ${r.stderr.trim().split('\n').pop()}`); return r.status === 0; };
   run('node', ['tools/content-board.mjs']);
-  run('node', ['tools/vault-export.mjs']);
+  run('node', ['tools/brief.mjs']);   // the brief, then the export the site reads
   if (push) {
     run('git', ['add', 'brain', 'apps/facility/public/brain.json']);
     const msg = `HERALD: ${emitted} draft${emitted === 1 ? '' : 's'} from ${picks.map((m) => `"${m.title}"`).join(', ')}`;

@@ -51,7 +51,14 @@ something newer and, if so, takes it (newest state wins whole).
 Second device: ● SYNC → copy the code here → ● SYNC → paste → join.
 
 `npm run vault:sync` (with `SUPABASE_SERVICE_ROLE_KEY` in `.env`) reads
-every row and brings the draft-status decisions into the vault's files.
+every row, folds them into one state (newest wins per item, nothing lost
+across devices) and lands each part in the vault: draft marks on the
+draft files and the board, new and done orders in `06-Orders/Orders.md`,
+the boards in `05-Knowledge/Lists.md`, protocol ticks in
+`04-Records/Protocol.md`, trades in `04-Records/Journal/`, Council
+decisions in `04-Records/Decisions/` and the Decision-Log, Counsel turns
+in `04-Records/Counsel.md`. It ends by writing the brief (`npm run
+brief`), which also works without the key, from the vault alone.
 
 ## Shape
 

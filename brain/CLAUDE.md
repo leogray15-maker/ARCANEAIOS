@@ -32,7 +32,7 @@ facility re-syncs from it.
 | `01-System/` | THE CONTROL ROOM · WARDEN | Doctrine, permission matrix, tools, agent and room cards, skills. | **Generated** from `packages/config` — do not hand-edit generated files |
 | `02-Content/` | BEACON · HERALD | Content drafts and their lifecycle. `Drafts/` is the landing zone. | HERALD (drafts only), human (moves status) |
 | `03-Memory/` | BRIDGE · ARCANE | Shared memory, the current four-block brief, signals. | ARCANE, VIGIL, human |
-| `04-Records/` | THE RECORDS · RELIC | Trace (every run), daily log, decisions. | Every agent appends; nobody edits history |
+| `04-Records/` | THE RECORDS · RELIC | Trace (every run), daily log, decisions, the journal, protocol, counsel. | Every agent appends; nobody edits history. `Journal/`, `Decisions/DEC-*`, `Protocol.md`, `Counsel.md`, `Journal-Log.md` and `05-Knowledge/Lists.md` are written by `npm run vault:sync` from the floor |
 | `05-Knowledge/` | THE LIBRARY · ORACLE | Facility, ventures, goals, operator, the Archives map. | ORACLE, HERALD (Archives map), human |
 | `06-Orders/` | BRIDGE · ARCANE | The open-orders board. | ARCANE, human |
 | `99-Templates/` | — | The shape of every file type. Copy, never edit in place. | Human |
@@ -53,7 +53,7 @@ that opens only this vault still knows them.
 
 ## How an agent works in here
 
-1. **Read the brief.** `03-Memory/Brief.md` — four blocks: VENTURES, MONEY, GOALS, ROOMS. Signals are in `03-Memory/Signals.md`, doctrine in `01-System/Doctrine.md`. If it is older than a day, say so before acting on it.
+1. **Read the brief.** `03-Memory/Brief.md` — four blocks: VENTURES, MONEY, GOALS, ROOMS. ARCANE writes it (`npm run brief`, from Shared-Memory, Goals, Orders and the floor's state); it is generated, so change what it reads, not the file. Signals are in `03-Memory/Signals.md` (VIGIL's live block is regenerated; the rows above it are kept by hand), doctrine in `01-System/Doctrine.md`. If the brief is older than a day, say so before acting on it.
 2. **Read your card.** `01-System/Agents/<NAME>.md` — your domain, tools, grades, and what you must ask before doing.
 3. **Check your grade** for the act you are about to perform. `draft` means produce and stop. `approval` means ask, then do. `deny` means do not.
 4. **Do the work** using your skill's procedure (`01-System/Skills.md` lists them).

@@ -186,3 +186,31 @@ export function insertUnderHeading(text, heading, line) {
   const rebuilt = (section ? section + '\n' : '\n') + line + '\n' + (nextH < 0 ? '' : '\n');
   return text.slice(0, bodyStart) + rebuilt + text.slice(end);
 }
+
+/* ---------- marked blocks ---------- */
+
+/**
+ * Replace the text between `<!-- name -->` and `<!-- /name -->` in a
+ * hand-kept note, creating the block at the end of the file if it is
+ * missing. This is how a tool writes into a file it does not own: the
+ * block is the tool's, everything around it is the person's.
+ */
+export function replaceBlock(file, name, text) {
+  const open = `<!-- ${name} -->`, close = `<!-- /${name} -->`;
+  const cur = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const block = `${open}\n${text.replace(/\s*$/, '')}\n${close}`;
+  const a = cur.indexOf(open), b = cur.indexOf(close);
+  const next = a >= 0 && b > a ? cur.slice(0, a) + block + cur.slice(b + close.length) : cur.replace(/\s*$/, '') + `\n\n${block}\n`;
+  if (next === cur) return 'unchanged';
+  fs.writeFileSync(file, next);
+  return 'updated';
+}
+
+/** Replace the body of the section under `heading` (up to the next `## `). */
+export function replaceSection(file, heading, body) {
+  const cur = fs.readFileSync(file, 'utf8');
+  const next = insertUnderHeading(cur.replace(new RegExp(`(${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n)[\\s\\S]*?(?=\\n## |$)`), '$1'), heading, body.replace(/\s*$/, ''));
+  if (next === cur) return 'unchanged';
+  fs.writeFileSync(file, next);
+  return 'updated';
+}

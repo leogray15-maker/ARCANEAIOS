@@ -8,6 +8,7 @@
  */
 import { VENTURES, AGENTS, CAPS, GRADES, ROOM_BY_ID, BRIEF_BLOCKS } from '@arcane/config';
 import { INVENTORY, DISPATCH, PDF_PRODUCTS, COHORTS, BUILD_QUEUE, FUNNEL, MANUSCRIPTS, PROTOCOL, BUDGET, DOCTRINE_FALLBACK } from '../config/roomdata.js';
+import { signals } from '../core/vigil.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const gbp = (n) => (Number.isFinite(n) ? `£${Math.round(n).toLocaleString('en-GB')}` : '—');
@@ -153,7 +154,13 @@ const council = (store, brain) => {
 };
 const control = () => `${table(['Agent', ...CAPS.map((c) => c.name)], AGENTS.map((a) => `<tr><td><span class="dot" style="background:${a.colour}"></span>${esc(a.name)}</td>${CAPS.map((c) => `<td>${chip(a.caps[c.id], a.caps[c.id])}</td>`).join('')}</tr>`))}<p class="ash">Grades: ${GRADES.join(' · ')}. No agent holds allow; spend is deny for everyone. Enforced by npm run check.</p>`;
 const garage = () => AGENTS.map((a) => `<div class="card"><div class="card-head"><span class="dot" style="background:${a.colour}"></span><b>${esc(a.name)}</b> <span class="ash">${esc(a.role)} · ${esc(a.call)} · ${esc(ROOM_BY_ID[a.room].name)}</span>${a.council ? chip('council', 'gold') : ''}</div><p class="ash">${esc(a.brief)}</p></div>`).join('');
-const observatory = (store, brain) => brain?.signals?.length ? table(['When', 'Who', 'Signal', 'Severity', 'State'], brain.signals.map((s) => `<tr><td class="ash">${esc(s.when)}</td><td>${esc(s.who)}</td><td>${esc(s.signal)}</td><td>${chip(s.severity, s.severity === 'breach' ? 'deny' : s.severity === 'warn' ? 'flare' : 'ash')}</td><td class="ash">${esc(s.state)}</td></tr>`)) : '<p class="empty">No signals.</p>';
+const observatory = (store, brain) => {
+  const live = signals(store.state, brain);
+  const tone = (sv) => (sv === 'breach' ? 'deny' : sv === 'warn' ? 'flare' : 'ash');
+  return `<h3>Live signals <span class="faint">computed now, by VIGIL</span></h3>
+    ${live.length ? table(['Severity', 'Room', 'Signal', 'Clears when'], live.map((s) => `<tr><td>${chip(s.severity, tone(s.severity))}</td><td>${esc(ROOM_BY_ID[s.room]?.name || s.room)}</td><td>${esc(s.text)}</td><td class="ash">${esc(s.clear)}</td></tr>`)) : '<p class="vital">Nothing moved that needs you. Quiet is a signal too.</p>'}
+    ${brain?.signals?.length ? `<h3>From the vault</h3>${table(['When', 'Who', 'Signal', 'Severity', 'State'], brain.signals.map((s) => `<tr><td class="ash">${esc(s.when)}</td><td>${esc(s.who)}</td><td>${esc(s.signal)}</td><td>${chip(s.severity, tone(s.severity))}</td><td class="ash">${esc(s.state)}</td></tr>`))}` : ''}`;
+};
 const warroom = (store, brain) => { const rows = brain?.brief?.blocks?.rooms || []; return `<h3>The next three moves</h3>${listBoard(store, 'moves', { placeholder: 'A move, in one line', tags: ['now', 'next', 'stop'], toneOf: (t) => (t === 'now' ? 'vital' : t === 'stop' ? 'deny' : 'flare'), hint: 'VECTOR ranks the ventures by what is compounding and names what to stop doing. Three lines, tagged now / next / stop.' })}
   <h3>Where the work is</h3>${rows.length ? table(Object.keys(rows[0]).map((h) => h.replace(/_/g, ' ')), rows.map((r) => `<tr>${Object.values(r).map((v) => `<td>${esc(v)}</td>`).join('')}</tr>`)) : '<p class="empty">The brief has no ROOMS block.</p>'}`; };
 const inventor = (store, brain) => `${listBoard(store, 'ideas', { placeholder: 'An idea, before it gets lost', tags: ['BUILD', 'WATCH', 'KILL'], toneOf: (t) => (t === 'BUILD' ? 'vital' : t === 'KILL' ? 'deny' : 'flare'), hint: 'SPARK takes an idea through market, competition, economics, MVP, cost and risk, then returns BUILD, WATCH or KILL. A BUILD becomes an order; a KILL gets one line on why.' })}

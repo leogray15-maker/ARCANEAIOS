@@ -19,6 +19,7 @@ import { renderJournal, bindJournal } from './render/journal.js';
 import { renderContent, bindContent } from './render/content.js';
 import { BrainGraph } from './render/graph.js';
 import { Strip } from './render/strip.js';
+import { signals } from './core/vigil.js';
 import { Sim } from './core/sim.js';
 import { Store } from './core/store.js';
 import { exampleTrades } from './core/journal.js';
@@ -195,7 +196,8 @@ renderSync();
 
 function barStatus() {
   const away = sim.agents.filter((a) => a.id !== 'arcane' && a.room !== a.home).length;
-  $('bar-status').innerHTML = `${brain?.brief?.date ? `brief <b>${brain.brief.date}</b> · ` : ''}memory <b>${store.where()}</b> · <b>${store.totalOpen()}</b> open orders · <b>${store.drafts().filter((d) => d.status === 'draft').length}</b> drafts waiting · ${away ? `<b>${away}</b> crew away from station` : 'all crew at station'}`;
+  const sig = signals(store.state, brain); const worst = sig.some((s) => s.severity === 'breach') ? 'breach' : sig.some((s) => s.severity === 'warn') ? 'flare' : 'ash';
+  $('bar-status').innerHTML = `${brain?.brief?.date ? `brief <b>${brain.brief.date}</b> · ` : ''}memory <b>${store.where()}</b> · <b>${store.totalOpen()}</b> open orders · <b>${store.drafts().filter((d) => d.status === 'draft').length}</b> drafts waiting · <a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}`;
 }
 
 /* ============================================================

@@ -90,11 +90,14 @@ export class Store {
     if (!saved || saved.v !== 3) return;
     const fresh = this.state;
     const s = { ...fresh, ...saved };
-    // Orders: the brain's list wins for what exists; local done-flags survive by text.
+    // Orders: the brain's list wins for what exists; local done-flags survive
+    // by text, and a local order the vault has since absorbed (vault:sync
+    // writes it into Orders.md) is dropped so it does not appear twice.
     if (fresh.brainBuilt && fresh.brainBuilt !== saved.brainBuilt) {
       const done = new Set(Object.values(saved.orders || {}).flat().filter((o) => o.done).map((o) => o.t));
+      const absorbed = new Set(Object.values(fresh.orders).flat().map((o) => o.t));
       s.orders = {};
-      for (const r of ROOMS) s.orders[r.id] = (fresh.orders[r.id] || []).map((o) => ({ ...o, done: o.done || done.has(o.t) })).concat((saved.orders?.[r.id] || []).filter((o) => !o.fromBrain));
+      for (const r of ROOMS) s.orders[r.id] = (fresh.orders[r.id] || []).map((o) => ({ ...o, done: o.done || done.has(o.t) })).concat((saved.orders?.[r.id] || []).filter((o) => !o.fromBrain && !absorbed.has(o.t)));
       s.brainBuilt = fresh.brainBuilt;
     }
     for (const r of ROOMS) if (!s.orders[r.id]) s.orders[r.id] = [];

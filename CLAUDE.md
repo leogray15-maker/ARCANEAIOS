@@ -14,6 +14,8 @@ This file routes Claude Code. The brain has its own router at
 | The rules that are enforced (not just written) | `tools/validate-config.mjs` — run `npm run check` |
 | The brain (Obsidian vault) | `brain/` — router at `brain/CLAUDE.md` |
 | Regenerate the brain's system cards | `npm run vault` (dry) · `npm run vault:write` |
+| The brief and live signals | `npm run brief` — Brief.md is generated; change what it reads |
+| The floor's state back into the vault | `npm run vault:sync` — needs the service key in `.env` |
 | HERALD, the content skill | `.claude/skills/herald/SKILL.md` — invoke `/herald` |
 | The Archives index | `npm run herald:index` → `data/archives/` (gitignored) |
 | Architecture, sprites, structure, plan | `docs/` |
@@ -43,6 +45,8 @@ If a task needs one of these to bend, stop and say so. Do not edit
 npm run check          validate the config against the standing rules
 npm test               check + HERALD lint self-test
 npm run vault:write    regenerate the brain's generated cards
+npm run brief          ARCANE writes 03-Memory/Brief.md + VIGIL's live signals (from the vault, and the floor if the service key is in .env)
+npm run vault:sync     bring the floor's state (drafts, orders, lists, protocol, journal, decisions, counsel) into the vault, then the brief
 npm run herald:index   index the Archives export
 npm run herald:pick    choose source modules  (-- --lane mindset --count 3 | --show <id>)
 npm run herald:lint    gate the staged drafts

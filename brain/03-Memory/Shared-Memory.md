@@ -1,7 +1,7 @@
 ---
 type: memory
 created: 2026-09-16 22:00
-updated: 2026-09-16 22:20
+updated: 2026-09-17 10:55
 status: active
 agent: ARCANE
 tags: [memory]
@@ -25,7 +25,7 @@ any agent may correct a figure it owns, with a Trace entry saying so.
 - Drafts waiting: 5
 - Approved, unscheduled: 0
 - Posted this week: 0
-- Last HERALD run: 2026-09-16 22:20 (HER-R-20260916-001, 5 drafts)
+- Last HERALD run: 2026-09-16 22:20 (HER-R-20260916-001)
 
 ## Treasury
 
