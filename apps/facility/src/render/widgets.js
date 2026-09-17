@@ -75,9 +75,15 @@ function bridge(store, brain) {
     return `<h3>${blk.name}</h3>${table(head.map((h) => h.replace(/_/g, ' ')), rows.map((r) => `<tr>${head.map((h) => `<td>${esc(r[h])}</td>`).join('')}</tr>`))}`;
   }).join('');
   const goals = store.goalList().map((g) => `<tr><td>${esc(g.goal)}</td><td>${bar(store.goalPct(g), g.kind === 'money' ? 'gold' : 'arcane')}</td><td class="ash">${store.goalPct(g)}%</td></tr>`);
+  const turns = store.counsel().slice(-12);
+  const counsel = `<h3>Counsel <span class="faint">Leo ↔ ARCANE</span></h3>
+    <div class="counsel">${turns.length ? turns.map((t) => `<div class="turn ${t.who}"><span class="who">${t.who === 'leo' ? 'LEO' : 'ARCANE'}${t.specialist ? ` <span class="faint">· ${esc(t.specialist)}</span>` : ''}</span><p>${esc(t.text)}</p>${t.order ? `<p class="proposal">proposes <span class="chip ${['deny', 'flare', 'arcane', 'ash'][['P0', 'P1', 'P2', 'P3'].indexOf(t.order.priority)]}">${esc(t.order.priority)}</span> ${esc(ROOM_BY_ID[t.order.room]?.name || t.order.room)}: ${esc(t.order.text)} <button class="tiny" data-act="counsel-order" data-room="${esc(t.order.room)}" data-text="${esc(t.order.text)}" data-p="${['P0', 'P1', 'P2', 'P3'].indexOf(t.order.priority)}">add order</button></p>` : ''}</div>`).join('') : '<p class="empty">Ask the network something. ARCANE answers from the brief, names the specialist it concerns, and may propose one order.</p>'}</div>
+    <form class="inline" data-act="counsel-ask"><input name="q" placeholder="Speak to the network…" style="flex:1;min-width:240px" autocomplete="off"><button type="submit" class="primary">Ask</button>${turns.length ? '<button type="button" class="tiny ghost" data-act="counsel-clear">clear</button>' : ''}</form>
+    <p class="src">Counsel runs on the reasoning layer (Claude, server-side). Only a device with sync on can ask.</p>`;
   return `
     <p class="ash">Brief of <b>${esc(b?.date || '—')}</b> · memory on <b>${esc(store.where())}</b></p>
     ${brain?.doctrine ? `<p class="doctrine">${esc(brain.doctrine)}</p>` : ''}
+    ${counsel}
     ${blocks}
     <h3>Goals</h3>${table(['Goal', 'Progress', ''], goals)}
     <h3>Doctrine</h3><ul class="list">${(brain?.principles?.length ? brain.principles : DOCTRINE_FALLBACK).map((d) => `<li>${esc(d)}</li>`).join('')}</ul>`;
@@ -129,7 +135,22 @@ const records = (store, brain) => `
   <h3>Trace</h3>${brain?.trace?.length ? brain.trace.slice().reverse().map((t) => `<div class="card"><div class="card-head">${chip(t.agent, 'arcane')} <span class="ash">${esc(t.day)} ${esc(t.time)} · ${esc(t.run)}</span></div><p>${esc(t.action)}</p><p class="ash">${esc(t.inputs)}</p><p class="ash">${esc(t.result)}${t.notes && t.notes !== '—' ? ` · ${esc(t.notes)}` : ''}</p></div>`).join('') : '<p class="empty">No runs traced yet.</p>'}
   <h3>Trading Journal</h3><p><button data-act="open-journal">Open the Journal</button> <span class="ash">the trade record lives beside the trace</span></p>
   <h3>Floor log</h3>${store.records(12).map((r) => `<p class="ash"><span class="faint">${new Date(r.ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span> ${esc(r.text)}</p>`).join('') || '<p class="empty">Nothing yet this session.</p>'}`;
-const council = (store, brain) => `${brain?.decisions?.length ? table(['Date', 'Decision', 'Verdict', 'Via', 'Outcome'], brain.decisions.map((d) => `<tr><td class="ash">${esc(d.date)}</td><td>${esc(d.decision)}</td><td>${chip(d.verdict, d.verdict === 'BUILD' ? 'vital' : d.verdict === 'KILL' ? 'deny' : 'flare')}</td><td class="ash">${esc(d.deliberation)}</td><td class="ash">${esc(d.outcome_later)}</td></tr>`)) : '<p class="empty">No decisions recorded.</p>'}<p class="ash">The Council convenes here once Counsel is wired (plan, day 10). Nine seats, one verdict.</p>`;
+const council = (store, brain) => {
+  const tone = (v) => (v === 'BUILD' ? 'vital' : v === 'KILL' ? 'deny' : v === 'DELAY' ? 'flare' : 'cyan');
+  const cards = store.decisions().map((d) => `<div class="card">
+      <div class="card-head">${chip(d.verdict, tone(d.verdict))} <b>${esc(d.question)}</b> <span class="faint">${esc(d.id)} · ${new Date(d.ts).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span></div>
+      <p>${esc(d.summary)}</p>
+      ${d.conditions?.length ? `<p class="ash">Conditions first:</p><ol class="list">${d.conditions.map((c) => `<li>${esc(c)}</li>`).join('')}</ol>` : ''}
+      ${d.dissent ? `<p class="flare">Dissent: ${esc(d.dissent)}</p>` : ''}
+      <details><summary>the nine positions</summary>${(d.positions || []).map((p) => `<p><span class="dot" style="background:${AGENTS.find((a) => a.name === p.seat)?.colour || '#8a889e'}"></span><b>${esc(p.seat)}</b> ${chip(p.leans, tone(p.leans))} ${esc(p.position)}${p.concern ? ` <span class="ash">— wants: ${esc(p.concern)}</span>` : ''}</p>`).join('')}</details>
+      <form class="inline" data-act="decision-outcome" data-id="${esc(d.id)}"><input name="outcome" placeholder="${d.outcome ? esc(d.outcome) : 'What actually happened (fill in later)'}" style="flex:1;min-width:200px"><button class="tiny" type="submit">record</button></form>
+    </div>`).join('');
+  return `<h3>Put a decision to the Council</h3>
+    <form class="inline" data-act="council-ask"><input name="q" placeholder="The decision, in one line — e.g. Launch the £800 website offer to landscapers this month?" style="flex:1;min-width:280px" autocomplete="off"><button type="submit" class="primary">Convene</button></form>
+    <p class="src">Nine seats answer from their own domains in one structured session; ARCANE returns BUILD, DELAY, WATCH or KILL with the conditions that must be true first. Disagreement is recorded, not smoothed over.</p>
+    ${cards || (brain?.decisions?.length ? '' : '<p class="empty">No decisions recorded yet.</p>')}
+    ${brain?.decisions?.length ? `<h3>From the vault</h3>${table(['Date', 'Decision', 'Verdict', 'Via', 'Outcome'], brain.decisions.map((d) => `<tr><td class="ash">${esc(d.date)}</td><td>${esc(d.decision)}</td><td>${chip(d.verdict, tone(d.verdict))}</td><td class="ash">${esc(d.deliberation)}</td><td class="ash">${esc(d.outcome_later)}</td></tr>`))}` : ''}`;
+};
 const control = () => `${table(['Agent', ...CAPS.map((c) => c.name)], AGENTS.map((a) => `<tr><td><span class="dot" style="background:${a.colour}"></span>${esc(a.name)}</td>${CAPS.map((c) => `<td>${chip(a.caps[c.id], a.caps[c.id])}</td>`).join('')}</tr>`))}<p class="ash">Grades: ${GRADES.join(' · ')}. No agent holds allow; spend is deny for everyone. Enforced by npm run check.</p>`;
 const garage = () => AGENTS.map((a) => `<div class="card"><div class="card-head"><span class="dot" style="background:${a.colour}"></span><b>${esc(a.name)}</b> <span class="ash">${esc(a.role)} · ${esc(a.call)} · ${esc(ROOM_BY_ID[a.room].name)}</span>${a.council ? chip('council', 'gold') : ''}</div><p class="ash">${esc(a.brief)}</p></div>`).join('');
 const observatory = (store, brain) => brain?.signals?.length ? table(['When', 'Who', 'Signal', 'Severity', 'State'], brain.signals.map((s) => `<tr><td class="ash">${esc(s.when)}</td><td>${esc(s.who)}</td><td>${esc(s.signal)}</td><td>${chip(s.severity, s.severity === 'breach' ? 'deny' : s.severity === 'warn' ? 'flare' : 'ash')}</td><td class="ash">${esc(s.state)}</td></tr>`)) : '<p class="empty">No signals.</p>';

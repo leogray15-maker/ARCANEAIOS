@@ -10,6 +10,7 @@
  */
 import { ROOM_BY_ID, AGENT_BY_ID, WING_BY_ID, VENTURE_BY_ID, CAPS, SKILL_BY_ID } from '@arcane/config';
 import { WIDGETS, esc } from './widgets.js';
+import { reason } from '../core/reason.js';
 
 const PRIO = ['P0', 'P1', 'P2', 'P3'];
 const PRIO_TONE = ['deny', 'flare', 'arcane', 'ash'];
@@ -84,7 +85,7 @@ function filesList(room, brain) {
 }
 
 /** Route control events to the store. Call once; re-rendering keeps working because it listens on the view element. */
-export function bindDash(el, { store, getRoom, go }) {
+export function bindDash(el, { store, getRoom, go, brain }) {
   el.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'INPUT' || b.tagName === 'FORM') return;
     const act = b.dataset.act, id = b.dataset.id, room = getRoom();
@@ -96,6 +97,8 @@ export function bindDash(el, { store, getRoom, go }) {
     else if (act === 'draft-open') { const pre = el.querySelector(`#draft-${CSS.escape(id)}`); if (pre) pre.classList.toggle('hidden'); }
     else if (act === 'open-journal') go('#journal');
     else if (act === 'open-content') go('#content');
+    else if (act === 'counsel-order') { store.addOrder(b.dataset.room, b.dataset.text, Number(b.dataset.p)); }
+    else if (act === 'counsel-clear') store.clearCounsel();
     else if (act === 'list-remove') store.removeItem(b.dataset.key, id);
     else if (act === 'list-tag') store.tagItem(b.dataset.key, id, b.dataset.tag);
   });
@@ -118,5 +121,21 @@ export function bindDash(el, { store, getRoom, go }) {
     if (f.dataset.act === 'order-add') { store.addOrder(room, f.text.value, Number(f.p.value)); f.reset(); }
     else if (f.dataset.act === 'stock-add') { store.addStockLine(f.code.value, f.size.value, f.vials.value); f.reset(); }
     else if (f.dataset.act === 'list-add') { store.addItem(f.dataset.key, f.text.value); f.reset(); }
+    else if (f.dataset.act === 'counsel-ask') {
+      const q = f.q.value.trim(); if (!q) return;
+      store.addCounsel('leo', q); f.q.value = ''; busy(f, 'thinking…');
+      reason.ask(store, brain, q).then((r) => store.addCounsel('arcane', r.answer, { specialist: r.specialist, order: r.order || null })).catch((e) => store.addCounsel('arcane', `— ${e.message}`)).finally(() => busy(f));
+    }
+    else if (f.dataset.act === 'council-ask') {
+      const q = f.q.value.trim(); if (!q) return;
+      busy(f, 'the Council is sitting…');
+      reason.council(store, brain, q).then((r) => store.addDecision({ question: q, ...r })).catch((e) => store.addDecision({ question: q, verdict: 'WATCH', summary: `The Council could not sit: ${e.message}`, conditions: [], dissent: '', positions: [] })).finally(() => busy(f));
+    }
+    else if (f.dataset.act === 'decision-outcome') { store.setDecisionOutcome(f.dataset.id, f.outcome.value.trim()); }
   });
+}
+
+function busy(form, label) {
+  const b = form.querySelector('button[type="submit"]'); if (!b) return;
+  if (label) { b.dataset.was = b.textContent; b.textContent = label; b.disabled = true; } else { b.textContent = b.dataset.was || b.textContent; b.disabled = false; }
 }

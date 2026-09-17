@@ -165,7 +165,7 @@ function route() {
 }
 window.addEventListener('hashchange', route);
 for (const b of document.querySelectorAll('#views button')) b.addEventListener('click', () => go(b.dataset.view === 'floor' ? '#' : `#${b.dataset.view}`));
-bindDash(views.dash, { store, getRoom: () => state.selected, go });
+bindDash(views.dash, { store, getRoom: () => state.selected, go, brain });
 bindJournal(views.journal, { store, go });
 bindContent(views.content, { store, go });
 store.onChange(() => {

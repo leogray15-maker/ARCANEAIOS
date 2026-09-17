@@ -39,7 +39,7 @@ function seedState(brain) {
   for (const f of BUDGET.fixed) budget.fixed[f.id] = f.amount;
   for (const sp of BUDGET.split) budget.split[sp.id] = sp.pct;
   const stock = INVENTORY.rows.map((r) => ({ id: uid(), ...r }));
-  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, ledger, goals, budget, stock, funnel: { ...FUNNEL.seed }, drafts: {}, positions: {}, log: [], lists: {}, protocol: {}, journal: { trades: [], setups: SEED_SETUPS.map((x) => ({ ...x })), checkins: [] } };
+  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, ledger, goals, budget, stock, funnel: { ...FUNNEL.seed }, drafts: {}, positions: {}, log: [], lists: {}, protocol: {}, counsel: [], decisions: [], journal: { trades: [], setups: SEED_SETUPS.map((x) => ({ ...x })), checkins: [] } };
 }
 
 export class Store {
@@ -108,6 +108,8 @@ export class Store {
     s.log = (saved.log || []).slice(-LOG_MAX);
     s.lists = saved.lists || {};
     s.protocol = saved.protocol || {};
+    s.counsel = (saved.counsel || []).slice(-40);
+    s.decisions = saved.decisions || [];
     s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups?.length ? saved.journal.setups : fresh.journal.setups, checkins: saved.journal?.checkins || [] };
     this.state = s;
   }
@@ -201,6 +203,14 @@ export class Store {
   protocolDay(day) { return this.state.protocol[day] || (this.state.protocol[day] = {}); }
   toggleProtocol(day, item) { const d = this.protocolDay(day); d[item] = !d[item]; this.touch(); }
   protocolStreak(item) { let n = 0; const d = new Date(); for (;;) { const k = d.toISOString().slice(0, 10); if (!this.state.protocol[k]?.[item]) break; n++; d.setDate(d.getDate() - 1); } return n; }
+
+  /* ---------- counsel and the council ---------- */
+  counsel() { return this.state.counsel; }
+  addCounsel(who, text, extra = {}) { this.state.counsel.push({ who, text, ts: Date.now(), ...extra }); if (this.state.counsel.length > 40) this.state.counsel.shift(); this.touch(); }
+  clearCounsel() { this.state.counsel = []; this.touch(); }
+  decisions() { return this.state.decisions; }
+  addDecision(d) { const id = `DEC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(this.state.decisions.length + 1).padStart(3, '0')}`; this.state.decisions.unshift({ id, ts: Date.now(), outcome: '', ...d }); this.log(`Council: ${d.verdict} — ${d.question}`, 'council'); this.touch(); return id; }
+  setDecisionOutcome(id, outcome) { const d = this.state.decisions.find((x) => x.id === id); if (d) { d.outcome = outcome; d.reviewed = Date.now(); this.touch(); } }
 
   /* ---------- the trading journal ---------- */
   journal() { return this.state.journal; }
