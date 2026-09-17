@@ -33,6 +33,7 @@ Open `brain/` in Obsidian. Then, in Claude Code, `/herald`.
 - `docs/STRUCTURE.md` — why the repo is shaped this way
 - `docs/SPRITES.md` — pixel direction: sizes, palette, animation
 - `docs/PLAN.md` — the ten-day build order
+- `docs/ARCHIVES.md` — the three ways the Archives are indexed, and the read-only guarantee
 - `brain/CLAUDE.md` — the brain's own router
 - `.claude/skills/herald/SKILL.md` — the HERALD skill
 

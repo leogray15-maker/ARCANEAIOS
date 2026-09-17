@@ -33,4 +33,7 @@ async function post(path, body) {
 export const reason = {
   ask: (store, brain, question) => post('/api/counsel', { question, context: context(store, brain), history: store.counsel().slice(-8) }),
   council: (store, brain, question) => post('/api/council', { question, context: context(store, brain) }),
+  // The watch reads the open web. It is given the operator's watchlist and
+  // nothing else to go looking for.
+  intel: (store, brain, question = '') => post('/api/intel', { question, watchlist: store.list('watch'), context: context(store, brain) }),
 };

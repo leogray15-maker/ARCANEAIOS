@@ -16,6 +16,11 @@ and system change. A skill cannot out-rank its agent, so neither can you.
 1. **Check the ground.** `npm run check` must pass. If `data/archives/index.json`
    is missing, `npm run herald:index` (one second). The index reads the Archives
    notes in Leo's Obsidian vault — read only — and falls back to the HTML export.
+   On a machine with neither (a cloud session, CI, anywhere that is not Leo's
+   Mac) use `npm run herald:index -- --from notion`, which reads the Archives
+   over the Notion API with `NOTION_TOKEN`. Same index, same module ids; only
+   the origin differs. It is read-only by construction — `notion.mjs` refuses
+   any request that is not a Notion read, so a write cannot be issued from it.
 2. **Read the brief.** `brain/03-Memory/Brief.md` — any ROOMS order routed to BEACON
    or HERALD wins over a random pick; `01-System/Doctrine.md` says what this week is for.
 3. **Pick a source.** `npm run herald:pick -- --lane mindset` (or `--subject`,
@@ -42,9 +47,10 @@ and system change. A skill cannot out-rank its agent, so neither can you.
   units, dosing verbs, named compounds, medical framing, claim-verb + condition
   in one sentence, and guaranteed returns. You do not write around the gate,
   soften a compound name, or edit the patterns. `references/compliance.md`.
-- **The Archives are read-only.** The index comes from the vault's notes (or
-  the local export); a run copies its source note before cutting from it and
-  never edits, moves or deletes a note. Notion write tools are never called.
+- **The Archives are read-only.** The index comes from the vault's notes, the
+  local export, or Notion over the API; a run copies its source note before
+  cutting from it and never edits, moves or deletes a note. Notion write tools
+  are never called, and the API reader cannot call one.
 - **Only a human moves `status`.** You emit `draft`. Always.
 - **Every run is traced.** `emit.mjs` writes the Trace and Daily-Log line; a
   run that did not trace did not happen.

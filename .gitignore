@@ -28,3 +28,6 @@ data/herald-auto.log
 # Obsidian workspace state (per-device); keep app/core-plugins config
 brain/.obsidian/workspace*.json
 brain/.obsidian/cache
+
+# HERALD Notion cache (rebuilt from Notion; never a source of truth)
+data/archives/notion-cache/

@@ -13,7 +13,9 @@ import { fileURLToPath } from 'node:url';
 
 export const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const REPO = path.resolve(SKILL_DIR, '..', '..', '..');
-export const DATA_DIR = path.join(REPO, 'data', 'archives');
+// HERALD_DATA redirects the index elsewhere, the way HERALD_STAGING does
+// for drafts — the tests use it so a run can never overwrite a real index.
+export const DATA_DIR = process.env.HERALD_DATA ? path.resolve(process.env.HERALD_DATA) : path.join(REPO, 'data', 'archives');
 export const INDEX_FILE = path.join(DATA_DIR, 'index.json');
 export const MODULES_DIR = path.join(DATA_DIR, 'modules');
 export const STAGING_DIR = path.resolve(REPO, process.env.HERALD_STAGING || '.herald-staging');
