@@ -49,6 +49,16 @@ Dates assume a start of 2026-09-17.
 - [x] No sign-in: per-device sync codes (`supabase/migrations/0002_sync_codes.sql`); the bottom strip with live London time, sessions, weather, gold and OS numbers
 - [x] Supabase wired: migration `supabase/migrations/0001_arcane_state.sql`, magic-link sign-in in the bar, the store syncs the operator's own row and polls every 30 s (`docs/SUPABASE.md`)
 
+## Also done 2026-09-17 (night) — the loop closes
+
+- [x] Counsel on the Bridge (`api/counsel`) and the Council in its chamber (`api/council`): Claude behind `ANTHROPIC_API_KEY` on Vercel, gated on a known sync code, structured outputs, proposed orders land on the room's board, decisions get an outcome later
+- [x] VIGIL's signals are computed, not typed (`core/vigil.js`): stock, COA, the draft queue, stale P0s, the split, journal drawdown and rule breaks, the protocol — on the Observatory, counted in the bar, written to `Signals.md`
+- [x] ARCANE writes the brief (`npm run brief`, `tools/brief.mjs`) from the config, the vault and the floor's folded state; `Brief.md` is generated; the HERALD daemon writes it after every run
+- [x] `vault:sync` folds every device's row and lands orders, lists, protocol, trades, decisions and counsel in their record files, then writes the brief
+- [x] CI on every push (`.github/workflows/ci.yml`): rules, lint, fold and signals, no card drift, the build, no service key in the bundle
+- [x] Work and talk cels; the Forge, Market and Library dressed to their references
+- Still for Leo: run migration 0002, top up Anthropic credits, `ANTHROPIC_API_KEY` on Vercel, `SUPABASE_SERVICE_ROLE_KEY` in `.env`, install the HERALD schedule — all listed as open orders in `06-Orders/Orders.md`
+
 ## Day 1 · Thu 17 — Brain in Obsidian, HERALD in the hand
 
 - Open `brain/` as a vault in Obsidian; confirm templates, daily notes, graph.
