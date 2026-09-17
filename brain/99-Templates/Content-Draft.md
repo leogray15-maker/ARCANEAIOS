@@ -11,6 +11,7 @@ source_subject: ""       # Archives subject / course, e.g. "Mindset Mastery"
 source_module: ""        # Module title exactly as in the Archives
 source_ref: ""           # Local index id (stable across runs)
 source_url: ""           # Notion URL if known, else empty
+source_note: ""          # [[Archives note]] in the vault — set on emit
 angle: ""                # One line: why this cut, for whom
 hook: ""                 # The first line, verbatim
 cta: none                # none | archives | reply | follow | link

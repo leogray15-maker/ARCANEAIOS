@@ -11,6 +11,7 @@ source_subject: Mindset Mastery
 source_module: Theory Of Constraints.
 source_ref: mindset-mastery--theory-of-constraints--3ce63e
 source_url: https://www.notion.so/26a7f6a404fe80309673f9d6473ce63e
+source_note: "[[Theory Of Constraints 26a7f6a404fe80309673f9d6473ce63e]]"
 angle: The reader thinks the missing piece is a skill. It is a trait or a belief. Skills are the clickbait constraint.
 hook: Which one is it
 cta: archives

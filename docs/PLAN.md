@@ -42,7 +42,8 @@ Dates assume a start of 2026-09-17.
 - [x] One stylesheet (`src/ui.css`): 8px grid, five type sizes, hairlines
 - [x] Trading Journal at `#journal`: trade log, Daily/Weekly/Monthly, Playbook, Psychology, equity + R distribution, JSON export/import; linked from THE VAULT and THE RECORDS
 - [x] Thin rooms made real: watchlist (Intelligence), pipeline (Deal Room), idea queue with verdicts (Inventor), next three moves (War Room), stop-doing (Lounge), daily protocol with streaks (Sanctum)
-- [x] Brain Graph at `#graph`: brain, folders, wings, rooms (attention halos), ventures, agents orbiting their current room; click to open a dashboard
+- [x] Brain Graph at `#graph` is the Obsidian vault itself: 1,663 notes and 1,724 links laid out at export (`npm run vault:graph`), grouped by folder, hub flowers and a dust ring, rooms anchored to their brain folders, agents orbiting live; click a note to open it in Obsidian
+- [x] The v3 brain is inside the vault by symlink (`ARCANE-AI-OS-v3`); drafts link to their Archives page via `source_note`
 
 ## Day 1 · Thu 17 — Brain in Obsidian, HERALD in the hand
 

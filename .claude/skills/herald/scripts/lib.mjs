@@ -19,6 +19,27 @@ export const MODULES_DIR = path.join(DATA_DIR, 'modules');
 export const STAGING_DIR = path.resolve(REPO, process.env.HERALD_STAGING || '.herald-staging');
 
 export const DEFAULT_EXPORT = '/Users/leogray/Desktop/Arcane Archives/notion-export-clean/The Arcane Archives';
+/** The Obsidian vault that holds the Archives as notes (and the brain, by symlink). */
+export const DEFAULT_VAULT = '/Users/leogray/Desktop/Arcane';
+export const vaultDir = () => process.env.ARCANE_VAULT || DEFAULT_VAULT;
+
+/**
+ * The Obsidian note for a module, as a wikilink. Notion names its export
+ * files `<title> <notionId>` with punctuation stripped, so the reliable
+ * key is the id: scan the Archives folder once and match on it. Without
+ * the vault, fall back to the stripped title.
+ */
+let notesById = null;
+export function archivesNote(mod) {
+  if (!mod?.notionId) return '';
+  if (notesById === null) {
+    notesById = {};
+    const dir = path.join(vaultDir(), 'Arcane ARCHIVES');
+    try { for (const f of fs.readdirSync(dir)) { const m = /\s([0-9a-f]{32})\.md$/i.exec(f); if (m) notesById[m[1]] = f.replace(/\.md$/, ''); } } catch {}
+  }
+  const name = notesById[mod.notionId] || `${mod.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, ' ').trim()} ${mod.notionId}`;
+  return `[[${name}]]`;
+}
 export const exportDir = () => process.env.ARCANE_ARCHIVES_EXPORT || DEFAULT_EXPORT;
 
 export const AGENT = 'HERALD';

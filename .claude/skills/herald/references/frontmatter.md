@@ -18,6 +18,7 @@ fields marked *set on emit*. Never hand-fill those.
 | `source_module` | HERALD | The module title, exactly as in the index. |
 | `source_ref` | HERALD | The index id. Stable across runs; `pick.mjs` uses it to avoid reuse. |
 | `source_url` | HERALD | `https://www.notion.so/<notionId>` when the index has one. |
+| `source_note` | *emit* | `[[<title> <notionId>]]` — the Archives note in the Obsidian vault, so the draft links to its source in the graph. |
 | `angle` | HERALD | One line: why this cut, for whom. |
 | `hook` | HERALD | The first line of the body, verbatim. Lint checks they match. |
 | `cta` | HERALD | `none` `archives` `reply` `follow` `link`. |

@@ -4,6 +4,15 @@
 > You are reading the master router. Read it fully before you touch a file.
 > Version 3.0 · Operator: Leo · Commander: ARCANE
 
+## Where this lives
+
+This folder is the repo's `brain/` and is also inside Leo's Obsidian vault
+(`~/Desktop/Arcane`) as `ARCANE-AI-OS-v3`, by symlink — one vault holding
+the Arcane Archives pages, the healing and peptide notes, and this brain,
+so a draft's `source_note` links straight to the Archives page it was cut
+from and the whole thing is one graph. `npm run vault:graph` exports that
+graph for the facility's Brain Graph view.
+
 ## What this is
 
 One brain, shared by one human and nineteen agents. Everything the network

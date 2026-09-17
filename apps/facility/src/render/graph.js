@@ -1,185 +1,193 @@
 /**
- * The Brain Graph — a visual map of the system's state.
+ * The Brain Graph — the Obsidian vault, drawn.
  *
- * Radial, so the structure is legible without a physics run: the brain at
- * the centre with its folders around it; the four wings on the first ring;
- * each wing's five rooms fanned in its sector; a venture between the brain
- * and the room that answers for it; every agent as a satellite of the room
- * it is standing in right now, so a visit shows as a satellite that has
- * moved. Room nodes swell with their attention (open orders, P0 hardest).
- * Click a room or an agent to open that room's dashboard. Drag to pan.
+ * Every note in the vault is a node, every wikilink or Notion-style link
+ * an edge, grouped and coloured by folder, positions precomputed by
+ * tools/vault-graph.mjs. On top of that, the OS: the twenty rooms sit on
+ * the brain folders they own, and every agent orbits the room it is in
+ * right now. Click a note to open it in Obsidian; click a room or an agent
+ * to open the room's dashboard. Drag to pan, wheel to zoom, type to find.
  */
-import { WINGS, ROOMS, ROOM_BY_ID, AGENTS, VENTURES, roomsInWing, BRIEF_BLOCKS } from '@arcane/config';
+import { AGENTS, ROOM_BY_ID } from '@arcane/config';
 
 const TAU = Math.PI * 2;
-const TONE = { arcane: '#8b5cf6', arcaneLt: '#a98bff', cyan: '#56c9f0', vital: '#3ecf8e', flare: '#e8b64c', gold: '#d9a441', rose: '#e0609a', breach: '#f44d52', ash: '#8a889e', faint: '#4e4c64', ink: '#ecebf5', line: '#24243a' };
-const accent = (id) => TONE[id] || TONE.arcane;
-const FOLDERS = [
-  ['00-Inbox', 'inventor'], ['01-System', 'control'], ['02-Content', 'beacon'], ['03-Memory', 'bridge'],
-  ['04-Records', 'records'], ['05-Knowledge', 'archives'], ['06-Orders', 'bridge'], ['99-Templates', null],
-];
+const ACCENT = { arcane: '#8b5cf6', cyan: '#56c9f0', vital: '#3ecf8e', flare: '#e8b64c', gold: '#d9a441', rose: '#e0609a', breach: '#f44d52' };
 
 export class BrainGraph {
   constructor(canvas, legend, ctx, onRoom) {
     this.canvas = canvas; this.legend = legend; this.ctx = ctx; this.onRoom = onRoom;
-    this.nodes = []; this.byId = new Map(); this.edges = [];
-    this.pan = { x: 0, y: 0 }; this.hover = null; this.visible = false;
-    this.satellites = new Map(); // agentId → { x, y } eased toward its current room
-    this.build();
+    this.data = null; this.visible = false;
+    this.view = { x: 0, y: 0, k: 0.4 };
+    this.hover = null; this.query = ''; this.hidden = new Set();
+    this.sat = new Map();
+    fetch('/graph.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((d) => { this.data = d; if (d) this.prepare(); }).catch(() => {});
     this.bind();
-    legend.innerHTML = [['arcane', 'wing'], ['ink', 'room · size is attention'], ['gold', 'venture'], ['cyan', 'brain folder'], ['vital', 'agent · orbits the room it is in']]
-      .map(([t, l]) => `<div><span class="dot" style="background:${TONE[t]}"></span>${l}</div>`).join('') + '<div class="faint">click a room or agent · drag to pan · Esc to leave</div>';
   }
 
-  /** Positions in a unit layout; scaled to the canvas at draw time. */
-  build() {
-    const add = (n) => { this.nodes.push(n); this.byId.set(n.id, n); return n; };
-    add({ id: 'brain', kind: 'brain', label: 'THE BRAIN', x: 0, y: 0, r: 26, colour: TONE.arcaneLt });
-    FOLDERS.forEach(([name, room], i) => {
-      const a = -Math.PI / 2 + (i / FOLDERS.length) * TAU;
-      add({ id: `f:${name}`, kind: 'folder', label: name, x: Math.cos(a) * 95, y: Math.sin(a) * 95, r: 7, colour: TONE.cyan, room });
-      this.edges.push(['brain', `f:${name}`, 'rgba(86,201,240,0.25)']);
-      if (room) this.edges.push([`f:${name}`, `room:${room}`, 'rgba(86,201,240,0.18)']);
-    });
-    WINGS.forEach((w, wi) => {
-      const base = -Math.PI / 2 + wi * (TAU / 4);
-      add({ id: `wing:${w.id}`, kind: 'wing', label: w.name, x: Math.cos(base) * 175, y: Math.sin(base) * 175, r: 14, colour: accent(w.accent) });
-      this.edges.push(['brain', `wing:${w.id}`, 'rgba(139,92,246,0.2)']);
-      roomsInWing(w.id).forEach((room, ri) => {
-        const a = base + (ri - 2) * (TAU / 4 / 5.6);
-        add({ id: `room:${room.id}`, kind: 'room', label: room.name, x: Math.cos(a) * 330, y: Math.sin(a) * 330, r: 11, colour: accent(room.accent), room: room.id });
-        this.edges.push([`wing:${w.id}`, `room:${room.id}`, 'rgba(255,255,255,0.10)']);
-      });
-    });
-    VENTURES.forEach((v) => {
-      const rn = this.byId.get(`room:${v.room}`);
-      const a = Math.atan2(rn.y, rn.x);
-      add({ id: `v:${v.id}`, kind: 'venture', label: v.name, x: Math.cos(a) * 250, y: Math.sin(a) * 250, r: 9, colour: TONE.gold, room: v.room });
-      this.edges.push([`v:${v.id}`, `room:${v.room}`, 'rgba(217,164,65,0.35)']);
-      this.edges.push(['brain', `v:${v.id}`, 'rgba(217,164,65,0.12)']);
-    });
-    AGENTS.forEach((a) => add({ id: `a:${a.id}`, kind: 'agent', label: a.name, x: 0, y: 0, r: a.kind === 'arcane' ? 7 : 5, colour: a.colour, agent: a }));
+  prepare() {
+    const d = this.data;
+    d.adj = d.nodes.map(() => []);
+    for (const [a, b] of d.edges) { d.adj[a].push(b); d.adj[b].push(a); }
+    d.colour = Object.fromEntries(d.groups.map((g) => [g.id, g.colour]));
+    this.legend.innerHTML = `<input type="search" id="graph-q" placeholder="Find a note…" style="width:100%;margin-bottom:8px">` +
+      d.groups.map((g) => `<label class="chk" style="display:block"><input type="checkbox" data-group="${g.id}" checked> <span class="dot" style="background:${g.colour}"></span>${g.name} <span class="faint">${g.n}</span></label>`).join('') +
+      `<div style="margin-top:6px"><span class="dot" style="background:#ecebf5"></span>room · <span class="dot" style="background:#a98bff"></span>agent, orbiting its room</div>
+       <div class="faint" style="margin-top:6px">${d.nodes.length} notes · ${d.edges.length} links · vault "${d.vault}"<br>click a note → Obsidian · room or agent → dashboard · drag · wheel</div>`;
+    this.legend.querySelector('#graph-q').addEventListener('input', (e) => { this.query = e.target.value.trim().toLowerCase(); });
+    for (const cb of this.legend.querySelectorAll('[data-group]')) cb.addEventListener('change', () => { cb.checked ? this.hidden.delete(cb.dataset.group) : this.hidden.add(cb.dataset.group); });
   }
 
   bind() {
     const cv = this.canvas; let drag = null;
-    cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, px: this.pan.x, py: this.pan.y, moved: false }; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, vx: this.view.x, vy: this.view.y, moved: false }; cv.setPointerCapture(e.pointerId); });
     cv.addEventListener('pointermove', (e) => {
-      if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; this.pan.x = drag.px + dx; this.pan.y = drag.py + dy; return; }
+      if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; this.view.x = drag.vx + dx; this.view.y = drag.vy + dy; return; }
       this.hover = this.hit(e.offsetX, e.offsetY);
-      cv.style.cursor = this.hover && (this.hover.kind === 'room' || this.hover.kind === 'agent' || this.hover.kind === 'venture' || this.hover.kind === 'folder') ? 'pointer' : 'grab';
+      cv.style.cursor = this.hover ? 'pointer' : 'grab';
     });
     cv.addEventListener('pointerup', (e) => {
       const moved = drag?.moved; drag = null; if (moved) return;
-      const n = this.hit(e.offsetX, e.offsetY); if (!n) return;
-      const room = n.kind === 'room' ? n.room : n.kind === 'agent' ? this.ctx.sim.byId[n.agent.id].room : n.room;
-      if (room) this.onRoom(room);
+      const h = this.hit(e.offsetX, e.offsetY); if (!h) return;
+      if (h.kind === 'room') this.onRoom(h.room.id);
+      else if (h.kind === 'agent') this.onRoom(this.ctx.sim.byId[h.agent.id].room);
+      else window.open(`obsidian://open?vault=${encodeURIComponent(this.data.vault)}&file=${encodeURIComponent(h.node.id)}`, '_self');
     });
+    cv.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const nk = Math.max(0.12, Math.min(4, this.view.k * f));
+      const r = f !== 1 ? nk / this.view.k : 1;
+      this.view.x = e.offsetX - (e.offsetX - this.view.x) * r; this.view.y = e.offsetY - (e.offsetY - this.view.y) * r; this.view.k = nk;
+    }, { passive: false });
     cv.addEventListener('pointerleave', () => { this.hover = null; });
   }
 
-  show() { this.visible = true; this.resize(); }
+  show() { this.visible = true; this.resize(); if (!this.fitted && this.data) this.fit(); }
   hide() { this.visible = false; }
   resize() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const W = this.canvas.clientWidth, H = this.canvas.clientHeight; if (!W) return;
     this.canvas.width = W * dpr; this.canvas.height = H * dpr;
-    this.scale = Math.min(W, H) / 780;
+  }
+  fit() {
+    const W = this.canvas.clientWidth, H = this.canvas.clientHeight;
+    this.view.k = Math.min(W, H) / 2200; this.view.x = W / 2; this.view.y = H / 2; this.fitted = true;
   }
 
-  /** Screen position of a node. */
-  pos(n) {
-    const W = this.canvas.clientWidth, H = this.canvas.clientHeight;
-    return { x: W / 2 + this.pan.x + n.x * this.scale, y: H / 2 + this.pan.y + n.y * this.scale };
-  }
+  sx(x) { return this.view.x + x * this.view.k; }
+  sy(y) { return this.view.y + y * this.view.k; }
+
   hit(x, y) {
-    let best = null, bd = 14;
-    for (const n of this.nodes) { const p = this.pos(n); const d = Math.hypot(p.x - x, p.y - y); if (d < bd + n.r * this.scale) { bd = d; best = n; } }
+    if (!this.data) return null;
+    let best = null, bd = 10;
+    for (const r of this.data.rooms) { const d = Math.hypot(this.sx(r.x) - x, this.sy(r.y) - y); if (d < bd + 6) { bd = d; best = { kind: 'room', room: ROOM_BY_ID[r.id], x: r.x, y: r.y }; } }
+    for (const [id, s] of this.sat) { const d = Math.hypot(this.sx(s.x) - x, this.sy(s.y) - y); if (d < bd + 4) { bd = d; best = { kind: 'agent', agent: AGENTS.find((a) => a.id === id), x: s.x, y: s.y }; } }
+    if (best) return best;
+    for (let i = 0; i < this.data.nodes.length; i++) {
+      const n = this.data.nodes[i]; if (this.hidden.has(n.g)) continue;
+      const d = Math.hypot(this.sx(n.x) - x, this.sy(n.y) - y);
+      if (d < bd) { bd = d; best = { kind: 'note', node: n, i, x: n.x, y: n.y }; }
+    }
     return best;
   }
 
-  /** Agents orbit their current room; a walker eases between rooms. */
+  /** Agents orbit the room they are in; a walker eases across. */
   layoutAgents(t) {
-    const perRoom = {};
-    for (const a of this.ctx.sim.agents) { (perRoom[a.room] ||= []).push(a); }
-    for (const [roomId, list] of Object.entries(perRoom)) {
-      const rn = this.byId.get(`room:${roomId}`); if (!rn) continue;
+    const rooms = Object.fromEntries(this.data.rooms.map((r) => [r.id, r]));
+    const per = {};
+    for (const a of this.ctx.sim.agents) (per[a.room] ||= []).push(a);
+    for (const [roomId, list] of Object.entries(per)) {
+      const rn = rooms[roomId]; if (!rn) continue;
       list.forEach((a, i) => {
-        const ang = (i / list.length) * TAU + t * 0.25 + roomId.length;
-        const rad = 22 + (list.length > 3 ? 6 : 0);
+        const ang = (i / list.length) * TAU + t * 0.3 + roomId.length;
+        const rad = 26 / this.view.k * 0.6 + 14;
         const target = { x: rn.x + Math.cos(ang) * rad, y: rn.y + Math.sin(ang) * rad };
-        const s = this.satellites.get(a.id) || { ...target };
-        s.x += (target.x - s.x) * 0.06; s.y += (target.y - s.y) * 0.06;
-        this.satellites.set(a.id, s);
-        const n = this.byId.get(`a:${a.id}`); n.x = s.x; n.y = s.y; n.visiting = a.room !== a.home; n.moving = a.state === 'walk';
+        const s = this.sat.get(a.id) || { ...target };
+        s.x += (target.x - s.x) * 0.05; s.y += (target.y - s.y) * 0.05; s.visiting = a.room !== a.home; s.moving = a.state === 'walk';
+        this.sat.set(a.id, s);
       });
     }
   }
 
   draw(t) {
     if (!this.visible) return;
-    const { store, brain, sim } = this.ctx;
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const g = this.canvas.getContext('2d');
     const W = this.canvas.clientWidth, H = this.canvas.clientHeight;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.fillStyle = '#07070d'; g.fillRect(0, 0, W, H);
+    const d = this.data;
+    if (!d) { g.fillStyle = '#4e4c64'; g.font = '12px ui-monospace, Menlo, monospace'; g.fillText('No graph.json — run npm run vault:graph with the Obsidian vault present.', 24, 40); return; }
+    if (!this.fitted) this.fit();
     this.layoutAgents(t);
+    const k = this.view.k;
+    const q = this.query;
+    const hi = this.hover?.kind === 'note' ? new Set([this.hover.i, ...d.adj[this.hover.i]]) : null;
+    const matches = q ? new Set(d.nodes.map((n, i) => (n.t.toLowerCase().includes(q) ? i : -1)).filter((i) => i >= 0)) : null;
+    const dim = hi || matches;
 
-    // Rings, faint, so the structure reads.
-    const c = this.pos(this.byId.get('brain'));
-    g.strokeStyle = 'rgba(255,255,255,0.04)'; g.lineWidth = 1;
-    for (const r of [95, 175, 250, 330]) { g.beginPath(); g.arc(c.x, c.y, r * this.scale, 0, TAU); g.stroke(); }
-
-    // Edges.
+    // Edges — one path per state so the hot ones draw on top.
     g.lineWidth = 1;
-    for (const [a, b, col] of this.edges) {
-      const p = this.pos(this.byId.get(a)), q = this.pos(this.byId.get(b));
-      g.strokeStyle = col; g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y); g.stroke();
+    g.strokeStyle = dim ? 'rgba(255,255,255,0.035)' : 'rgba(255,255,255,0.09)'; g.beginPath();
+    for (const [a, b] of d.edges) { if (this.hidden.has(d.nodes[a].g) || this.hidden.has(d.nodes[b].g)) continue; g.moveTo(this.sx(d.nodes[a].x), this.sy(d.nodes[a].y)); g.lineTo(this.sx(d.nodes[b].x), this.sy(d.nodes[b].y)); }
+    g.stroke();
+    if (hi) { g.strokeStyle = 'rgba(236,235,245,0.55)'; g.beginPath(); for (const j of d.adj[this.hover.i]) { g.moveTo(this.sx(this.hover.x), this.sy(this.hover.y)); g.lineTo(this.sx(d.nodes[j].x), this.sy(d.nodes[j].y)); } g.stroke(); }
+    // Room → folder tethers.
+    g.strokeStyle = 'rgba(236,235,245,0.10)'; g.beginPath();
+    for (const r of d.rooms) for (const j of r.links) { g.moveTo(this.sx(r.x), this.sy(r.y)); g.lineTo(this.sx(d.nodes[j].x), this.sy(d.nodes[j].y)); }
+    g.stroke();
+
+    // Notes.
+    for (let i = 0; i < d.nodes.length; i++) {
+      const n = d.nodes[i]; if (this.hidden.has(n.g)) continue;
+      const x = this.sx(n.x), y = this.sy(n.y); if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+      const r = Math.max(1.2, Math.min(9, 1.6 + Math.sqrt(n.d) * 1.1) * Math.sqrt(k));
+      const lit = !dim || dim.has(i);
+      g.globalAlpha = lit ? 1 : 0.18;
+      g.fillStyle = d.colour[n.g]; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+      if (matches?.has(i)) { g.strokeStyle = '#ecebf5'; g.lineWidth = 1; g.beginPath(); g.arc(x, y, r + 3, 0, TAU); g.stroke(); }
     }
-    // Agent tethers: to the room they are in; dashed when visiting.
-    for (const a of sim.agents) {
-      const n = this.byId.get(`a:${a.id}`), rn = this.byId.get(`room:${a.room}`); if (!rn) continue;
-      const p = this.pos(n), q = this.pos(rn);
-      g.strokeStyle = n.visiting ? 'rgba(232,182,76,0.5)' : 'rgba(255,255,255,0.12)';
-      g.setLineDash(n.visiting ? [3, 3] : []); g.beginPath(); g.moveTo(p.x, p.y); g.lineTo(q.x, q.y); g.stroke(); g.setLineDash([]);
+    g.globalAlpha = 1;
+    // Labels for hubs when zoomed in, for matches, and for the hovered note's neighbourhood.
+    g.font = `${Math.max(9, Math.min(13, 10 * Math.sqrt(k)))}px ui-monospace, Menlo, monospace`; g.textBaseline = 'middle'; g.textAlign = 'left';
+    for (let i = 0; i < d.nodes.length; i++) {
+      const n = d.nodes[i]; if (this.hidden.has(n.g)) continue;
+      const show = (matches && matches.has(i)) || (hi && hi.has(i)) || (!dim && n.d >= (k > 1.2 ? 3 : k > 0.6 ? 12 : 30));
+      if (!show) continue;
+      const x = this.sx(n.x), y = this.sy(n.y); if (x < -200 || y < -20 || x > W + 20 || y > H + 20) continue;
+      g.fillStyle = hi && i === this.hover.i ? '#ecebf5' : '#8a889e'; g.fillText(n.t.slice(0, 40), x + 8, y);
     }
 
-    // Nodes.
-    g.font = `11px ui-monospace, Menlo, monospace`; g.textBaseline = 'middle';
-    for (const n of this.nodes) {
-      const p = this.pos(n);
-      let r = n.r * this.scale;
-      if (n.kind === 'room') { const att = store.attention(n.room); r += Math.min(14, att * 0.9) * this.scale; if (att) { g.fillStyle = `rgba(232,182,76,${0.08 + 0.05 * Math.sin(t * 2)})`; g.beginPath(); g.arc(p.x, p.y, r + 8 * this.scale, 0, TAU); g.fill(); } }
-      if (n.kind === 'brain') { const gr = g.createRadialGradient(p.x, p.y, r * 0.4, p.x, p.y, r * 2.6); gr.addColorStop(0, 'rgba(169,139,255,0.35)'); gr.addColorStop(1, 'rgba(169,139,255,0)'); g.fillStyle = gr; g.fillRect(p.x - r * 3, p.y - r * 3, r * 6, r * 6); }
-      g.fillStyle = n.kind === 'room' ? '#0f0f1a' : n.colour; g.strokeStyle = n.colour; g.lineWidth = n.kind === 'room' ? 2 : 1;
-      g.beginPath(); g.arc(p.x, p.y, r, 0, TAU); g.fill(); if (n.kind === 'room' || n.kind === 'wing') g.stroke();
-      if (n === this.hover) { g.strokeStyle = '#ecebf5'; g.lineWidth = 1.5; g.beginPath(); g.arc(p.x, p.y, r + 4, 0, TAU); g.stroke(); }
-      if (n.kind === 'agent' && n.moving) { g.strokeStyle = n.colour; g.beginPath(); g.arc(p.x, p.y, r + 3 + Math.sin(t * 6) * 1.5, 0, TAU); g.stroke(); }
-      // Labels: rooms, wings, ventures, the brain always; folders and agents on hover or when few.
-      const showLabel = n.kind !== 'agent' && n.kind !== 'folder' || n === this.hover;
-      if (showLabel) {
-        const text = n.kind === 'room' ? `${n.label}${store.openCount(n.room) ? ` · ${store.openCount(n.room)}` : ''}` : n.kind === 'brain' ? `${n.label}${brain?.brief?.date ? ` · ${brain.brief.date}` : ''}` : n.label;
-        g.fillStyle = n.kind === 'room' || n.kind === 'brain' ? '#ecebf5' : n.kind === 'wing' ? n.colour : '#8a889e';
-        const above = n.kind === 'wing' || n.kind === 'brain';
-        g.textAlign = 'center'; g.fillText(text, p.x, p.y + (above ? -(r + 10) : r + 11));
-      }
+    // Rooms.
+    g.font = '10px ui-monospace, Menlo, monospace'; g.textAlign = 'center';
+    for (const r of d.rooms) {
+      const x = this.sx(r.x), y = this.sy(r.y); const att = this.ctx.store.attention(r.id);
+      const rad = 6 + Math.min(10, att * 0.6);
+      if (att) { g.fillStyle = `rgba(232,182,76,${0.10 + 0.05 * Math.sin(t * 2)})`; g.beginPath(); g.arc(x, y, rad + 8, 0, TAU); g.fill(); }
+      g.fillStyle = '#0f0f1a'; g.strokeStyle = ACCENT[r.accent] || '#ecebf5'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, rad, 0, TAU); g.fill(); g.stroke();
+      g.fillStyle = '#ecebf5'; g.fillText(r.name, x, y - rad - 8);
     }
-    // Hover detail.
+    // Agents.
+    for (const [id, s] of this.sat) {
+      const a = AGENTS.find((x) => x.id === id); const x = this.sx(s.x), y = this.sy(s.y);
+      const rn = d.rooms.find((r) => r.id === this.ctx.sim.byId[id].room);
+      if (rn) { g.strokeStyle = s.visiting ? 'rgba(232,182,76,0.6)' : 'rgba(255,255,255,0.15)'; g.setLineDash(s.visiting ? [3, 3] : []); g.beginPath(); g.moveTo(x, y); g.lineTo(this.sx(rn.x), this.sy(rn.y)); g.stroke(); g.setLineDash([]); }
+      g.fillStyle = a.colour; g.beginPath(); g.arc(x, y, a.kind === 'arcane' ? 5 : 3.5, 0, TAU); g.fill();
+      if (s.moving) { g.strokeStyle = a.colour; g.lineWidth = 1; g.beginPath(); g.arc(x, y, 7 + Math.sin(t * 6) * 1.5, 0, TAU); g.stroke(); }
+    }
+
+    // Hover card.
     if (this.hover) {
-      const n = this.hover, p = this.pos(n);
-      let lines = [];
-      if (n.kind === 'room') { const rm = ROOM_BY_ID[n.room]; lines = [rm.sub, `${store.openCount(n.room)} open orders · attention ${store.attention(n.room)}`, sim.occupants(n.room).map((a) => a.cfg.name).join(', ') || 'nobody here']; }
-      else if (n.kind === 'agent') { const s = sim.byId[n.agent.id]; lines = [`${n.agent.role} · ${n.agent.call}`, `${s.room === s.home ? 'at station' : 'visiting'} ${ROOM_BY_ID[s.room].name}`, n.agent.domain]; }
-      else if (n.kind === 'venture') { const v = VENTURES.find((x) => `v:${x.id}` === n.id); lines = [v.kind, v.facts.join(' · ')]; }
-      else if (n.kind === 'folder') { lines = [`brain/${n.label}`, `${(brain?.files?.[n.label] || []).length} files`, n.room ? `owned by ${ROOM_BY_ID[n.room].name}` : 'templates']; }
-      else if (n.kind === 'brain') { lines = [`memory on ${store.where()}`, `${store.totalOpen()} open orders · ${store.drafts().length} drafts`, BRIEF_BLOCKS.map((b) => b.name).join(' · ')]; }
-      else if (n.kind === 'wing') { const w = WINGS.find((x) => `wing:${x.id}` === n.id); lines = [w.sub]; }
-      const w = Math.max(...lines.map((l) => g.measureText(l).width), g.measureText(n.label).width) + 20;
-      const bx = Math.min(W - w - 8, p.x + 16), by = Math.min(H - (lines.length + 1) * 16 - 16, p.y + 16);
-      g.fillStyle = 'rgba(11,11,20,0.95)'; g.fillRect(bx, by, w, (lines.length + 1) * 16 + 10); g.strokeStyle = TONE.line; g.strokeRect(bx + 0.5, by + 0.5, w, (lines.length + 1) * 16 + 10);
-      g.textAlign = 'left'; g.fillStyle = '#ecebf5'; g.fillText(n.label, bx + 10, by + 13);
-      g.fillStyle = '#8a889e'; lines.forEach((l, i) => g.fillText(l, bx + 10, by + 29 + i * 16));
+      const h = this.hover; let title = '', lines = [];
+      if (h.kind === 'note') { title = h.node.t; lines = [h.node.id, `${d.groups.find((gg) => gg.id === h.node.g)?.name} · ${h.node.d} link${h.node.d === 1 ? '' : 's'}`, 'click to open in Obsidian']; }
+      else if (h.kind === 'room') { title = h.room.name; lines = [h.room.sub, `${this.ctx.store.openCount(h.room.id)} open orders`, this.ctx.sim.occupants(h.room.id).map((a) => a.cfg.name).join(', ') || 'nobody here']; }
+      else { const s = this.ctx.sim.byId[h.agent.id]; title = h.agent.name; lines = [`${h.agent.role} · ${h.agent.call}`, `${s.room === s.home ? 'at station' : 'visiting'} ${ROOM_BY_ID[s.room].name}`]; }
+      g.font = '11px ui-monospace, Menlo, monospace'; g.textAlign = 'left';
+      const w = Math.max(...[title, ...lines].map((l) => g.measureText(l).width)) + 20;
+      const px = this.sx(h.x), py = this.sy(h.y);
+      const bx = Math.min(W - w - 8, px + 14), by = Math.min(H - (lines.length + 1) * 16 - 16, py + 14);
+      g.fillStyle = 'rgba(11,11,20,0.95)'; g.fillRect(bx, by, w, (lines.length + 1) * 16 + 10); g.strokeStyle = '#24243a'; g.lineWidth = 1; g.strokeRect(bx + 0.5, by + 0.5, w, (lines.length + 1) * 16 + 10);
+      g.fillStyle = '#ecebf5'; g.fillText(title, bx + 10, by + 13); g.fillStyle = '#8a889e'; lines.forEach((l, i) => g.fillText(l, bx + 10, by + 29 + i * 16));
     }
   }
 }

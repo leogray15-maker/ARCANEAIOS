@@ -22,7 +22,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { STAGING_DIR, REPO, AGENT, SKILL, ID_PREFIX, slugify, nextId } from './lib.mjs';
+import { STAGING_DIR, REPO, AGENT, SKILL, ID_PREFIX, INDEX_FILE, slugify, nextId, archivesNote } from './lib.mjs';
 import { lintPath } from './lint.mjs';
 import { brainDir, serializeFrontmatter, appendTo, touchUpdated, trace, stamp, compact } from '../../../../tools/lib/brain.mjs';
 
@@ -64,13 +64,18 @@ const traceFile = path.join(brain, '04-Records', 'Trace', `${day.slice(0, 4)}-${
 if (fs.existsSync(traceFile)) for (const m of fs.readFileSync(traceFile, 'utf8').matchAll(/run (HER-R-\d{8}-\d{3})/g)) runsToday.add(m[1]);
 const run = nextId(`${ID_PREFIX}-R`, day, runsToday);
 
+/** The Archives note in the Obsidian vault is named `<title> <notionId>`; link the draft to it so the graph connects them. */
+let modulesById = {};
+try { modulesById = Object.fromEntries(JSON.parse(fs.readFileSync(INDEX_FILE, 'utf8')).modules.map((m) => [m.id, m])); } catch {}
+const noteFor = (ref) => archivesNote(modulesById[ref]);
+
 const landed = [];
 for (const r of results) {
   const id = nextId(ID_PREFIX, day, taken); taken.add(id);
   const d = r.data;
   const fm = {
     type: 'content-draft', id, title: d.title, format: d.format, platform: d.platform, status: 'draft', agent: AGENT, run,
-    source_subject: d.source_subject, source_module: d.source_module, source_ref: d.source_ref, source_url: d.source_url || '',
+    source_subject: d.source_subject, source_module: d.source_module, source_ref: d.source_ref, source_url: d.source_url || '', source_note: noteFor(d.source_ref),
     angle: d.angle, hook: d.hook, cta: d.cta, tags: d.tags, word_count: r.words,
     compliance: 'pass', compliance_notes: r.warnings.join('; '),
     created: stamp(now), updated: stamp(now), approved_by: '', scheduled_for: '', posted_at: '', posted_url: '',

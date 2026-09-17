@@ -109,7 +109,7 @@ canvas.chart { display: block; width: 100%; height: 180px; background: var(--pan
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; } @media (max-width: 1000px) { .two { grid-template-columns: 1fr; } }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px; } .kv dt { color: var(--faint); } .kv dd { margin: 0; }
 #graph-canvas { display: block; width: 100%; height: 100%; }
-.legend { position: absolute; left: 24px; bottom: 24px; background: rgba(11,11,20,.9); border: 1px solid var(--line-2); padding: 10px 14px; font-size: var(--t-1); color: var(--ash); }
+.legend { position: absolute; left: 24px; bottom: 24px; width: 260px; background: rgba(11,11,20,.92); border: 1px solid var(--line-2); padding: 12px 14px; font-size: var(--t-1); color: var(--ash); }
 .legend .dot { width: 10px; height: 10px; }
 
 /* ---------- journal ---------- */

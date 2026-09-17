@@ -72,6 +72,8 @@ facility imports it at build time, the vault generator imports it at
 generate time, and the validator can run logic over it. One import path,
 three consumers, zero drift.
 
+**The brain is in the Obsidian vault by symlink.** `~/Desktop/Arcane/ARCANE-AI-OS-v3 → repo/brain`, so Obsidian indexes it beside the Archives pages and git tracks the same files. `tools/vault-graph.mjs` reads the whole vault (`ARCANE_VAULT`) and ships its link graph as `apps/facility/public/graph.json`, committed because the vault is local.
+
 **The brain is a folder that can leave.** Every writer reaches it through
 `brainDir()` and `ARCANE_BRAIN`. Keeping it inside the monorepo for the
 first days makes the loop testable in one checkout; moving it to its own
