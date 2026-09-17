@@ -218,7 +218,7 @@ export function renderJournal(el, { store }, hash = '#journal', { keepScroll = f
   const body = tab === 'new' || tab === 'trade' ? tabNew(store, arg) : tab === 'daily' ? periodTab(store, (t, d) => d.day, 'Day') : tab === 'weekly' ? periodTab(store, (t, d) => d.week, 'Week')
     : tab === 'monthly' ? tabMonthly(store) : tab === 'playbook' ? (editingSetup ? setupForm(store.setups().find((s) => s.id === editingSetup)) : tabPlaybook(store)) : tab === 'psychology' ? tabPsychology(store) : tabTrades(store);
   el.innerHTML = `<div class="wrap">
-    <div class="view-head"><button class="back ghost" data-act="back">← Floor</button><h1>TRADING JOURNAL</h1><span class="sub">THE VAULT · THE RECORDS · ${store.trades().length} trades</span><span class="spacer"></span>
+    <div class="view-head"><button class="back ghost" data-act="back">← Floor</button><h1>THE TRADING FLOOR</h1><span class="sub">the Journal · XAUUSD · ${store.trades().length} trades</span><span class="spacer"></span>
       <button class="tiny ghost" data-act="export">Export JSON</button><label class="tiny"><input type="file" accept="application/json" data-act="import" class="hidden"><button class="tiny ghost" data-act="import-click">Import</button></label></div>
     <div class="tabs">${TABS.map(([id, name]) => `<button data-act="tab" data-tab="${id}" class="${(tab === 'trade' ? 'new' : tab) === id ? 'on' : ''}">${name}</button>`).join('')}</div>
     ${body}

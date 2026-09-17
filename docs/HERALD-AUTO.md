@@ -44,7 +44,7 @@ draft that trips it is repaired once by the model, then dropped.
 ## Needs
 
 - `ANTHROPIC_API_KEY` in `.env` with credits on the account.
-- `SUPABASE_SERVICE_ROLE_KEY` in `.env` for `vault:sync` (from the Vercel integration's variables; server-side only, never bundled).
+- `SUPABASE_SERVICE_ROLE_KEY` in `.env` for `vault:sync` (from the Vercel integration's variables — `storage_SUPABASE_SERVICE_ROLE_KEY`; server-side only, never bundled).
 - The vault at `ARCANE_VAULT` (default `~/Desktop/Arcane`) with the brain symlinked in as `ARCANE-AI-OS-v3`.
 - GitHub push access from this Mac for `--push`.
 

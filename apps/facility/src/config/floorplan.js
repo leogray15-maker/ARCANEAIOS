@@ -17,7 +17,7 @@
  * are staggered away from their corridor by a short door passage, so the
  * floor reads as a facility rather than a grid.
  */
-import { WINGS, roomsInWing } from '@arcane/config';
+import { WINGS, roomsInWing, ANNEXES } from '@arcane/config';
 
 export const MARGIN = 24;
 export const ROOM_W = 204;
@@ -57,7 +57,10 @@ export const ROW_Y = [];
   }
 }
 export const HALL_Y = ROW_Y[HALL_AFTER_ROW] + ROOM_H;
-export const PH = ROW_Y[4] + ROOM_H + MARGIN;
+/** Row 5: the annex row, below the wings. Only annexes sit there. */
+ROW_Y.push(ROW_Y[4] + ROOM_H + ROW_GAP + 6);
+export const WINGS_BOTTOM = ROW_Y[4] + ROOM_H;
+export const PH = ROW_Y[5] + ROOM_H + MARGIN;
 
 /** Which corridor a wing's doors open onto, on which side, and which way its rooms stagger. */
 const WING_DOOR = [
@@ -71,7 +74,7 @@ const WING_DOOR = [
  * Every room with its rect, door position, the corridor it joins and the
  * passage from its door to that corridor. `rect` is [x, y, w, h].
  */
-export const PLAN = WINGS.flatMap((w, wi) =>
+export const PLAN = [...WINGS.flatMap((w, wi) =>
   roomsInWing(w.id).map((room) => {
     const { corr, side, x: xOf } = WING_DOOR[wi];
     const x = xOf(STAGGER[room.row]);
@@ -83,7 +86,13 @@ export const PLAN = WINGS.flatMap((w, wi) =>
     const passage = side === 'right' ? [doorX, doorY - DOOR_W / 2 - 2, corrEdge - doorX, DOOR_W + 4] : [corrEdge, doorY - DOOR_W / 2 - 2, doorX - corrEdge, DOOR_W + 4];
     return { id: room.id, wing: wi, row: room.row, rect: [x, y, ROOM_W, ROOM_H], door: [doorX, doorY], side, corr, passage };
   }),
-);
+),
+// Annexes: below the wings, opening right onto the atrium (corridor 1), which extends down to meet them.
+...ANNEXES.map((room, i) => {
+  const x = AT - 18 - ROOM_W - i * (ROOM_W + 30), y = ROW_Y[5];
+  const doorX = x + ROOM_W, doorY = y + ROOM_H / 2;
+  return { id: room.id, wing: WINGS.findIndex((w) => w.id === room.wing), row: 5, annex: true, rect: [x, y, ROOM_W, ROOM_H], door: [doorX, doorY], side: 'right', corr: 1, passage: [doorX, doorY - DOOR_W / 2 - 2, AT - doorX, DOOR_W + 4] };
+})];
 
 export const PLAN_BY_ID = Object.fromEntries(PLAN.map((p) => [p.id, p]));
 
@@ -106,7 +115,8 @@ export function buildGraph() {
 
   for (let c = 0; c < VCORR.length; c++) {
     const x = VCORR[c];
-    const ys = ROW_Y.map((y, r) => ({ id: `c${c}r${r}`, y: y + ROOM_H / 2 }));
+    const rows = c === 1 ? ROW_Y : ROW_Y.slice(0, 5);          // only the atrium reaches the annex row
+    const ys = rows.map((y, r) => ({ id: `c${c}r${r}`, y: y + ROOM_H / 2 }));
     ys.splice(HALL_AFTER_ROW + 1, 0, { id: `c${c}h`, y: HALL_Y + HALL_H / 2 });
     ys.forEach((n) => add(n.id, x, n.y));
     for (let i = 1; i < ys.length; i++) join(ys[i - 1].id, ys[i].id);

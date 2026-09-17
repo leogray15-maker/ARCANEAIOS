@@ -4,11 +4,11 @@
  *
  *   npm run vault:sync
  *
- * On the site, moving a draft's status is stored in the operator's row in
- * Supabase (or only in that browser's localStorage, which this cannot
- * see). This reads the row with the service-role key — server-side only,
- * from .env, never in the bundle — and applies every status change to the
- * draft files: frontmatter `status` and the dated fields, the file moved
+ * On the site, moving a draft's status is stored in that device's row in
+ * Supabase, keyed by its sync code (or only in the browser, which this
+ * cannot see). This reads every row with the service-role key — server-side
+ * only, from .env, never in the bundle — merges the decisions (newest
+ * wins), and applies every status change to the draft files: frontmatter `status` and the dated fields, the file moved
  * to the folder for its status, the Content-Log row updated, the board
  * regenerated. The vault stays the truth; the site is how it was decided.
  *
@@ -25,11 +25,12 @@ const URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_storage_SUPABASE
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.storage_SUPABASE_SERVICE_ROLE_KEY || '';
 if (!KEY) { console.log('· vault:sync skipped — no SUPABASE_SERVICE_ROLE_KEY in .env (copy it from the Vercel integration; it never leaves this machine)'); process.exit(0); }
 
-const r = await fetch(`${URL}/rest/v1/arcane_state?id=eq.state&select=owner,body,updated`, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` } });
+const r = await fetch(`${URL}/rest/v1/arcane_sync?select=id,body,updated`, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` } });
 if (!r.ok) { console.error(`✗ Supabase ${r.status}: ${await r.text()}`); process.exit(1); }
 const rows = await r.json();
-if (!rows.length) { console.log('· vault:sync — no state row yet (sign in on the site once)'); process.exit(0); }
-const marks = Object.assign({}, ...rows.map((row) => row.body?.drafts || {}));   // one operator; merge defensively
+if (!rows.length) { console.log('· vault:sync — no rows yet (open the site once with the Supabase key in the build)'); process.exit(0); }
+const marks = {};
+for (const row of rows) for (const [id, m] of Object.entries(row.body?.drafts || {})) if (!marks[id] || (m.ts || 0) > (marks[id].ts || 0)) marks[id] = m;   // every device's decisions, newest wins
 
 const brain = brainDir();
 const FOLDER = { draft: 'Drafts', review: 'Drafts', approved: 'Approved', scheduled: 'Approved', posted: 'Posted', killed: 'Killed' };

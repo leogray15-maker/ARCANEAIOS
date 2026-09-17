@@ -371,17 +371,73 @@ export const PAINT = {
   },
   /** A hazard floor mat. */
   floormat(g, x, y, w, h) { g.fillStyle = '#1b1b28'; g.fillRect(x, y, w, h); PAINT.hazard(g, x + 1, y + 1, w - 2, 2, {}, 0); PAINT.hazard(g, x + 1, y + h - 3, w - 2, 2, {}, 0); g.fillStyle = '#23232f'; g.fillRect(x + 2, y + 4, w - 4, h - 8); },
+
+  /* ---------- THE TRADING FLOOR ---------- */
+  /** A candlestick chart in gold on a dark screen; the last candle grows. */
+  chartscreen(g, x, y, w, h, o, t) {
+    outline(g, x, y, w, h); g.fillStyle = '#1a1c28'; g.fillRect(x, y, w, h); g.fillStyle = '#080a12'; g.fillRect(x + 1, y + 1, w - 2, h - 2);
+    const c = accent(o.colour) || PX.gold;
+    g.fillStyle = rgba(c, 0.9); g.fillRect(x + 3, y + 3, Math.max(8, w * 0.3), 1);
+    g.fillStyle = 'rgba(255,255,255,0.05)'; for (let i = 1; i < 4; i++) g.fillRect(x + 2, y + 5 + i * ((h - 8) / 4), w - 4, 1);
+    const n = Math.floor((w - 8) / 4); let seed = (x * 31 + y * 17) >>> 0; let v = 0.5;
+    for (let i = 0; i < n; i++) {
+      seed = (seed * 1103515245 + 12345) >>> 0; const step = ((seed % 1000) / 1000 - 0.48) * 0.16;
+      const open = v; v = Math.max(0.1, Math.min(0.9, v + step + (i === n - 1 ? Math.sin(t * 2) * 0.04 : 0)));
+      const top = y + 6 + (1 - Math.max(open, v)) * (h - 12), bot = y + 6 + (1 - Math.min(open, v)) * (h - 12);
+      const up = v >= open; g.fillStyle = up ? c : PX.breach;
+      g.fillRect(x + 4 + i * 4 + 1, Math.round(top) - 2, 1, Math.round(bot - top) + 4);   // wick
+      g.fillRect(x + 4 + i * 4, Math.round(top), 3, Math.max(1, Math.round(bot - top)));
+    }
+    const py = y + 6 + (1 - v) * (h - 12); g.fillStyle = rgba(c, 0.5); g.fillRect(x + 2, Math.round(py), w - 4, 1); g.fillStyle = '#ecebf5'; g.fillRect(x + w - 10, Math.round(py) - 2, 8, 4);
+    glow(g, x + w / 2, y + h + 6, w * 0.7, c, 0.14);
+  },
+  /** The trading desk: three monitors with charts, a keyboard, a mouse, a coffee, the journal open beside them. */
+  tradingdesk(g, x, y, w, h, o, t) {
+    PAINT.desk(g, x, y + 10, w, h - 10, { tone: 'steel' }, t);
+    const mw = Math.floor((w - 12) / 3);
+    for (let i = 0; i < 3; i++) { const mx = x + 4 + i * (mw + 2); PAINT.chartscreen(g, mx, y - 4 + (i === 1 ? -3 : 0), mw, 14 + (i === 1 ? 3 : 0), { colour: i === 2 ? 'cyan' : 'gold' }, t + i * 1.3); g.fillStyle = PX.steel; g.fillRect(mx + mw / 2 - 1, y + 10 + (i === 1 ? 0 : 0), 2, 2); }
+    g.fillStyle = '#1b1b28'; g.fillRect(x + w / 2 - 9, y + 14, 18, 3); g.fillStyle = '#5a5a72'; for (let k = 0; k < 8; k++) g.fillRect(x + w / 2 - 8 + k * 2, y + 15, 1, 1);
+    g.fillStyle = '#1b1b28'; g.fillRect(x + w / 2 + 12, y + 15, 3, 4);
+    g.fillStyle = '#ecebf5'; g.fillRect(x + 6, y + 14, 3, 3); px(g, x + 9, y + 15, '#ecebf5');
+    g.fillStyle = '#5a3a20'; g.fillRect(x + w - 16, y + 13, 10, 6); g.fillStyle = '#e8e6f0'; g.fillRect(x + w - 15, y + 14, 8, 1); g.fillRect(x + w - 15, y + 16, 5, 1);
+  },
+  /** A ticker tape: a dark strip with symbols and moving numbers, green and red. */
+  tickertape(g, x, y, w, h, o, t) {
+    outline(g, x, y, w, h); g.fillStyle = '#080a12'; g.fillRect(x, y, w, h);
+    const items = 8; const off = Math.floor(t * 18) % 40;
+    for (let i = 0; i < items; i++) {
+      const ix = x + 4 + i * 40 - off; if (ix < x + 2 || ix + 30 > x + w - 2) continue;
+      g.fillStyle = '#8a889e'; g.fillRect(ix, y + h / 2 - 1, 8, 1);
+      const up = (i + Math.floor(t / 7)) % 3 !== 1; g.fillStyle = up ? PX.vital : PX.breach; g.fillRect(ix + 11, y + h / 2 - 1, 12, 1); g.fillRect(ix + 25, y + h / 2 - (up ? 2 : 0), 3, 1); g.fillRect(ix + 26, y + h / 2 - (up ? 3 : -1), 1, 1);
+    }
+    g.fillStyle = PX.gold; g.fillRect(x + 2, y + 1, 2, h - 2);
+  },
+  /** Three wall clocks — the sessions — with a lit one for whichever is open. */
+  sessionclocks(g, x, y, w, h, o, t) {
+    const n = 3, cw = Math.floor(w / n); const hour = (new Date().getUTCHours() + 1) % 24; // London
+    const lit = hour >= 7 && hour < 12 ? 0 : hour >= 12 && hour < 21 ? 1 : 2;
+    for (let i = 0; i < n; i++) {
+      const cx = x + i * cw + cw / 2, cy = y + h / 2 - 2, r = Math.min(cw, h) / 2 - 3;
+      g.fillStyle = OUT; g.beginPath(); g.arc(cx, cy, r + 1, 0, Math.PI * 2); g.fill();
+      g.fillStyle = i === lit ? '#f2ecd8' : '#b8b6c4'; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+      const a = (t * 0.05 + i * 2) % (Math.PI * 2), m = (t * 0.6 + i) % (Math.PI * 2);
+      g.strokeStyle = '#1b1b28'; g.lineWidth = 1; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * r * 0.5, cy + Math.sin(a) * r * 0.5); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(m) * r * 0.8, cy + Math.sin(m) * r * 0.8); g.stroke();
+      if (i === lit) glow(g, cx, cy + r + 4, r * 2, PX.gold, 0.16);
+    }
+  },
+  /** A small display case with gold bars. */
+  goldcase(g, x, y, w, h) { box(g, x, y, w, h, '#2a2c38', 2); g.fillStyle = OUT; g.fillRect(x + 2, y + 2, w - 4, h - 5); g.fillStyle = '#12141c'; g.fillRect(x + 3, y + 3, w - 6, h - 7); for (let i = 0; i < Math.floor((w - 8) / 7); i++) { g.fillStyle = PX.gold; g.fillRect(x + 4 + i * 7, y + h - 9, 6, 4); g.fillStyle = lit(PX.gold, 0.5); g.fillRect(x + 4 + i * 7, y + h - 9, 6, 1); if (i % 2 === 0) { g.fillStyle = PX.gold; g.fillRect(x + 6 + i * 7, y + h - 13, 6, 4); g.fillStyle = lit(PX.gold, 0.5); g.fillRect(x + 6 + i * 7, y + h - 13, 6, 1); } } g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x + 3, y + 3, 2, h - 7); glow(g, x + w / 2, y + h + 4, w * 0.7, PX.gold, 0.16); },
 };
 
 /** Props painted with the room, behind the crew. */
-export const WALL_MOUNTED = new Set(['screen', 'wallscreen', 'bigscreen', 'board', 'window', 'cardwall', 'productshelf', 'corkboard', 'switchwall', 'maprack', 'shelf', 'vent', 'pipe', 'rug', 'coldstore', 'vialrack', 'servers', 'safe', 'lift', 'mast', 'radio', 'ladder', 'cabinet', 'lockedcabinet', 'locker', 'lever', 'cashdisplay', 'orderboard', 'funnel', 'buildmonitor', 'toolwall', 'healthdash', 'cable', 'sign', 'hazard', 'extinguisher', 'clock', 'archiveterminal', 'partition', 'statuspanel', 'cabletray', 'grate', 'screenwall', 'rack', 'floormat']);
+export const WALL_MOUNTED = new Set(['screen', 'wallscreen', 'bigscreen', 'board', 'window', 'cardwall', 'productshelf', 'corkboard', 'switchwall', 'maprack', 'shelf', 'vent', 'pipe', 'rug', 'coldstore', 'vialrack', 'servers', 'safe', 'lift', 'mast', 'radio', 'ladder', 'cabinet', 'lockedcabinet', 'locker', 'lever', 'cashdisplay', 'orderboard', 'funnel', 'buildmonitor', 'toolwall', 'healthdash', 'cable', 'sign', 'hazard', 'extinguisher', 'clock', 'archiveterminal', 'partition', 'statuspanel', 'cabletray', 'grate', 'screenwall', 'rack', 'floormat', 'chartscreen', 'tickertape', 'sessionclocks', 'goldcase']);
 
 /**
  * Painters that move. Everything else is baked once at startup: wall-mounted
  * pieces straight into the static buffer, floor pieces into their own small
  * canvases so they can still be depth-sorted with the crew.
  */
-export const ANIMATED = new Set(['screen', 'wallscreen', 'bigscreen', 'terminal', 'cardwall', 'coldstore', 'instrument', 'servers', 'radio', 'mast', 'lift', 'lever', 'safe', 'window', 'commandtable', 'till', 'candle', 'council', 'workbench', 'camera', 'coa', 'archiveterminal', 'holo', 'secureterminal', 'cashdisplay', 'lockedcabinet', 'orderboard', 'funnel', 'buildmonitor', 'healthdash', 'clock', 'balance', 'fraction', 'wastebin', 'statuspanel', 'screenwall', 'signaldesk', 'rack']);
+export const ANIMATED = new Set(['screen', 'wallscreen', 'bigscreen', 'terminal', 'cardwall', 'coldstore', 'instrument', 'servers', 'radio', 'mast', 'lift', 'lever', 'safe', 'window', 'commandtable', 'till', 'candle', 'council', 'workbench', 'camera', 'coa', 'archiveterminal', 'holo', 'secureterminal', 'cashdisplay', 'lockedcabinet', 'orderboard', 'funnel', 'buildmonitor', 'healthdash', 'clock', 'balance', 'fraction', 'wastebin', 'statuspanel', 'screenwall', 'signaldesk', 'rack', 'chartscreen', 'tradingdesk', 'tickertape', 'sessionclocks']);
 const LIVE_ITEMS = new Set(['terminal', 'dual', 'candle', 'printer', 'secure']);
 /** True when a placement must be painted every frame. */
 export const isAnimated = (p) => ANIMATED.has(p.type) || (p.opts.items || []).some((i) => LIVE_ITEMS.has(i));

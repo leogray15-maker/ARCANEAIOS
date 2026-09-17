@@ -90,6 +90,16 @@ export const ROOMS = [
     widgets: ['manuscript-progress'],
   },
 
+  /* ============ ANNEX · below COMMAND, opening onto the atrium ============ */
+  {
+    id: 'trading', name: 'THE TRADING FLOOR', sub: 'XAUUSD · ICT · The Journal',
+    wing: 'command', row: 5, annex: true, agent: null, venture: null, accent: 'gold',
+    domain: 'Leo\'s own desk. Gold on the monitors, the sessions on the wall, every trade in the Journal.',
+    brain: '05-Knowledge/Trading-Journal.md',
+    widgets: ['journal'],
+    opens: '#journal',
+  },
+
   /* ============ C3 · KNOWLEDGE ============ */
   {
     id: 'intel', name: 'INTELLIGENCE', sub: 'Competitors · Markets · Signals',
@@ -175,5 +185,7 @@ export const DASHBOARD_FRAME = [
   { id: 'files',  name: 'Files',  note: 'The brain folder this room owns, newest first' },
 ];
 
+/** The five rooms of a wing, in row order. Annexes hang off a wing but are not one of its five. */
 export const roomsInWing = (wingId) =>
-  ROOMS.filter((r) => r.wing === wingId).sort((a, b) => a.row - b.row);
+  ROOMS.filter((r) => r.wing === wingId && !r.annex).sort((a, b) => a.row - b.row);
+export const ANNEXES = ROOMS.filter((r) => r.annex);

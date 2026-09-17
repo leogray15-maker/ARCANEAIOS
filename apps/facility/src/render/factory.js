@@ -11,7 +11,7 @@
  *             can stand behind a desk and in front of a rug.
  */
 import { ROOM_BY_ID, WINGS, AGENT_BY_ID } from '@arcane/config';
-import { PW, PH, PLAN, VCORR, CORR_X, CORR_WIDTH, HALL_Y, HALL_H, MARGIN, DOOR_W, WALL, PLAZA, ATRIUM_W } from '../config/floorplan.js';
+import { PW, PH, PLAN, VCORR, CORR_X, CORR_WIDTH, HALL_Y, HALL_H, MARGIN, DOOR_W, WALL, PLAZA, ATRIUM_W, WINGS_BOTTOM } from '../config/floorplan.js';
 import { ROOM_PROPS } from '../config/props.js';
 import { PAINT, WALL_MOUNTED, isAnimated } from './props.js';
 import { PX, accent } from './palette.js';
@@ -44,8 +44,8 @@ export function bakeStatic(buf, { hover, selected } = {}) {
   g.fillStyle = PX.hullLit; g.fillRect(MARGIN - 6, MARGIN - 6, PW - 2 * MARGIN + 12, 1);
 
   // Service corridors either side, the atrium in the middle, the hall across all three, a passage to every door.
-  drawGrate(g, CORR_X[0], MARGIN, CORR_WIDTH[0], PH - 2 * MARGIN, 'v');
-  drawGrate(g, CORR_X[2], MARGIN, CORR_WIDTH[2], PH - 2 * MARGIN, 'v');
+  drawGrate(g, CORR_X[0], MARGIN, CORR_WIDTH[0], WINGS_BOTTOM + 8 - MARGIN, 'v');
+  drawGrate(g, CORR_X[2], MARGIN, CORR_WIDTH[2], WINGS_BOTTOM + 8 - MARGIN, 'v');
   drawAtrium(g);
   drawGrate(g, CORR_X[0], HALL_Y, CORR_X[2] + CORR_WIDTH[2] - CORR_X[0], HALL_H, 'h');
   drawPlaza(g);
@@ -131,7 +131,7 @@ function drawPlaza(g) {
 function drawCorridorWear(g) {
   const r = rng('corridors');
   g.fillStyle = 'rgba(0,0,0,0.3)';
-  for (const c of [0, 2]) { const x = VCORR[c]; for (let i = 0; i < 14; i++) g.fillRect(x - 10 + r() * 20, MARGIN + r() * (PH - 2 * MARGIN), 1, 4 + r() * 12); }
+  for (const c of [0, 2]) { const x = VCORR[c]; for (let i = 0; i < 14; i++) g.fillRect(x - 10 + r() * 20, MARGIN + r() * (WINGS_BOTTOM - MARGIN), 1, 4 + r() * 12); }
   for (let i = 0; i < 20; i++) g.fillRect(VCORR[0] + r() * (VCORR[2] - VCORR[0]), HALL_Y + 4 + r() * (HALL_H - 8), 4 + r() * 10, 1);
   g.fillStyle = hexA(PX.rust, 0.25);
   for (const c of [0, 2]) { const x = VCORR[c]; g.fillRect(x - CORR_WIDTH[c] / 2 + 2, HALL_Y - 2, 6, 4); g.fillRect(x + CORR_WIDTH[c] / 2 - 8, HALL_Y + HALL_H - 2, 6, 4); }

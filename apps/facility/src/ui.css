@@ -42,6 +42,12 @@ code { color: var(--cyan); font-size: var(--t-1); }
 #tip b { color: var(--ink); letter-spacing: .08em; }
 #tip .dot { margin-right: 4px; }
 
+/* ---------- status strip ---------- */
+#strip { position: absolute; left: 0; right: 0; bottom: 0; height: 34px; display: flex; align-items: center; gap: 28px; padding: 0 16px; background: rgba(11,11,20,.88); border-top: 1px solid var(--line); font-size: var(--t-1); color: var(--ink); white-space: nowrap; overflow: hidden; pointer-events: none; }
+#strip .w { display: inline-flex; gap: 6px; align-items: center; }
+#strip .sess { color: var(--faint); margin-right: 8px; } #strip .sess.open { color: var(--gold); }
+#strip b { font-weight: 600; }
+
 /* ---------- full-page views ---------- */
 .view { position: fixed; inset: var(--bar) 0 0 0; overflow: auto; background: var(--bg); z-index: 10; }
 .view.hidden { display: none; }

@@ -134,6 +134,21 @@ export const ROOM_PROPS = {
     station: { x: 70, y: 100, face: 'back' }, walk: [130, 92, 40, 12],
   },
 
+  /* ============ ANNEX · THE TRADING FLOOR (door on the right, onto the atrium) ============ */
+  trading: {
+    props: [
+      // back wall: the big chart, the ticker, three session clocks, a gold case
+      P('chartscreen', 8, 28, 64, 30, { colour: 'gold', label: 'XAUUSD · 15m' }), P('tickertape', 76, 28, 84, 8, { label: 'TAPE' }), P('sessionclocks', 76, 40, 84, 18, { labels: ['LDN', 'NY', 'ASIA'] }),
+      P('goldcase', 164, 26, 30, 16, { label: 'RESERVE' }), P('sign', 126, 22, 20, 6, { colour: 'gold' }), P('clock', 150, 22, 7, 7),
+      // middle: the trading desk, the chair, a second desk for the journal
+      P('tradingdesk', 30, 66, 96, 26, { label: 'THE DESK' }), P('chair', 72, 94, 10, 10), P('desk', 134, 70, 44, 16, { tone: 'wood', items: ['ledger', 'lamp', 'coffee'], label: 'JOURNAL' }), P('chair', 150, 88, 10, 10, { tone: 'wood' }),
+      // front and detail
+      P('rack', 8, 64, 18, 30, { colour: 'gold', label: 'FEED' }), P('cable', 30, 58, 100, 4), P('cabletray', 30, 100, 60, 5), P('plant', 186, 92, 10, 16), P('rug', 100, 98, 60, 10, { colour: '#3a2e1c' }),
+      P('bin', 120, 94, 8, 10), P('kettlebell', 10, 98, 10, 10), P('bookstack', 176, 72, 12, 10), P('extinguisher', 194, 76, 5, 12), P('floormat', 4, 52, 24, 10),
+    ],
+    station: { x: 76, y: 104, face: 'back' }, walk: [100, 104, 30, 6],
+  },
+
   /* ============ C3 · KNOWLEDGE (doors on the right) ============ */
   intel: {
     props: [

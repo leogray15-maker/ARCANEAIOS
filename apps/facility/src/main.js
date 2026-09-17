@@ -18,15 +18,15 @@ import { renderDash, bindDash } from './render/panel.js';
 import { renderJournal, bindJournal } from './render/journal.js';
 import { renderContent, bindContent } from './render/content.js';
 import { BrainGraph } from './render/graph.js';
+import { Strip } from './render/strip.js';
 import { Sim } from './core/sim.js';
 import { Store } from './core/store.js';
 import { exampleTrades } from './core/journal.js';
-import { auth } from './core/auth.js';
+import { sync } from './core/sync.js';
 import { cloud } from './core/cloud.js';
 
 const $ = (id) => document.getElementById(id);
-// Back from a magic link? Take the session out of the URL before the router sees the hash.
-auth.acceptHash();
+
 const stage = $('stage'), canvas = $('floor'), tip = $('tip');
 const views = { dash: $('dash'), content: $('content'), journal: $('journal'), graph: $('graph') };
 const staticBuf = createBuffer();
@@ -44,6 +44,7 @@ store.sessionStart = Date.now();
 const sim = new Sim(store);
 const ctx = { sim, store, brain };
 const graph = new BrainGraph($('graph-canvas'), $('graph-legend'), ctx, (roomId) => go(`#room/${roomId}`));
+const strip = new Strip($('strip'), ctx);
 
 /* ============================================================
    ZOOM + PAN
@@ -52,10 +53,11 @@ const graph = new BrainGraph($('graph-canvas'), $('graph-legend'), ctx, (roomId)
 const dpr = () => Math.max(1, window.devicePixelRatio || 1);
 
 function fit() {
-  const s = Math.max(1, Math.floor(Math.min(stage.clientWidth / PW, stage.clientHeight / PH)));
+  const H = stage.clientHeight - 34;
+  const s = Math.max(1, Math.floor(Math.min(stage.clientWidth / PW, H / PH)));
   view.scale = s;
   view.x = Math.floor((stage.clientWidth - PW * s) / 2);
-  view.y = Math.floor((stage.clientHeight - PH * s) / 2);
+  view.y = Math.floor((H - PH * s) / 2);
 }
 /** Set a zoom, keeping the point under `cx,cy` (stage pixels) fixed; defaults to the centre. */
 function setZoom(mode, cx = stage.clientWidth / 2, cy = stage.clientHeight / 2) {
@@ -109,7 +111,7 @@ stage.addEventListener('pointerup', (e) => {
   const wasDrag = drag?.moved; drag = null;
   if (wasDrag) return;
   const p = toBuffer(e); const r = roomAt(p.x, p.y);
-  if (r) go(`#room/${r.id}`);
+  if (r) { sim.command(r.id); go(ROOM_BY_ID[r.id].opens || `#room/${r.id}`); }
 });
 stage.addEventListener('wheel', (e) => {
   e.preventDefault();
@@ -147,13 +149,14 @@ function go(hash) { if (location.hash !== hash) location.hash = hash; else route
 function route() {
   const h = location.hash || '#';
   const room = /^#room\/([a-z]+)/.exec(h)?.[1];
+  if (room && ROOM_BY_ID[room]?.opens) { location.hash = ROOM_BY_ID[room].opens; return; }
   const screen = room && ROOM_BY_ID[room] ? 'dash' : h.startsWith('#journal') ? 'journal' : h.startsWith('#content') ? 'content' : h.startsWith('#graph') ? 'graph' : 'floor';
   state.screen = screen;
   state.selected = room && ROOM_BY_ID[room] ? room : null;
   for (const [k, el] of Object.entries(views)) el.classList.toggle('hidden', k !== screen);
   for (const b of document.querySelectorAll('#views button')) b.classList.toggle('on', b.dataset.view === (screen === 'dash' ? 'floor' : screen));
   if (screen === 'dash') { sim.command(state.selected); renderDash(views.dash, state.selected, ctx); views.dash.scrollTop = 0; }
-  if (screen === 'journal') renderJournal(views.journal, ctx, h);
+  if (screen === 'journal') { sim.command('trading'); renderJournal(views.journal, ctx, h); }
   if (screen === 'content') renderContent(views.content, ctx, h);
   if (screen === 'graph') graph.show();
   else graph.hide();
@@ -172,22 +175,23 @@ store.onChange(() => {
   barStatus();
 });
 store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } });
-auth.onChange(() => { renderAuth(); store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } }); });
+sync.onChange(() => { store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } }); renderSync(); });
 
-/** Sign-in control in the bar: an email box until signed in, then the address and a sign-out. */
-function renderAuth() {
+/** Sync control in the bar: a dot when synced; click to reveal this device's code or paste another's. */
+function renderSync() {
   const el = $('auth');
   if (!cloud.enabled) { el.innerHTML = `<span class="faint" title="${cloud.reason}">no sync</span>`; return; }
-  if (auth.session) { el.innerHTML = `<span class="who" title="synced through Supabase">● ${auth.email}</span><button class="tiny ghost" id="signout">sign out</button>`; $('signout').onclick = () => { auth.signOut(); }; return; }
-  el.innerHTML = `<form id="signin"><input type="email" name="email" placeholder="email for a sign-in link" required><button class="tiny" type="submit">SIGN IN</button></form>`;
-  $('signin').onsubmit = async (e) => {
-    e.preventDefault();
-    const f = e.target, email = f.email.value.trim(); f.querySelector('button').disabled = true;
-    try { await auth.signIn(email); el.innerHTML = `<span class="ash">link sent to <b>${email}</b> — open it on this device</span>`; }
-    catch (err) { el.innerHTML = `<span class="breach">${err.message}</span> <button class="tiny ghost" id="retry">retry</button>`; $('retry').onclick = renderAuth; }
+  el.innerHTML = `<button class="tiny ghost" id="sync-toggle" title="sync across devices">● SYNC</button>`;
+  $('sync-toggle').onclick = () => {
+    el.innerHTML = `<span class="ash">this device:</span> <code id="sync-code" title="click to copy" style="cursor:pointer">${sync.code}</code>
+      <form id="sync-join" style="display:inline-flex;gap:4px"><input name="code" placeholder="paste another device's code" style="width:230px"><button class="tiny" type="submit">join</button></form>
+      <button class="tiny ghost" id="sync-close">close</button>`;
+    $('sync-code').onclick = () => navigator.clipboard?.writeText(sync.code).then(() => { $('sync-code').textContent = 'copied'; setTimeout(renderSync, 900); });
+    $('sync-join').onsubmit = (e) => { e.preventDefault(); if (!sync.use(e.target.code.value)) { e.target.code.value = ''; e.target.code.placeholder = 'that is not a sync code'; } };
+    $('sync-close').onclick = renderSync;
   };
 }
-renderAuth();
+renderSync();
 
 function barStatus() {
   const away = sim.agents.filter((a) => a.id !== 'arcane' && a.room !== a.home).length;

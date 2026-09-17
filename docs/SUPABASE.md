@@ -4,30 +4,25 @@ Project: **supabase-ARCANE-AIOS** · `https://pjdzdfmnfuneumzqoijn.supabase.co` 
 Connected to the Vercel project `arcaneaios` through the Supabase
 integration (storage name `storage`).
 
-The facility's store persists to memory → localStorage → Supabase. The
-cloud rung is used only once the operator has **signed in** with a magic
-link; until then the site works from localStorage and the Bridge says so.
+The facility's store persists to memory → localStorage → Supabase. There
+is **no sign-in**: one operator, one site. Each browser generates an
+unguessable **sync code** on first visit (130 bits, kept in localStorage)
+and uses it as its row id. To carry state to a second device, open ● SYNC
+in the bar, copy the code, and paste it on the other device — both then
+write the same row. The code is never shown unless asked for. The state is
+as private as the code; the anon key can only touch well-formed sync rows.
 
-## Set-up — three steps, once
+## Set-up — two steps, once
 
 ### 1. The table (SQL Editor)
 
-Open the project → SQL Editor → paste `supabase/migrations/0001_arcane_state.sql` → Run.
-It creates `arcane_state` (one row per signed-in user per document) with
-row-level security: a user reads and writes only their own rows; there is
-no anonymous access at all. Safe to re-run.
+Open the project → SQL Editor → paste `supabase/migrations/0002_sync_codes.sql` → Run.
+It creates `arcane_sync` (one row per sync code) with row-level security
+that lets the anon key read, insert and update rows whose id is a sync
+code, and never delete. Safe to re-run. (`0001_arcane_state.sql` was the
+earlier sign-in model; it is not needed.)
 
-### 2. Auth — magic link (Authentication → URL Configuration)
-
-- **Site URL:** `https://arcaneaios.vercel.app`
-- **Redirect URLs:** add `https://arcaneaios.vercel.app/**` and, for local dev, `http://localhost:5173/**`
-
-Email sign-in is on by default on the free plan (a few emails an hour is
-plenty for one operator). The magic link returns to the site with the
-session in the URL fragment; the facility takes it, stores it in
-localStorage, and refreshes it before it expires.
-
-### 3. Environment (already done by the integration)
+### 2. Environment (already done by the integration)
 
 The Vercel integration added, with its `storage_` prefix:
 
@@ -42,24 +37,26 @@ The Vercel integration added, with its `storage_` prefix:
 URL and the publishable/anon key are injected, by name — a prefix rule
 could sweep a service-role key into the bundle, so there is none.
 
-Redeploy once after step 3 if the variables were added after the last build.
+Redeploy once after step 2 if the variables were added after the last build.
 
 ## Using it
 
-Top bar → enter your email → **SIGN IN** → open the link from the email
-on the same device. The bar then shows `● your@email` and the Bridge
-reports `memory: Supabase · your@email`. Everything the store holds —
-orders, stock, ledger, split, goals, draft status, lists, protocol, the
-Trading Journal — is written to your row on every change and read back
+Nothing to do. The bar shows `● SYNC` when the build has the key; the
+Bridge reports `memory: synced`. Everything the store holds — orders,
+stock, ledger, split, goals, draft status, lists, protocol, the Trading
+Journal — is written to this device's row on every change and read back
 on load; every 30 s the facility checks whether another device wrote
 something newer and, if so, takes it (newest state wins whole).
 
-Sign out from the bar. Signing in on a second device pulls the same row.
+Second device: ● SYNC → copy the code here → ● SYNC → paste → join.
+
+`npm run vault:sync` (with `SUPABASE_SERVICE_ROLE_KEY` in `.env`) reads
+every row and brings the draft-status decisions into the vault's files.
 
 ## Shape
 
 ```
-arcane_state (owner uuid = auth.uid(), id text = 'state', body jsonb, updated timestamptz)
+arcane_sync (id text = 'sync-<26 chars>', body jsonb, updated timestamptz)
 ```
 
 `body` is the store's state (`v: 3`). The journal rides inside it for now;

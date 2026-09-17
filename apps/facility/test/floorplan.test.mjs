@@ -7,7 +7,7 @@ import { PLAN, PW, PH, buildGraph, path, CORR_X, CORR_WIDTH, HALL_Y, HALL_H } fr
 const fails = [];
 const ok = (c, m) => { if (!c) fails.push(m); };
 
-ok(PLAN.length === 20, `20 rooms placed (got ${PLAN.length})`);
+ok(PLAN.length === 21, `21 rooms placed (got ${PLAN.length})`);
 for (const p of PLAN) {
   const [x, y, w, h] = p.rect;
   ok(x >= 0 && y >= 0 && x + w <= PW && y + h <= PH, `${p.id} inside ${PW}x${PH}`);
@@ -36,4 +36,4 @@ for (const a of PLAN) for (const b of PLAN) {
 }
 
 if (fails.length) { console.error(`✗ floorplan: ${fails.length} problems`); for (const f of fails) console.error('  · ' + f); process.exit(1); }
-console.log(`✓ floorplan: 20 rooms, ${g.nodes.size} nodes, ${pairs} reachable pairs, longest path ${longest} nodes, ${PW}x${PH}, doors meet their corridors`);
+console.log(`✓ floorplan: ${PLAN.length} rooms, ${g.nodes.size} nodes, ${pairs} reachable pairs, longest path ${longest} nodes, ${PW}x${PH}, doors meet their corridors`);

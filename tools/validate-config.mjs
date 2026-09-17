@@ -26,14 +26,16 @@ ok(COUNCIL.length === 9, `expected 9 council seats, found ${COUNCIL.length}`);
 ok(COUNCIL[0]?.id === 'arcane', 'ARCANE speaks last but is weighted first');
 
 /* ---- floor shape ---- */
-ok(ROOMS.length === 20, `expected 20 rooms, found ${ROOMS.length}`);
+const MAIN = ROOMS.filter((r) => !r.annex);
+ok(MAIN.length === 20, `expected 20 rooms in the wings, found ${MAIN.length}`);
+ok(ROOMS.length === 21, `expected 21 rooms with the annex, found ${ROOMS.length}`);
 ok(WINGS.length === 4, `expected 4 wings, found ${WINGS.length}`);
 for (const w of WINGS) {
   const rs = roomsInWing(w.id);
   ok(rs.length === 5, `wing ${w.name} has ${rs.length} rooms, expected 5`);
   ok(rs.map((r) => r.row).join() === '0,1,2,3,4', `wing ${w.name} rows must be 0..4`);
 }
-ok(new Set(ROOMS.map((r) => r.id)).size === 20, 'room ids unique');
+ok(new Set(ROOMS.map((r) => r.id)).size === ROOMS.length, 'room ids unique');
 
 /* ---- agents ↔ rooms ---- */
 for (const a of AGENTS) {
@@ -46,8 +48,8 @@ for (const r of ROOMS) {
   if (r.agent) ok(AGENT_BY_ID[r.agent]?.room === r.id, `${r.name} names ${r.agent} as resident but that agent is stationed elsewhere`);
   if (r.venture) ok(VENTURES.some((v) => v.id === r.venture), `${r.name} names unknown venture "${r.venture}"`);
 }
-ok(ROOMS.filter((r) => !r.agent).length === 1 && ROOM_BY_ID.council.agent === null,
-  'exactly one room has no resident, and it is THE COUNCIL');
+ok(ROOMS.filter((r) => !r.agent).every((r) => r.id === 'council' || r.annex),
+  'only THE COUNCIL and the annexes have no resident');
 
 /* ---- permissions: the standing rules ---- */
 for (const a of AGENTS) {
@@ -84,4 +86,4 @@ if (fails.length) {
   console.error();
   process.exit(1);
 }
-console.log(`✓ config valid — ${AGENTS.length} agents (${COUNCIL.length} seated), ${ROOMS.length} rooms in ${WINGS.length} wings, ${SKILLS.length} skill${SKILLS.length === 1 ? '' : 's'}, ${TOOLS.filter((t) => t.state !== 'not wired').length}/${TOOLS.length} tools wired. No agent holds allow. Spend is deny everywhere. Notion is read-only.`);
+console.log(`✓ config valid — ${AGENTS.length} agents (${COUNCIL.length} seated), ${MAIN.length} rooms in ${WINGS.length} wings + ${ROOMS.length - MAIN.length} annex, ${SKILLS.length} skill${SKILLS.length === 1 ? '' : 's'}, ${TOOLS.filter((t) => t.state !== 'not wired').length}/${TOOLS.length} tools wired. No agent holds allow. Spend is deny everywhere. Notion is read-only.`);

@@ -16,11 +16,10 @@
 import { VENTURES, ROOMS, ROOM_BY_ID, GOALS_FALLBACK } from './seeds.js';
 import { INVENTORY, BUDGET, FUNNEL, COA_STATES } from '../config/roomdata.js';
 import { cloud } from './cloud.js';
-import { auth } from './auth.js';
+import { sync } from './sync.js';
 import { SEED_SETUPS } from './journal.js';
 
 const LS_KEY = 'arcane.v3';
-const DOC_ID = 'state';
 const LOG_MAX = 80;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
@@ -66,13 +65,13 @@ export class Store {
       if (raw) this.merge(JSON.parse(raw));
     } catch { this.rung = 'memory'; }
   }
-  /** Pull the operator's row once signed in; newest state wins. */
+  /** Pull this sync code's row; newest state wins. On a fresh code, seed the row. */
   async loadCloud() {
     if (!cloud.ready) return false;
-    const row = await cloud.load(DOC_ID);
+    const row = await cloud.load();
     if (row === null && cloud.lastError) return false;
     if (row && (row.body?.updated || 0) > (this.state.updated || 0)) { this.merge(row.body); this.emit(); }
-    else if (!row) cloud.save(DOC_ID, this.state);          // first sign-in from this device: seed the row
+    else if (!row) cloud.save(this.state);
     this.rung = 'cloud';
     this.cloudStamp = row?.updated || null;
     return true;
@@ -82,8 +81,8 @@ export class Store {
     clearInterval(this.pollTimer);
     this.pollTimer = setInterval(async () => {
       if (!cloud.ready) return;
-      const stamp = await cloud.stamp(DOC_ID);
-      if (stamp && stamp !== this.cloudStamp) { const row = await cloud.load(DOC_ID); if (row && (row.body?.updated || 0) > (this.state.updated || 0)) { this.merge(row.body); this.emit(); } this.cloudStamp = stamp; }
+      const stamp = await cloud.stamp();
+      if (stamp && stamp !== this.cloudStamp) { const row = await cloud.load(); if (row && (row.body?.updated || 0) > (this.state.updated || 0)) { this.merge(row.body); this.emit(); } this.cloudStamp = stamp; }
     }, every);
   }
   /** Bring a saved state in without losing what a newer brain export knows. */
@@ -116,14 +115,13 @@ export class Store {
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
       try { localStorage.setItem(LS_KEY, JSON.stringify(this.state)); if (this.rung === 'memory') this.rung = 'local'; } catch {}
-      if (cloud.ready) cloud.save(DOC_ID, this.state).then((ok) => { if (ok) { this.rung = 'cloud'; this.cloudStamp = null; } });
+      if (cloud.ready) cloud.save(this.state).then((ok) => { if (ok) { this.rung = 'cloud'; this.cloudStamp = null; } });
     }, 250);
   }
   where() {
     if (!cloud.enabled) return `local (${cloud.reason})`;
-    if (!auth.session) return 'local — sign in to sync';
     if (cloud.lastError) return `local (Supabase: ${cloud.lastError})`;
-    return this.rung === 'cloud' ? `Supabase · ${auth.email}` : 'Supabase (connecting)';
+    return this.rung === 'cloud' ? 'synced' : 'syncing';
   }
 
   /* ---------- orders ---------- */
