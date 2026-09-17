@@ -711,9 +711,35 @@ export function shadeFrame(rows) {
    ============================================================ */
 
 const FACINGS = ['front', 'back', 'side'];
-export const CELS = ['stand', 'blink', 'stepA', 'stepB', 'stepC'];
+export const CELS = ['stand', 'blink', 'stepA', 'stepB', 'stepC', 'work', 'talk'];
 
 function mirror(rows) { return rows.map((r) => r.split('').reverse().join('')); }
+
+/**
+ * Two more cels are derived from `stand` rather than authored: `work` (head
+ * bowed a pixel, hands up at bench height) and `talk` (one hand raised,
+ * mouth open). Each is a short list of [row, col, slot] edits per facing,
+ * so a kit or item still lands in the same place.
+ */
+const EDITS = {
+  crew: {
+    work: { front: [[12, 2, 'g'], [12, 13, 'g'], [14, 2, 'l'], [14, 13, 'd']], back: [[12, 2, 'g'], [12, 13, 'g'], [14, 2, 'd'], [14, 13, 'd']], side: [[12, 12, 'c'], [12, 13, 'g'], [12, 14, 'o'], [14, 11, 'c'], [14, 12, 'l'], [14, 13, 'o']], bow: true },
+    // The left hand is raised: held items live on the right and would cover it.
+    talk: { front: [[11, 2, 'g'], [14, 2, 'l'], [7, 7, 'o'], [7, 8, 'o']], back: [[11, 2, 'g'], [14, 2, 'd']], side: [[10, 12, 'g'], [10, 13, 'o'], [9, 12, 'o'], [9, 13, 'o'], [11, 13, 'o']] },
+  },
+  arcane: {
+    work: {},
+    talk: { front: [[12, 3, 'g'], [16, 3, 'l']] },
+  },
+};
+
+function edited(rows, edits, bow) {
+  const m = rows.map((r) => r.split(''));
+  for (const [r, c, slot] of edits || []) if (m[r]?.[c] !== undefined) m[r][c] = slot;
+  const out = m.map((r) => r.join(''));
+  // The bow: the head's rows slide down one, the neck row is absorbed.
+  return bow ? ['.'.repeat(out[0].length), ...out.slice(0, 9), ...out.slice(10)] : out;
+}
 
 /** The raw matrix for a body/facing/cel, deriving what the body does not author. */
 function baseFrame(body, facing, cel) {
@@ -721,6 +747,7 @@ function baseFrame(body, facing, cel) {
   if (cel === 'blink') return f.stand.map((r, i) => (i >= 5 && i <= 8 ? r.replace(/e/g, 's') : r));
   if (cel === 'stepC' && !f.stepC) return mirror(f.stepA);
   if (cel === 'stepB' && !f.stepB) return f.stand;
+  if (cel === 'work' || cel === 'talk') { const e = EDITS[body === ARCANE ? 'arcane' : 'crew'][cel]; return e[facing] ? edited(f.stand, e[facing], e.bow) : f.stand; }
   return f[cel];
 }
 

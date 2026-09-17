@@ -61,7 +61,7 @@ export class Sim {
         id: a.id, cfg: a, room: a.room, home: a.room,
         x: st.x, y: st.y, face: st.face, cel: 0, celClock: 0,
         state: 'idle', path: [], speed: a.kind === 'arcane' ? ARCANE_SPEED : CREW_SPEED,
-        idleUntil: this.t + rand(3, 14), bob: 0, target: null, blinkAt: rand(...BLINK_EVERY), blinking: false, considerAt: rand(10, 90),
+        idleUntil: this.t + rand(3, 14), bob: 0, target: null, blinkAt: rand(...BLINK_EVERY), blinking: false, considerAt: rand(10, 90), working: false, talking: false, phase: Math.random() * 2,
       };
     });
     this.byId = Object.fromEntries(this.agents.map((a) => [a.id, a]));
@@ -155,6 +155,7 @@ export class Sim {
 
   update(dt) {
     this.t += dt;
+    this.converse();
     for (const a of this.agents) {
       if (a.state === 'walk' || a.state === 'drift') this.step(a, dt);
       else {
@@ -174,6 +175,24 @@ export class Sim {
         }
         else if (!a.homeAt && this.t > a.idleUntil) this.drift(a);
       }
+    }
+  }
+
+  /**
+   * Two idle crew within arm's reach turn to each other and talk; an idle
+   * agent at their own station works. Both are only how the figure is
+   * drawn — nothing about routing changes.
+   */
+  converse() {
+    const idle = this.agents.filter((a) => a.state === 'idle');
+    for (const a of idle) { a.talking = false; const st = stationOf(a.room); a.working = a.room === a.home && Math.hypot(a.x - st.x, a.y - st.y) < 3; }
+    for (let i = 0; i < idle.length; i++) for (let j = i + 1; j < idle.length; j++) {
+      const a = idle[i], b = idle[j];
+      if (a.talking || b.talking || a.room !== b.room) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      if (Math.abs(dx) > 26 || Math.abs(dy) > 12) continue;
+      a.talking = b.talking = true; a.working = b.working = false;
+      if (Math.abs(dx) > 5) { a.face = dx > 0 ? 'right' : 'left'; b.face = dx > 0 ? 'left' : 'right'; }
     }
   }
 

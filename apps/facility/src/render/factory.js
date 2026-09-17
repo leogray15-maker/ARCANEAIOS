@@ -277,7 +277,7 @@ function drawAgent(g, a, sprite, t) {
   if (!sprite) return;
   const { w, h, frames } = sprite;
   const moving = a.state === 'walk' || a.state === 'drift';
-  const cel = moving ? WALK[a.cel] : a.blinking ? 'blink' : 'stand';
+  const cel = moving ? WALK[a.cel] : a.talking ? (Math.floor(t * 2.5 + a.phase) % 2 ? 'talk' : 'stand') : a.working ? 'work' : a.blinking ? 'blink' : 'stand';
   const lift = moving && cel === 'stepB' ? 1 : a.bob;
   const fx = Math.round(a.x - w / 2), fy = Math.round(a.y - h - lift);
   // Contact shadow, and the commander's pulse on the floor.

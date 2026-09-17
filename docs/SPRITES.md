@@ -82,15 +82,20 @@ row 16-19  trousers `t`, boots `b`, feet outline; a 2px contact shadow is drawn 
 One body is authored per facing (front, back, side) with cels stand, stepA
 (contact), stepB (pass), stepC (other contact) — side authors all three,
 front/back derive stepC by mirroring stepA so the arm swing alternates —
-plus a derived blink. Identity is composed on top: the agent's colour drives
+plus derived blink, work and talk cels. `work` is stand with the head bowed a
+pixel and the hands up at bench height; `talk` raises the left hand (items
+are held in the right) and opens the mouth. Both are lists of pixel edits
+per facing in `EDITS`, so kits and items still land. Identity is composed on top: the agent's colour drives
 `c/d/l`, `IDENTITY[agent]` picks the head kit, hair colour, skin tone, held
 item and accent. Left facing is the right facing mirrored at bake. 19 agents
-× 15 frames = 285 matrices, validated by `test/sprites.test.mjs`. Review them
+× 21 frames = 399 matrices, validated by `test/sprites.test.mjs`. Review them
 all at `/sheet.html` (4x, every facing and cel).
 
 Walk: `A → B → C → B` at ~8 cels/s, the pass cel lifted 1px so the body
-bobs. Idle: stand, a 1px bob now and then, a blink every 2.5–6 s. `work`
-and `talk` cels are the next step.
+bobs. Idle: stand, a 1px bob now and then, a blink every 2.5–6 s. At their
+own station an idle agent shows `work`; two idle agents within arm's reach
+in the same room turn to face each other and alternate `talk` and stand
+(`Sim.converse`). Neither changes where anyone goes.
 
 ## ARCANE (14×24)
 
