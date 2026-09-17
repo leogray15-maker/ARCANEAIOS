@@ -15,7 +15,7 @@ This file routes Claude Code. The brain has its own router at
 | The brain (Obsidian vault) | `brain/` — router at `brain/CLAUDE.md` |
 | Regenerate the brain's system cards | `npm run vault` (dry) · `npm run vault:write` |
 | HERALD, the content skill | `.claude/skills/herald/SKILL.md` — invoke `/herald` |
-| The Archives index | `npm run herald:index` → `data/archives/` (gitignored) |
+| The Archives index | `npm run herald:index` → `data/archives/` (gitignored) · `docs/ARCHIVES.md` |
 | Architecture, sprites, structure, plan | `docs/` |
 | The facility app | `apps/facility/` — `npm run facility` |
 
