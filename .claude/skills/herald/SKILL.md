@@ -15,8 +15,8 @@ and system change. A skill cannot out-rank its agent, so neither can you.
 
 1. **Check the ground.** `npm run check` must pass. If `data/archives/index.json`
    is missing, `npm run herald:index` (one second).
-2. **Read the brief.** `brain/03-Memory/Brief.md` — any order routed to BEACON
-   or HERALD wins over a random pick; DOCTRINE says what this week is for.
+2. **Read the brief.** `brain/03-Memory/Brief.md` — any ROOMS order routed to BEACON
+   or HERALD wins over a random pick; `01-System/Doctrine.md` says what this week is for.
 3. **Pick a source.** `npm run herald:pick -- --lane mindset` (or `--subject`,
    `--keyword`, `--count`). Then read the *whole* module:
    `npm run herald:pick -- --show <id>`.

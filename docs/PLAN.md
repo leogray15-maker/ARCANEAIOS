@@ -25,6 +25,16 @@ Dates assume a start of 2026-09-17.
 - [x] Second pass: 16×20 crew / 20×26 ARCANE with 4-cel walk + blink, 72 painters, 366 placements, static props baked, floor/wall/fixture atmosphere, `/sheet.html` review page
 - Pulled forward from Days 4–7. What remains of those days: work/talk cels, attention routing from orders, prop density pass (target 16–24), sprite-sheet review tool.
 
+## Also done 2026-09-17 — the brain reaches the floor
+
+- [x] Brief blocks are VENTURES / MONEY / GOALS / ROOMS (config, brain, HERALD)
+- [x] `tools/vault-export.mjs` → `public/brain.json` at build: brief, orders, drafts, goals, trace, signals, decisions, Archives map, file index
+- [x] Store ported (orders, stock, ledger, budget/split, goals, draft status, funnel, positions, log) with localStorage and a Supabase rung (`docs/SUPABASE.md`)
+- [x] Attention routing: crew weigh rooms every 45–150 s at home / 8–20 s away; open orders pull (P0 hardest), home and the commander's room pull
+- [x] Dashboards for all 20 rooms in the four-section frame; LAB, BEACON, BRIDGE, VAULT, LIBRARY, MARKET carry real widgets; every room has an editable orders board
+- [x] The Lab and Beacon rebuilt to the reference images; lighting pass on all sprites; equipment labels at 2x+
+- Remaining from the original days: Supabase Auth + write-back to the vault (day 3), Counsel/Council (days 9–10), Library/Bridge/Vault/Forge/Market to the references (next visual pass)
+
 ## Day 1 · Thu 17 — Brain in Obsidian, HERALD in the hand
 
 - Open `brain/` as a vault in Obsidian; confirm templates, daily notes, graph.

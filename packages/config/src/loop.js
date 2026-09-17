@@ -10,13 +10,15 @@
 /**
  * The four-block brief. ARCANE writes it from shared memory before any
  * deliberation; every agent reads it before acting. Four blocks, always
- * in this order, so a reader can find the same thing in the same place.
+ * in this order, so a reader can find the same thing in the same place:
+ * VENTURES, MONEY, GOALS, ROOMS. Signals and doctrine live beside it in
+ * 03-Memory, not inside it.
  */
 export const BRIEF_BLOCKS = [
-  { id: 'state',    name: 'STATE',    note: 'What is true right now. Numbers, stock, cash, members, drafts waiting. No opinion.' },
-  { id: 'signals',  name: 'SIGNALS',  note: 'What changed since the last brief. Raised by VIGIL, the operator, or a run.' },
-  { id: 'orders',   name: 'ORDERS',   note: 'Open work: who holds it, which room, what priority, what is blocked.' },
-  { id: 'doctrine', name: 'DOCTRINE', note: 'The standing rules and the operator\'s current intent. What we are optimising for this week.' },
+  { id: 'ventures', name: 'VENTURES', note: 'Each venture in one line: what moved, what is stuck, the number that matters. No opinion.' },
+  { id: 'money',    name: 'MONEY',    note: 'Cash, month revenue by venture, fixed costs, the split, runway. TALLY\'s block.' },
+  { id: 'goals',    name: 'GOALS',    note: 'Every goal with its progress and whether it moved since the last brief.' },
+  { id: 'rooms',    name: 'ROOMS',    note: 'Open orders by room, who holds them, what is blocked, where the crew are pulled.' },
 ];
 
 /**

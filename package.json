@@ -16,9 +16,10 @@
     "herald:pick": "node .claude/skills/herald/scripts/pick.mjs",
     "herald:lint": "node .claude/skills/herald/scripts/lint.mjs",
     "herald:emit": "node .claude/skills/herald/scripts/emit.mjs",
-    "facility": "npm --workspace apps/facility run dev",
-    "facility:build": "npm --workspace apps/facility run build",
-    "test": "node tools/validate-config.mjs && node .claude/skills/herald/scripts/lint.mjs --self-test && npm --workspace apps/facility test"
+    "facility": "npm run vault:export && npm --workspace apps/facility run dev",
+    "facility:build": "npm run vault:export && npm --workspace apps/facility run build",
+    "test": "node tools/validate-config.mjs && node .claude/skills/herald/scripts/lint.mjs --self-test && npm --workspace apps/facility test",
+    "vault:export": "node tools/vault-export.mjs"
   },
   "engines": {
     "node": ">=20"

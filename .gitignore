@@ -16,6 +16,9 @@ serviceAccountKey.json
 data/archives/index.json
 data/archives/modules/
 
+# derived from the brain at build time
+apps/facility/public/brain.json
+
 # HERALD staging (drafts before they are emitted into the brain)
 .herald-staging/
 

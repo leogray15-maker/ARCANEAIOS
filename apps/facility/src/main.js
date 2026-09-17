@@ -10,8 +10,9 @@ import { AGENTS } from '@arcane/config';
 import { PW, PH, PLAN_BY_ID, roomAt } from './config/floorplan.js';
 import { createBuffer, bakeStatic, drawLive, present } from './render/factory.js';
 import { bakeSprites } from './render/sprites.js';
-import { renderPanel } from './render/panel.js';
+import { renderPanel, bindPanel } from './render/panel.js';
 import { Sim } from './core/sim.js';
+import { Store } from './core/store.js';
 
 const stage = document.getElementById('stage');
 const canvas = document.getElementById('floor');
@@ -19,10 +20,21 @@ const panel = document.getElementById('panel');
 const staticBuf = createBuffer();
 const buf = createBuffer();
 const sprites = bakeSprites(AGENTS);
-const sim = new Sim();
-
 const view = { scale: 2, x: 0, y: 0, mode: 'fit' };
 const state = { hover: null, selected: null, staticDirty: true };
+
+// The brain export is baked into the site at build time; without it the
+// store still works from its seeds, and the dashboards say so.
+let brain = null;
+try { const r = await fetch('/brain.json', { cache: 'no-store' }); if (r.ok) brain = await r.json(); } catch {}
+const store = new Store(brain);
+store.sessionStart = Date.now();
+store.loadCloud().then((ok) => { if (ok) refreshPanel(); });
+const sim = new Sim(store);
+const ctx = { sim, store, brain };
+const refreshPanel = () => renderPanel(panel, state.selected, ctx);
+store.onChange(() => refreshPanel());
+bindPanel(panel, { store, getRoom: () => state.selected });
 
 function fit() {
   const s = Math.max(1, Math.floor(Math.min(stage.clientWidth / PW, stage.clientHeight / PH)));
@@ -67,10 +79,10 @@ stage.addEventListener('pointerup', (e) => {
   const p = toBuffer(e); const r = roomAt(p.x, p.y);
   state.selected = r ? r.id : null;
   if (r) sim.command(r.id);
-  renderPanel(panel, state.selected, sim);
+  refreshPanel();
   state.staticDirty = true;
 });
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { state.selected = null; renderPanel(panel, null, sim); state.staticDirty = true; } });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { state.selected = null; refreshPanel(); state.staticDirty = true; } });
 for (const b of document.querySelectorAll('#hud button')) b.addEventListener('click', () => setZoom(b.dataset.zoom));
 window.addEventListener('resize', resize);
 
@@ -92,7 +104,7 @@ function loop(now) {
   if (state.selected && panelClock > 0.5) {
     panelClock = 0;
     const key = sim.occupants(state.selected).map((a) => a.id + a.state).join();
-    if (key !== occupantsKey) { occupantsKey = key; renderPanel(panel, state.selected, sim); }
+    if (key !== occupantsKey) { occupantsKey = key; refreshPanel(); }
   }
   requestAnimationFrame(loop);
 }
@@ -110,14 +122,14 @@ function centreOn(roomId) {
 
 // Deep links: ?zoom=2|3 and ?room=<id> open the floor already zoomed and on a room.
 const params = new URLSearchParams(location.search);
-renderPanel(panel, null, sim);
+refreshPanel();
 resize();
 setZoom(['2', '3'].includes(params.get('zoom')) ? params.get('zoom') : 'fit');
 if (params.get('room') && PLAN_BY_ID[params.get('room')]) {
   state.selected = params.get('room');
   centreOn(state.selected);
   sim.command(state.selected);
-  renderPanel(panel, state.selected, sim);
+  refreshPanel();
   state.staticDirty = true;
 }
 loop(performance.now());

@@ -14,9 +14,9 @@ misbehaves or Leo asks for something unusual.
 
 ## 1. Read the brief
 
-`brain/03-Memory/Brief.md`. Look at ORDERS for anything routed to BEACON
+`brain/03-Memory/Brief.md`. Look at ROOMS for anything routed to BEACON
 or HERALD — a standing order ("three shorts a day from the sales lane")
-overrides a random pick. Look at DOCTRINE for this week's intent. If the
+overrides a random pick. `01-System/Doctrine.md` has this week's intent. If the
 brief is more than a day old, say so in your report; still run.
 
 ## 2. Choose the source

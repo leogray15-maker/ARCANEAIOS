@@ -44,7 +44,7 @@ that opens only this vault still knows them.
 
 ## How an agent works in here
 
-1. **Read the brief.** `03-Memory/Brief.md` — four blocks: STATE, SIGNALS, ORDERS, DOCTRINE. If it is older than a day, say so before acting on it.
+1. **Read the brief.** `03-Memory/Brief.md` — four blocks: VENTURES, MONEY, GOALS, ROOMS. Signals are in `03-Memory/Signals.md`, doctrine in `01-System/Doctrine.md`. If it is older than a day, say so before acting on it.
 2. **Read your card.** `01-System/Agents/<NAME>.md` — your domain, tools, grades, and what you must ask before doing.
 3. **Check your grade** for the act you are about to perform. `draft` means produce and stop. `approval` means ask, then do. `deny` means do not.
 4. **Do the work** using your skill's procedure (`01-System/Skills.md` lists them).
@@ -66,7 +66,7 @@ that opens only this vault still knows them.
 shared memory (03-Memory + Firestore)
       │
       ▼
-four-block brief (03-Memory/Brief.md — ARCANE writes it)
+four-block brief (03-Memory/Brief.md — VENTURES · MONEY · GOALS · ROOMS — ARCANE writes it)
       │
       ├── Counsel: Leo ↔ ARCANE (+ one specialist)  → answer or order
       └── Council: nine seats, one verdict           → 04-Records/Decisions/

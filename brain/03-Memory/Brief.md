@@ -1,35 +1,45 @@
 ---
 type: brief
 created: 2026-09-16 22:00
-updated: 2026-09-16 22:00
+updated: 2026-09-17 00:40
 status: active
 agent: ARCANE
-brief_date: 2026-09-16
+brief_date: 2026-09-17
 tags: [brief]
 ---
-# Brief — 2026-09-16
+# Brief — 2026-09-17
 
 > Four blocks, same order every time. Read all four before acting.
 
-## STATE
+## VENTURES
 
-- v3 brain stood up. 19 agents registered, 20 rooms mapped, 1 production skill (HERALD).
-- Archives index: not yet built. Run `npm run herald:index`.
-- Drafts waiting: 0.
+| Venture | Moved | Stuck | The number |
+| --- | --- | --- | --- |
+| The Arcane Archives | v3 brain and HERALD live; 5 drafts waiting | Members figure unfilled | — members |
+| Arcane Peptides | Lab dashboard structure built | Live stock feed not wired | — orders / mo |
+| Arcane Track | — | Member counts unfilled | — members |
+| The Codex | — | — | 8 titles live |
 
-## SIGNALS
+## MONEY
 
-- 2026-09-16 · SYSTEM · Vault created from `packages/config`. Old vault at `~/Desktop/Arcane` untouched.
+| Cash | Revenue this month | Fixed costs | Split | Runway |
+| --- | --- | --- | --- | --- |
+| — | — | — | 25 / 35 / 25 / 15 | — months |
 
-## ORDERS
+## GOALS
 
-| # | Order | Room | Holder | Priority | State |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Build the Archives index | [[BEACON]] | [[HERALD]] | P0 | open |
-| 2 | First HERALD run — one module, five formats | [[BEACON]] | [[HERALD]] | P0 | open |
-| 3 | Fill Shared-Memory figures | [[BRIDGE]] | Leo | P1 | open |
+| Goal | Progress | Moved |
+| --- | --- | --- |
+| Post every day for 90 days | 0 / 90 | first drafts landed |
+| 50 Archives members | — | — |
+| All Archives modules indexed | 1,073 in the local index | index built 2026-09-16 |
+| COA published for every live batch | — | — |
 
-## DOCTRINE
+## ROOMS
 
-- This week: content loop running daily without touching code.
-- Standing rules apply. See [[Doctrine]].
+| Room | Open | Holder | Blocked on |
+| --- | --- | --- | --- |
+| [[BEACON]] | Review 5 drafts (HER-20260916-001…005) | Leo | — |
+| [[BRIDGE]] | Fill Shared-Memory figures | Leo | — |
+| [[FORGE]] | Dashboards + shared store | [[ANVIL]] | — |
+| [[THE VAULT]] | Trading Journal into Notion | Leo | — |

@@ -9,16 +9,22 @@ tags: [brief]
 ---
 # Brief — YYYY-MM-DD
 
-## STATE
+## VENTURES
 
-## SIGNALS
+| Venture | Moved | Stuck | The number |
+| --- | --- | --- | --- |
 
-## ORDERS
+## MONEY
 
-| # | Order | Room | Holder | Priority | State |
-| --- | --- | --- | --- | --- | --- |
+| Cash | Revenue this month | Fixed costs | Split | Runway |
+| --- | --- | --- | --- | --- |
 
-## DOCTRINE
+## GOALS
 
-- This week:
-- Standing rules apply. See [[Doctrine]].
+| Goal | Progress | Moved |
+| --- | --- | --- |
+
+## ROOMS
+
+| Room | Open | Holder | Blocked on |
+| --- | --- | --- | --- |

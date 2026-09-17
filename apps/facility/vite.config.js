@@ -7,7 +7,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // The facility never carries its own copy of the roster. `@arcane/config`
 // resolves through the npm workspace symlink, the same way Node resolves it
 // for the tests, so there is exactly one resolution path.
+const env = (...names) => { for (const n of names) if (process.env[n]) return process.env[n]; return ''; };
+
 export default defineConfig({
+  // Only the Supabase URL and anon key are injected — by exact name, so a
+  // service-role key can never be swept into the bundle by a prefix rule.
+  define: {
+    __SUPABASE_URL__: JSON.stringify(env('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'VITE_SUPABASE_URL')),
+    __SUPABASE_ANON__: JSON.stringify(env('SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY')),
+  },
   server: { fs: { allow: [path.resolve(here, '../..')] } },
   build: { target: 'es2022', sourcemap: true, rollupOptions: { input: { main: path.resolve(here, 'index.html'), sheet: path.resolve(here, 'sheet.html') } } },
 });
