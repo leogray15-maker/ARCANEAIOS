@@ -1,0 +1,31 @@
+# Every push proves the standing rules still hold, the brain's generated
+# cards match the config, the HERALD gate still bites, and the facility
+# builds with the sync-code fold and VIGIL behaving. No secrets are needed:
+# the build reads only the public Supabase URL and anon key, and CI has
+# neither, so it builds the "local" rung exactly as a fresh clone would.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Standing rules, lint self-test, fold and signals, facility geometry
+        run: npm test
+      - name: Generated cards match the config (no drift)
+        run: |
+          node tools/vault-gen.mjs | tee gen.txt
+          if grep -Eq "^[0-9]+ unchanged, [0-9]+ (created|updated)" gen.txt; then echo "::error::brain/01-System is out of date — run npm run vault:write and commit"; exit 1; fi
+      - name: Facility builds
+        run: npm run facility:build
+      - name: Bundle carries no service key
+        run: |
+          if grep -rl "service_role" apps/facility/dist >/dev/null; then echo "::error::a service-role key reached the bundle"; exit 1; fi
