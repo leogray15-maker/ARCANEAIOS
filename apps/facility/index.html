@@ -5,78 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>THE ARCANE</title>
   <link rel="icon" href="data:,">
-  <style>
-    :root {
-      --space: #05050a; --hull: #171722; --ink: #ecebf5; --ash: #7e7c94; --faint: #4a4860;
-      --arcane: #8b5cf6; --arcaneLt: #a98bff; --cyan: #56c9f0; --vital: #3ecf8e; --flare: #e8b64c;
-      --gold: #d9a441; --rose: #e0609a; --breach: #f44d52;
-      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--space); color: var(--ink); font: 13px/1.4 var(--mono); overflow: hidden; }
-    #app { display: grid; grid-template-columns: 1fr 360px; height: 100%; }
-    #stage { position: relative; overflow: hidden; cursor: grab; }
-    #stage.dragging { cursor: grabbing; }
-    canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
-    #hud { position: absolute; left: 12px; top: 10px; display: flex; gap: 6px; }
-    #hud button { background: #0e0e1a; color: var(--ash); border: 1px solid #2a2a3c; padding: 4px 10px; font: inherit; cursor: pointer; }
-    #hud button.on { color: var(--ink); border-color: var(--arcane); }
-    #panel { border-left: 1px solid #1c1c2a; background: #0a0a13; padding: 18px; overflow: auto; }
-    #panel h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: .08em; }
-    #panel .sub { color: var(--ash); margin-bottom: 14px; }
-    #panel h2 { margin: 18px 0 6px; font-size: 11px; letter-spacing: .12em; color: var(--ash); text-transform: uppercase; border-bottom: 1px solid #1c1c2a; padding-bottom: 4px; }
-    #panel p { margin: 4px 0; }
-    #panel .chip { display: inline-block; padding: 1px 6px; border: 1px solid #2a2a3c; margin: 2px 4px 2px 0; color: var(--ash); }
-    #panel .chip.deny { color: var(--breach); } #panel .chip.approval, #panel .chip.draft { color: var(--flare); }
-    #panel .chip.analyse { color: var(--cyan); } #panel .chip.recommend { color: var(--arcaneLt); }
-    #panel .empty { color: var(--faint); font-style: italic; }
-    #panel .dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; vertical-align: -1px; }
-    #panel h3 { margin: 14px 0 4px; font-size: 12px; color: var(--ink); letter-spacing: .04em; }
-    #panel .src { color: var(--faint); font-style: italic; margin: 6px 0 2px; }
-    #panel .ash { color: var(--ash); } #panel .faint { color: var(--faint); } #panel .flare { color: var(--flare); } #panel .breach { color: var(--breach); }
-    #panel code { color: var(--cyan); }
-    #panel .grid { width: 100%; border-collapse: collapse; margin: 4px 0; }
-    #panel .grid th { text-align: left; color: var(--faint); font-weight: normal; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 6px 2px 0; border-bottom: 1px solid #1c1c2a; }
-    #panel .grid td { padding: 3px 6px 3px 0; border-bottom: 1px solid #14141e; vertical-align: middle; }
-    #panel .stat-row { display: flex; gap: 8px; margin: 6px 0 10px; flex-wrap: wrap; }
-    #panel .stat { flex: 1; min-width: 64px; background: #0e0e1a; border: 1px solid #1c1c2a; padding: 6px 8px; }
-    #panel .stat b { display: block; font-size: 15px; } #panel .stat span { color: var(--faint); font-size: 10px; }
-    #panel .stat.vital b { color: var(--vital); } #panel .stat.breach b { color: var(--breach); }
-    #panel .bar { display: inline-block; width: 100px; height: 6px; background: #1c1c2a; vertical-align: middle; }
-    #panel .bar-fill { display: block; height: 100%; background: var(--arcane); } #panel .bar-fill.gold { background: var(--gold); } #panel .bar-fill.breach { background: var(--breach); }
-    #panel .chip.vital { color: var(--vital); } #panel .chip.flare { color: var(--flare); } #panel .chip.cyan { color: var(--cyan); } #panel .chip.arcane { color: var(--arcaneLt); } #panel .chip.gold { color: var(--gold); } #panel .chip.ash { color: var(--ash); }
-    #panel button { background: #0e0e1a; color: var(--ink); border: 1px solid #2a2a3c; padding: 3px 8px; font: inherit; cursor: pointer; }
-    #panel button:hover { border-color: var(--arcane); }
-    #panel button.tiny { padding: 1px 6px; font-size: 11px; } #panel button.ghost { color: var(--ash); }
-    #panel button.chip { cursor: pointer; }
-    #panel input, #panel select { background: #0a0a13; color: var(--ink); border: 1px solid #2a2a3c; padding: 3px 5px; font: inherit; }
-    #panel input.num { text-align: right; }
-    #panel form.inline { display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }
-    #panel .card { background: #0e0e1a; border: 1px solid #1c1c2a; padding: 8px; margin: 6px 0; }
-    #panel .card-head { margin-bottom: 4px; } #panel .hook { margin: 4px 0; color: var(--ink); }
-    #panel .acts { margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap; }
-    #panel pre.body { white-space: pre-wrap; font: inherit; color: var(--ash); border-left: 2px solid #2a2a3c; padding-left: 8px; margin: 8px 0 0; }
-    #panel .hidden { display: none; }
-    #panel .order { display: block; padding: 4px 0; border-bottom: 1px solid #14141e; }
-    #panel .order.done { color: var(--faint); text-decoration: line-through; }
-    #panel .list { margin: 4px 0; padding-left: 16px; } #panel .list li { margin: 2px 0; }
-    #panel .doctrine { color: var(--arcaneLt); border-left: 2px solid var(--arcane); padding-left: 8px; }
-    #panel details summary { cursor: pointer; margin-top: 6px; }
-    @media (max-width: 900px) { #app { grid-template-columns: 1fr; grid-template-rows: 1fr 40vh; } #panel { border-left: 0; border-top: 1px solid #1c1c2a; } }
-  </style>
+  <link rel="stylesheet" href="/src/ui.css">
 </head>
 <body>
-  <div id="app">
-    <div id="stage">
-      <canvas id="floor"></canvas>
-      <div id="hud">
-        <button data-zoom="fit">FIT</button>
-        <button data-zoom="2">2x</button>
-        <button data-zoom="3">3x</button>
-      </div>
+  <header id="bar">
+    <div class="brand">THE ARCANE <span class="v">LEOOS v3</span></div>
+    <div class="status" id="bar-status"></div>
+    <nav id="views">
+      <button data-view="floor" class="on">FLOOR</button>
+      <button data-view="journal">JOURNAL</button>
+      <button data-view="graph">BRAIN GRAPH</button>
+    </nav>
+    <div class="zoom" id="hud">
+      <button data-zoom="fit">FIT</button>
+      <button data-zoom="2">2x</button>
+      <button data-zoom="3">3x</button>
     </div>
-    <aside id="panel"></aside>
-  </div>
+  </header>
+  <main id="stage">
+    <canvas id="floor"></canvas>
+    <div id="tip"></div>
+  </main>
+  <section id="dash" class="view hidden"></section>
+  <section id="journal" class="view hidden"></section>
+  <section id="graph" class="view hidden"><canvas id="graph-canvas"></canvas><div class="legend" id="graph-legend"></div></section>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

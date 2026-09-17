@@ -258,10 +258,13 @@ function drawAgent(g, a, sprite, t) {
    PRESENT — blit + labels + atmosphere at display resolution
    ============================================================ */
 
-export function present(canvas, buf, view, { hover, selected } = {}, sim = null) {
+export function present(canvas, buf, view, { hover, selected } = {}, sim = null, dpr = 1) {
   const g = canvas.getContext('2d');
+  // Work in CSS pixels; the transform puts every fill and blit on device pixels.
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.imageSmoothingEnabled = false;
-  g.fillStyle = PX.space; g.fillRect(0, 0, canvas.width, canvas.height);
+  const W = canvas.width / dpr, H = canvas.height / dpr;
+  g.fillStyle = PX.space; g.fillRect(0, 0, W, H);
   g.drawImage(buf, 0, 0, PW, PH, view.x, view.y, PW * view.scale, PH * view.scale);
 
   const s = view.scale;
@@ -306,9 +309,9 @@ export function present(canvas, buf, view, { hover, selected } = {}, sim = null)
   g.fillStyle = PX.faint;
   WINGS.forEach((w, i) => g.fillText(`${w.no} ${w.name}`, view.x + (MARGIN + (204 + CORR_W) * i + 2) * s, view.y + (MARGIN - 14) * s));
 
-  const vg = g.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height * 0.35, canvas.width / 2, canvas.height / 2, canvas.height * 0.95);
+  const vg = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)');
-  g.fillStyle = vg; g.fillRect(0, 0, canvas.width, canvas.height);
+  g.fillStyle = vg; g.fillRect(0, 0, W, H);
   g.fillStyle = 'rgba(0,0,0,0.06)';
-  for (let yy = 0; yy < canvas.height; yy += 2) g.fillRect(0, yy, canvas.width, 1);
+  for (let yy = 0; yy < H; yy += 2) g.fillRect(0, yy, W, 1);
 }
