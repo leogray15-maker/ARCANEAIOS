@@ -39,7 +39,7 @@ function seedState(brain) {
   for (const f of BUDGET.fixed) budget.fixed[f.id] = f.amount;
   for (const sp of BUDGET.split) budget.split[sp.id] = sp.pct;
   const stock = INVENTORY.rows.map((r) => ({ id: uid(), ...r }));
-  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, ledger, goals, budget, stock, funnel: { ...FUNNEL.seed }, drafts: {}, positions: {}, log: [], journal: { trades: [], setups: SEED_SETUPS.map((x) => ({ ...x })), checkins: [] } };
+  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, ledger, goals, budget, stock, funnel: { ...FUNNEL.seed }, drafts: {}, positions: {}, log: [], lists: {}, protocol: {}, journal: { trades: [], setups: SEED_SETUPS.map((x) => ({ ...x })), checkins: [] } };
 }
 
 export class Store {
@@ -95,6 +95,8 @@ export class Store {
     s.drafts = saved.drafts || {};
     s.positions = saved.positions || {};
     s.log = (saved.log || []).slice(-LOG_MAX);
+    s.lists = saved.lists || {};
+    s.protocol = saved.protocol || {};
     s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups?.length ? saved.journal.setups : fresh.journal.setups, checkins: saved.journal?.checkins || [] };
     this.state = s;
   }
@@ -173,6 +175,17 @@ export class Store {
 
   /* ---------- crew positions ---------- */
   setPosition(agentId, room) { if (this.state.positions[agentId]?.room === room) return; this.state.positions[agentId] = { room, ts: Date.now() }; this.save(); }
+
+  /* ---------- editable lists (watchlists, pipelines, ideas, moves) ---------- */
+  list(key) { return this.state.lists[key] || (this.state.lists[key] = []); }
+  addItem(key, text, tag = '') { const t = String(text).trim(); if (!t) return; this.list(key).unshift({ id: uid(), text: t, tag, ts: Date.now() }); this.touch(); }
+  tagItem(key, id, tag) { const it = this.list(key).find((x) => x.id === id); if (it) { it.tag = tag; this.touch(); } }
+  removeItem(key, id) { this.state.lists[key] = this.list(key).filter((x) => x.id !== id); this.touch(); }
+
+  /* ---------- the operator's daily protocol ---------- */
+  protocolDay(day) { return this.state.protocol[day] || (this.state.protocol[day] = {}); }
+  toggleProtocol(day, item) { const d = this.protocolDay(day); d[item] = !d[item]; this.touch(); }
+  protocolStreak(item) { let n = 0; const d = new Date(); for (;;) { const k = d.toISOString().slice(0, 10); if (!this.state.protocol[k]?.[item]) break; n++; d.setDate(d.getDate() - 1); } return n; }
 
   /* ---------- the trading journal ---------- */
   journal() { return this.state.journal; }

@@ -35,6 +35,15 @@ Dates assume a start of 2026-09-17.
 - [x] The Lab and Beacon rebuilt to the reference images; lighting pass on all sprites; equipment labels at 2x+
 - Remaining from the original days: Supabase Auth + write-back to the vault (day 3), Counsel/Council (days 9–10), Library/Bridge/Vault/Forge/Market to the references (next visual pass)
 
+## Also done 2026-09-17 (evening) — the interface
+
+- [x] Zoom fixed (HUD out of the captured stage), HiDPI backing store so 2x/3x are integer device scales; keys 0–4, wheel zoom about the cursor
+- [x] Full-page dashboards for all 20 rooms in a two-column frame, hash-routed (`#room/<id>`), Esc/back; hover tooltip on the floor
+- [x] One stylesheet (`src/ui.css`): 8px grid, five type sizes, hairlines
+- [x] Trading Journal at `#journal`: trade log, Daily/Weekly/Monthly, Playbook, Psychology, equity + R distribution, JSON export/import; linked from THE VAULT and THE RECORDS
+- [x] Thin rooms made real: watchlist (Intelligence), pipeline (Deal Room), idea queue with verdicts (Inventor), next three moves (War Room), stop-doing (Lounge), daily protocol with streaks (Sanctum)
+- [x] Brain Graph at `#graph`: brain, folders, wings, rooms (attention halos), ventures, agents orbiting their current room; click to open a dashboard
+
 ## Day 1 · Thu 17 — Brain in Obsidian, HERALD in the hand
 
 - Open `brain/` as a vault in Obsidian; confirm templates, daily notes, graph.

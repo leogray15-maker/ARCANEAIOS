@@ -95,6 +95,8 @@ export function bindDash(el, { store, getRoom, go }) {
     else if (act === 'draft') store.markDraft(id, b.dataset.status);
     else if (act === 'draft-open') { const pre = el.querySelector(`#draft-${CSS.escape(id)}`); if (pre) pre.classList.toggle('hidden'); }
     else if (act === 'open-journal') go('#journal');
+    else if (act === 'list-remove') store.removeItem(b.dataset.key, id);
+    else if (act === 'list-tag') store.tagItem(b.dataset.key, id, b.dataset.tag);
   });
   el.addEventListener('change', (e) => {
     const i = e.target; const act = i.dataset.act; if (!act) return;
@@ -106,6 +108,7 @@ export function bindDash(el, { store, getRoom, go }) {
     else if (act === 'cash') store.setBudget('cash', 'cash', i.value);
     else if (act === 'funnel') store.setFunnel(i.dataset.field, i.value);
     else if (act === 'goal') store.setGoal(i.dataset.id, i.value);
+    else if (act === 'protocol') store.toggleProtocol(i.dataset.day, i.dataset.item);
   });
   el.addEventListener('submit', (e) => {
     const f = e.target; if (!f.dataset.act) return;
@@ -113,5 +116,6 @@ export function bindDash(el, { store, getRoom, go }) {
     const room = getRoom();
     if (f.dataset.act === 'order-add') { store.addOrder(room, f.text.value, Number(f.p.value)); f.reset(); }
     else if (f.dataset.act === 'stock-add') { store.addStockLine(f.code.value, f.size.value, f.vials.value); f.reset(); }
+    else if (f.dataset.act === 'list-add') { store.addItem(f.dataset.key, f.text.value); f.reset(); }
   });
 }
