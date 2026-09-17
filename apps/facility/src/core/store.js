@@ -16,10 +16,11 @@
 import { VENTURES, ROOMS, ROOM_BY_ID, GOALS_FALLBACK } from './seeds.js';
 import { INVENTORY, BUDGET, FUNNEL, COA_STATES } from '../config/roomdata.js';
 import { cloud } from './cloud.js';
+import { auth } from './auth.js';
 import { SEED_SETUPS } from './journal.js';
 
 const LS_KEY = 'arcane.v3';
-const DOC_ID = 'leo';
+const DOC_ID = 'state';
 const LOG_MAX = 80;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
@@ -65,14 +66,25 @@ export class Store {
       if (raw) this.merge(JSON.parse(raw));
     } catch { this.rung = 'memory'; }
   }
+  /** Pull the operator's row once signed in; newest state wins. */
   async loadCloud() {
-    if (!cloud.enabled) return false;
+    if (!cloud.ready) return false;
     const row = await cloud.load(DOC_ID);
-    if (!row) return false;
-    const remote = row.body;
-    if ((remote?.updated || 0) > (this.state.updated || 0)) { this.merge(remote); this.emit(); }
+    if (row === null && cloud.lastError) return false;
+    if (row && (row.body?.updated || 0) > (this.state.updated || 0)) { this.merge(row.body); this.emit(); }
+    else if (!row) cloud.save(DOC_ID, this.state);          // first sign-in from this device: seed the row
     this.rung = 'cloud';
+    this.cloudStamp = row?.updated || null;
     return true;
+  }
+  /** Every so often, ask whether another device wrote something newer. */
+  startPolling(every = 30_000) {
+    clearInterval(this.pollTimer);
+    this.pollTimer = setInterval(async () => {
+      if (!cloud.ready) return;
+      const stamp = await cloud.stamp(DOC_ID);
+      if (stamp && stamp !== this.cloudStamp) { const row = await cloud.load(DOC_ID); if (row && (row.body?.updated || 0) > (this.state.updated || 0)) { this.merge(row.body); this.emit(); } this.cloudStamp = stamp; }
+    }, every);
   }
   /** Bring a saved state in without losing what a newer brain export knows. */
   merge(saved) {
@@ -104,10 +116,15 @@ export class Store {
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
       try { localStorage.setItem(LS_KEY, JSON.stringify(this.state)); if (this.rung === 'memory') this.rung = 'local'; } catch {}
-      if (cloud.enabled) cloud.save(DOC_ID, this.state).then((ok) => { if (ok) this.rung = 'cloud'; });
+      if (cloud.ready) cloud.save(DOC_ID, this.state).then((ok) => { if (ok) { this.rung = 'cloud'; this.cloudStamp = null; } });
     }, 250);
   }
-  where() { return cloud.enabled ? (this.rung === 'cloud' ? 'Supabase' : `local (Supabase: ${cloud.lastError || 'not reached yet'})`) : `local (${cloud.reason})`; }
+  where() {
+    if (!cloud.enabled) return `local (${cloud.reason})`;
+    if (!auth.session) return 'local — sign in to sync';
+    if (cloud.lastError) return `local (Supabase: ${cloud.lastError})`;
+    return this.rung === 'cloud' ? `Supabase · ${auth.email}` : 'Supabase (connecting)';
+  }
 
   /* ---------- orders ---------- */
   orders(roomId) { return this.state.orders[roomId] || []; }

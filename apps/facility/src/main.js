@@ -20,8 +20,12 @@ import { BrainGraph } from './render/graph.js';
 import { Sim } from './core/sim.js';
 import { Store } from './core/store.js';
 import { exampleTrades } from './core/journal.js';
+import { auth } from './core/auth.js';
+import { cloud } from './core/cloud.js';
 
 const $ = (id) => document.getElementById(id);
+// Back from a magic link? Take the session out of the URL before the router sees the hash.
+auth.acceptHash();
 const stage = $('stage'), canvas = $('floor'), tip = $('tip');
 const views = { dash: $('dash'), journal: $('journal'), graph: $('graph') };
 const staticBuf = createBuffer();
@@ -163,7 +167,23 @@ store.onChange(() => {
   if (state.screen === 'journal') renderJournal(views.journal, ctx, location.hash, { keepScroll: true });
   barStatus();
 });
-store.loadCloud().then((ok) => { if (ok) route(); });
+store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } });
+auth.onChange(() => { renderAuth(); store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } }); });
+
+/** Sign-in control in the bar: an email box until signed in, then the address and a sign-out. */
+function renderAuth() {
+  const el = $('auth');
+  if (!cloud.enabled) { el.innerHTML = `<span class="faint" title="${cloud.reason}">no sync</span>`; return; }
+  if (auth.session) { el.innerHTML = `<span class="who" title="synced through Supabase">● ${auth.email}</span><button class="tiny ghost" id="signout">sign out</button>`; $('signout').onclick = () => { auth.signOut(); }; return; }
+  el.innerHTML = `<form id="signin"><input type="email" name="email" placeholder="email for a sign-in link" required><button class="tiny" type="submit">SIGN IN</button></form>`;
+  $('signin').onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target, email = f.email.value.trim(); f.querySelector('button').disabled = true;
+    try { await auth.signIn(email); el.innerHTML = `<span class="ash">link sent to <b>${email}</b> — open it on this device</span>`; }
+    catch (err) { el.innerHTML = `<span class="breach">${err.message}</span> <button class="tiny ghost" id="retry">retry</button>`; $('retry').onclick = renderAuth; }
+  };
+}
+renderAuth();
 
 function barStatus() {
   const away = sim.agents.filter((a) => a.id !== 'arcane' && a.room !== a.home).length;

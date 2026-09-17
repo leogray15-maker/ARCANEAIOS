@@ -26,7 +26,9 @@ code { color: var(--cyan); font-size: var(--t-1); }
 #bar .brand .v { color: var(--faint); font-weight: 400; letter-spacing: .06em; margin-left: 8px; }
 #bar .status { color: var(--ash); font-size: var(--t-1); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #bar .status b { color: var(--ink); font-weight: 500; }
-#bar nav, #bar .zoom { display: flex; gap: 2px; }
+#bar nav, #bar .zoom, #bar .auth { display: flex; gap: 2px; align-items: center; }
+#bar .auth form { display: flex; gap: 4px; } #bar .auth input { width: 200px; padding: 3px 8px; font-size: var(--t-1); }
+#bar .auth .who { color: var(--vital); font-size: var(--t-1); margin-right: 6px; }
 #bar nav button, #bar .zoom button { background: none; border: 1px solid transparent; color: var(--ash); padding: 4px 10px; cursor: pointer; letter-spacing: .08em; font-size: var(--t-1); }
 #bar nav button:hover, #bar .zoom button:hover { color: var(--ink); }
 #bar nav button.on { color: var(--ink); border-color: var(--line-2); background: var(--panel-2); }

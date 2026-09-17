@@ -1,52 +1,73 @@
 # Supabase — the cloud rung of shared memory
 
+Project: **supabase-ARCANE-AIOS** · `https://pjdzdfmnfuneumzqoijn.supabase.co` · us-east-1.
+Connected to the Vercel project `arcaneaios` through the Supabase
+integration (storage name `storage`).
+
 The facility's store persists to memory → localStorage → Supabase. The
-cloud rung switches on when the build sees a URL and an anon key; nothing
-else is ever injected into the bundle (see `apps/facility/vite.config.js`).
+cloud rung is used only once the operator has **signed in** with a magic
+link; until then the site works from localStorage and the Bridge says so.
 
-## Environment
+## Set-up — three steps, once
 
-The Vercel Supabase integration adds these to the project; any of the
-spellings work, the first found wins:
+### 1. The table (SQL Editor)
 
-| Purpose | Read at build |
+Open the project → SQL Editor → paste `supabase/migrations/0001_arcane_state.sql` → Run.
+It creates `arcane_state` (one row per signed-in user per document) with
+row-level security: a user reads and writes only their own rows; there is
+no anonymous access at all. Safe to re-run.
+
+### 2. Auth — magic link (Authentication → URL Configuration)
+
+- **Site URL:** `https://arcaneaios.vercel.app`
+- **Redirect URLs:** add `https://arcaneaios.vercel.app/**` and, for local dev, `http://localhost:5173/**`
+
+Email sign-in is on by default on the free plan (a few emails an hour is
+plenty for one operator). The magic link returns to the site with the
+session in the URL fragment; the facility takes it, stores it in
+localStorage, and refreshes it before it expires.
+
+### 3. Environment (already done by the integration)
+
+The Vercel integration added, with its `storage_` prefix:
+
+| Variable | Used for |
 | --- | --- |
-| URL | `SUPABASE_URL` · `NEXT_PUBLIC_SUPABASE_URL` · `VITE_SUPABASE_URL` |
-| anon key | `SUPABASE_ANON_KEY` · `NEXT_PUBLIC_SUPABASE_ANON_KEY` · `VITE_SUPABASE_ANON_KEY` |
+| `NEXT_PUBLIC_storage_SUPABASE_URL` | the project URL (also hard-coded as a fallback) |
+| `NEXT_PUBLIC_storage_SUPABASE_PUBLISHABLE_KEY` or `storage_SUPABASE_ANON_KEY` | the browser key — the only key the build reads |
+| `storage_POSTGRES_*`, `storage_SUPABASE_SERVICE_ROLE_KEY` | **never read by the facility**; for server-side tools only |
 
-`SUPABASE_SERVICE_ROLE_KEY` is never read by the facility. It is for the
-server-side sync tool (`tools/memory-sync.mjs`, plan day 3) only.
+`apps/facility/vite.config.js` reads those exact names (and the plain
+`SUPABASE_URL` / `SUPABASE_ANON_KEY` spellings for local `.env`). Only the
+URL and the publishable/anon key are injected, by name — a prefix rule
+could sweep a service-role key into the bundle, so there is none.
 
-## Table
+Redeploy once after step 3 if the variables were added after the last build.
 
-```sql
-create table if not exists arcane_state (
-  id      text primary key,
-  body    jsonb not null,
-  updated timestamptz not null default now()
-);
-alter table arcane_state enable row level security;
-```
+## Using it
 
-With RLS on and no policy, the anon key can neither read nor write, the
-facility reports "local (Supabase: 401 …)" on the Bridge and keeps working
-from localStorage. That is the intended state until Supabase Auth is wired.
+Top bar → enter your email → **SIGN IN** → open the link from the email
+on the same device. The bar then shows `● your@email` and the Bridge
+reports `memory: Supabase · your@email`. Everything the store holds —
+orders, stock, ledger, split, goals, draft status, lists, protocol, the
+Trading Journal — is written to your row on every change and read back
+on load; every 30 s the facility checks whether another device wrote
+something newer and, if so, takes it (newest state wins whole).
 
-## Opening it (only behind auth)
-
-Once the operator signs in (email magic link is enough — one user), add:
-
-```sql
-create policy "operator reads"  on arcane_state for select using (auth.role() = 'authenticated');
-create policy "operator writes" on arcane_state for insert with check (auth.role() = 'authenticated');
-create policy "operator updates" on arcane_state for update using (auth.role() = 'authenticated');
-```
-
-and pass the session token instead of the anon key in `core/cloud.js`.
-Do not add an anon policy: the site is public and the state is not.
+Sign out from the bar. Signing in on a second device pulls the same row.
 
 ## Shape
 
-One row, `id = 'leo'`, `body` = the store's state (`v: 3`, orders, ledger,
-goals, budget, stock, funnel, draft status, crew positions, floor log).
-Newest `updated` wins on load; saves upsert with `merge-duplicates`.
+```
+arcane_state (owner uuid = auth.uid(), id text = 'state', body jsonb, updated timestamptz)
+```
+
+`body` is the store's state (`v: 3`). The journal rides inside it for now;
+when there are enough trades to want SQL over them, `arcane_trades` gets
+its own table and the journal writes both.
+
+## Local development
+
+Copy the two public values into `.env` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`)
+to have the cloud rung in `npm run facility`; without them the build says
+"no sync" in the bar and everything else works.

@@ -1,58 +1,62 @@
 /**
  * The cloud rung: Supabase, through its REST API, no SDK.
  *
- * One table, one row per operator:
- *
- *   create table arcane_state (
- *     id text primary key,
- *     body jsonb not null,
- *     updated timestamptz not null default now()
- *   );
- *   alter table arcane_state enable row level security;
- *   -- Until Supabase Auth is wired (day 3 of the plan), keep the table
- *   -- closed: no anon policy means the facility falls back to localStorage
- *   -- and says so in the Bridge dashboard. Open it only behind auth.
- *
- * Only the anon key ever reaches the browser. The build injects the URL
- * and anon key from SUPABASE_URL / SUPABASE_ANON_KEY (or their
- * NEXT_PUBLIC_ / VITE_ spellings); a service-role key is never read.
+ * One table, `arcane_state`, one row per signed-in operator per document
+ * (see supabase/migrations/0001_arcane_state.sql). Requests carry the anon
+ * key as `apikey` and the operator's session token as the bearer, so
+ * row-level security decides — without a session there is nothing to
+ * read or write, and the store stays on localStorage and says so.
  */
+import { SUPABASE_URL as URL, SUPABASE_KEY as KEY } from './cloud-config.js';
+import { auth } from './auth.js';
 
-/* global __SUPABASE_URL__, __SUPABASE_ANON__ */
-const URL = typeof __SUPABASE_URL__ !== 'undefined' ? __SUPABASE_URL__ : '';
-const KEY = typeof __SUPABASE_ANON__ !== 'undefined' ? __SUPABASE_ANON__ : '';
 const TABLE = 'arcane_state';
 
 export const cloud = {
   enabled: !!(URL && KEY),
-  reason: !URL ? 'no SUPABASE_URL at build' : !KEY ? 'no SUPABASE_ANON_KEY at build' : '',
+  reason: !KEY ? 'no Supabase key at build' : '',
   lastError: '',
 
-  async load(id) {
-    if (!this.enabled) return null;
+  /** Ready to sync: configured and signed in. */
+  get ready() { return this.enabled && !!auth.session; },
+
+  async headers() {
+    const t = await auth.token();
+    return { apikey: KEY, Authorization: `Bearer ${t || KEY}` };
+  },
+
+  async load(id = 'state') {
+    if (!this.ready) return null;
     try {
-      const r = await fetch(`${URL}/rest/v1/${TABLE}?id=eq.${encodeURIComponent(id)}&select=body,updated`, { headers: headers() });
+      const r = await fetch(`${URL}/rest/v1/${TABLE}?id=eq.${encodeURIComponent(id)}&select=body,updated`, { headers: await this.headers() });
       if (!r.ok) { this.lastError = `${r.status} ${await reason(r)}`; return null; }
-      const rows = await r.json();
-      this.lastError = '';
+      const rows = await r.json(); this.lastError = '';
       return rows[0] ? { body: rows[0].body, updated: rows[0].updated } : null;
     } catch (e) { this.lastError = e.message; return null; }
   },
 
-  async save(id, body) {
-    if (!this.enabled) return false;
+  /** Only the timestamp — cheap enough to poll. */
+  async stamp(id = 'state') {
+    if (!this.ready) return null;
     try {
-      const r = await fetch(`${URL}/rest/v1/${TABLE}`, {
+      const r = await fetch(`${URL}/rest/v1/${TABLE}?id=eq.${encodeURIComponent(id)}&select=updated`, { headers: await this.headers() });
+      if (!r.ok) return null;
+      const rows = await r.json(); return rows[0]?.updated || null;
+    } catch { return null; }
+  },
+
+  async save(id, body) {
+    if (!this.ready) return false;
+    try {
+      const r = await fetch(`${URL}/rest/v1/${TABLE}?on_conflict=owner,id`, {
         method: 'POST',
-        headers: { ...headers(), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ id, body, updated: new Date().toISOString() }),
+        headers: { ...(await this.headers()), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ id, body }),
       });
       if (!r.ok) { this.lastError = `${r.status} ${await reason(r)}`; return false; }
-      this.lastError = '';
-      return true;
+      this.lastError = ''; return true;
     } catch (e) { this.lastError = e.message; return false; }
   },
 };
 
-const headers = () => ({ apikey: KEY, Authorization: `Bearer ${KEY}` });
-async function reason(r) { try { const j = await r.json(); return j.message || j.hint || r.statusText; } catch { return r.statusText; } }
+async function reason(r) { try { const j = await r.json(); return j.message || j.hint || j.msg || r.statusText; } catch { return r.statusText; } }

@@ -13,8 +13,9 @@ export default defineConfig({
   // Only the Supabase URL and anon key are injected — by exact name, so a
   // service-role key can never be swept into the bundle by a prefix rule.
   define: {
-    __SUPABASE_URL__: JSON.stringify(env('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'VITE_SUPABASE_URL')),
-    __SUPABASE_ANON__: JSON.stringify(env('SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY')),
+    // The Vercel integration prefixes its variables with the storage name (`storage_`); plain names work too.
+    __SUPABASE_URL__: JSON.stringify(env('NEXT_PUBLIC_storage_SUPABASE_URL', 'storage_SUPABASE_URL', 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'VITE_SUPABASE_URL')),
+    __SUPABASE_ANON__: JSON.stringify(env('NEXT_PUBLIC_storage_SUPABASE_PUBLISHABLE_KEY', 'storage_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_storage_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'VITE_SUPABASE_ANON_KEY')),
   },
   server: { fs: { allow: [path.resolve(here, '../..')] } },
   build: { target: 'es2022', sourcemap: true, rollupOptions: { input: { main: path.resolve(here, 'index.html'), sheet: path.resolve(here, 'sheet.html') } } },
