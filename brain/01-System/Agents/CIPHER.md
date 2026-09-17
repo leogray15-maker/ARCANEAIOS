@@ -1,7 +1,7 @@
 ---
 type: system-card
-created: 2026-09-16 22:11
-updated: 2026-09-16 22:11
+created: 2026-09-17 10:49
+updated: 2026-09-17 10:49
 status: active
 agent: CIPHER
 generated: true
@@ -17,7 +17,7 @@ tags: [system, agent]
 
 `ARCA-INTEL` · station [[INTELLIGENCE]] · wing KNOWLEDGE
 
-> Produces the daily intelligence: opportunity, threat, signal, action. Needs web research wired before it can do its job.
+> Produces the daily intelligence: opportunity, threat, signal, action. Researches the operator's watchlist on the open web, names a source for every claim, and proposes at most the smallest next action.
 
 **Domain.** Competitors, markets, pricing, suppliers, regulation
 
@@ -26,7 +26,7 @@ Seated on [[The Council]], voice weight 4.
 ## Tools
 
 - Shared memory — `live`
-- Web research — `not wired`
+- Web research — `live`
 
 ## Permissions
 

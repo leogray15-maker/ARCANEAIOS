@@ -1,7 +1,7 @@
 ---
 type: system-card
-created: 2026-09-16 22:11
-updated: 2026-09-16 22:11
+created: 2026-09-17 10:49
+updated: 2026-09-17 10:49
 status: active
 agent: VIGIL
 generated: true
@@ -26,7 +26,7 @@ Not seated on the Council.
 ## Tools
 
 - Shared memory — `live`
-- Web research — `not wired`
+- Web research — `live`
 
 ## Permissions
 

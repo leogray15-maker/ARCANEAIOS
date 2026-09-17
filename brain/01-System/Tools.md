@@ -1,7 +1,7 @@
 ---
 type: system-card
-created: 2026-09-16 22:11
-updated: 2026-09-16 22:11
+created: 2026-09-17 10:49
+updated: 2026-09-17 10:49
 status: active
 agent: FOUNDRY
 generated: true
@@ -23,4 +23,4 @@ What the network can reach. State is honest, never aspirational.
 | Email | `not wired` | Not connected yet. | — |
 | Store | `not wired` | Arcane Peptides orders and stock. | [[MERIDIAN]], [[ANVIL]], [[ABACUS]] |
 | CRM | `not wired` | People, deals, follow-ups. | [[ENVOY]] |
-| Web research | `not wired` | Competitor and market monitoring. | [[CIPHER]], [[ENVOY]], [[VIGIL]], [[SPARK]] |
+| Web research | `live` | Server-side search, through `/api/intel`. CIPHER reads the operator's watchlist and nothing else, and reports; it never acts on what it finds. | [[CIPHER]], [[ENVOY]], [[VIGIL]], [[SPARK]] |

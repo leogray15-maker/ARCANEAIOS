@@ -25,7 +25,7 @@ export const TOOLS = [
   { id: 'email',    name: 'Email',         state: 'not wired', note: 'Not connected yet.' },
   { id: 'commerce', name: 'Store',         state: 'not wired', note: 'Arcane Peptides orders and stock.' },
   { id: 'crm',      name: 'CRM',           state: 'not wired', note: 'People, deals, follow-ups.' },
-  { id: 'web',      name: 'Web research',  state: 'not wired', note: 'Competitor and market monitoring.' },
+  { id: 'web',      name: 'Web research',  state: 'live',      note: 'Server-side search, through `/api/intel`. CIPHER reads the operator\'s watchlist and nothing else, and reports; it never acts on what it finds.' },
 ];
 
 export const TOOL_BY_ID = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
@@ -153,7 +153,7 @@ export const AGENTS = [
     id: 'intel', call: 'ARCA-INTEL', name: 'CIPHER', role: 'Intelligence',
     room: 'intel', colour: '#8b5cf6', sprite: 'cipher',
     domain: 'Competitors, markets, pricing, suppliers, regulation',
-    brief: 'Produces the daily intelligence: opportunity, threat, signal, action. Needs web research wired before it can do its job.',
+    brief: 'Produces the daily intelligence: opportunity, threat, signal, action. Researches the operator\'s watchlist on the open web, names a source for every claim, and proposes at most the smallest next action.',
     tools: ['memory', 'web'],
     caps: caps(),
     asks: [],

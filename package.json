@@ -18,7 +18,7 @@
     "herald:emit": "node .claude/skills/herald/scripts/emit.mjs",
     "facility": "npm run vault:export && npm --workspace apps/facility run dev",
     "facility:build": "npm run vault:export && npm --workspace apps/facility run build",
-    "test": "node tools/validate-config.mjs && node .claude/skills/herald/scripts/lint.mjs --self-test && node .claude/skills/herald/scripts/archives.test.mjs && npm --workspace apps/facility test",
+    "test": "node tools/validate-config.mjs && node .claude/skills/herald/scripts/lint.mjs --self-test && node .claude/skills/herald/scripts/archives.test.mjs && node tools/api.test.mjs && npm --workspace apps/facility test",
     "vault:export": "node tools/vault-export.mjs",
     "vault:graph": "node tools/vault-graph.mjs",
     "vault:all": "npm run vault:write && npm run vault:export && npm run vault:graph",
