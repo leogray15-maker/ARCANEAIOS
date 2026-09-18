@@ -14,7 +14,10 @@
  *   4. appends one row per draft to 02-Content/Content-Log.md
  *   5. updates the two content lines in 03-Memory/Shared-Memory.md
  *   6. appends a Trace entry (04-Records/Trace) and a Daily-Log line
- *   7. removes the staged files — the vault copy is now the truth
+ *   7. removes the staged files
+ *   8. lands the same drafts in the database when the service key is in .env,
+ *      so BEACON shows them at once; the files are then marked generated and
+ *      follow the database from there (npm run vault:sync)
  *
  * If anything fails after step 3 the drafts are already in the vault and
  * the error says so; nothing is silently half-done. Nothing is ever deleted
@@ -25,6 +28,8 @@ import path from 'node:path';
 import { STAGING_DIR, REPO, AGENT, SKILL, ID_PREFIX, INDEX_FILE, slugify, nextId, archivesNote, vaultDir } from './lib.mjs';
 import { lintPath } from './lint.mjs';
 import { brainDir, serializeFrontmatter, appendTo, touchUpdated, trace, stamp, compact } from '../../../../tools/lib/brain.mjs';
+import { loadEnv, createDb, config as dbConfig } from '../../../../packages/database/src/index.js';
+import { drafts as draftsTable, runs as runsTable } from '../../../../packages/database/src/content.js';
 
 const args = process.argv.slice(2);
 const dry = args.includes('--dry');
@@ -62,6 +67,14 @@ for (const line of fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').spl
 const runsToday = new Set();
 const traceFile = path.join(brain, '04-Records', 'Trace', `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6)}.md`);
 if (fs.existsSync(traceFile)) for (const m of fs.readFileSync(traceFile, 'utf8').matchAll(/run (HER-R-\d{8}-\d{3})/g)) runsToday.add(m[1]);
+// The database mints ids too (runs from the floor land there first); take its ids for today so the two never collide.
+loadEnv();
+let db = null, dbReason = '';
+try {
+  db = createDb(dbConfig());
+  for (const r of await db.get('content_drafts', { select: 'id', id: `like.${ID_PREFIX}-${day}-*` })) taken.add(r.id);
+  for (const r of await db.get('agent_runs', { select: 'id', id: `like.${ID_PREFIX}-R-${day}-*` })) runsToday.add(r.id);
+} catch (e) { db = null; dbReason = e.message; }
 const run = nextId(`${ID_PREFIX}-R`, day, runsToday);
 
 /** The Archives note in the Obsidian vault is named `<title> <notionId>`; link the draft to it so the graph connects them. */
@@ -133,7 +146,21 @@ const { traceFile: tf } = trace(brain, {
 
 for (const l of landed) fs.unlinkSync(l.src);
 
-console.log(`✓ run ${run} — ${landed.length} draft${landed.length === 1 ? '' : 's'} landed in 02-Content/Drafts\n`);
+/* ---------- 8. the database, when it is reachable: the floor sees the drafts without a rebuild ---------- */
+let dbNote = '';
+if (db) {
+  try {
+    const started = now.toISOString();
+    await runsTable.start(db, { id: run, agent: AGENT, skill: SKILL, objective: `emit ${landed.length} drafts from the vault run`, model: 'vault', input: { sources, note }, sources });
+    const rows = landed.map((l) => ({ id: l.id, run_id: run, module_id: modulesById[l.fm.source_ref] ? l.fm.source_ref : null, agent: AGENT, format: l.fm.format, platform: l.fm.platform, status: 'draft', title: l.fm.title, hook: l.fm.hook, body: l.body.trim(), angle: l.fm.angle, cta: l.fm.cta, tags: l.fm.tags, word_count: l.fm.word_count, compliance: 'pass', compliance_notes: l.fm.compliance_notes, source_subject: l.fm.source_subject, source_module: l.fm.source_module, source_ref: l.fm.source_ref, source_url: l.fm.source_url, source_note: l.fm.source_note, model: 'vault', created_at: started }));
+    for (const r of rows) { try { await draftsTable.create(db, [r], { note: note || 'emitted from the vault' }); } catch (e) { if (!/module_id|foreign key|23503/i.test(e.message)) throw e; await draftsTable.create(db, [{ ...r, module_id: null }], { note: note || 'emitted from the vault' }); } }
+    await runsTable.finish(db, run, { status: 'ok', output: { drafts: rows.map((r) => r.id), fromVault: true } });
+    for (const l of landed) { const f = path.join(draftsDir, l.file); fs.writeFileSync(f, serializeFrontmatter({ ...l.fm, generated: true, source: 'supabase' }) + l.body + '\n'); }
+    dbNote = `\n  database → ${rows.length} rows in content_drafts (the floor sees them now)`;
+  } catch (e) { dbNote = `\n  ~ not in the database: ${e.message} — npm run vault:sync will import them`; }
+} else dbNote = `\n  ~ not in the database (${dbReason}) — npm run vault:sync will import them once the key is in .env`;
+
+console.log(`✓ run ${run} — ${landed.length} draft${landed.length === 1 ? '' : 's'} landed in 02-Content/Drafts${dbNote}\n`);
 for (const l of landed) console.log(`  ${l.file}${l.warnings.length ? `\n     ~ ${l.warnings.join('\n     ~ ')}` : ''}`);
 console.log(`\n  logged → 02-Content/Content-Log.md, 03-Memory/Shared-Memory.md, ${path.relative(brain, tf)}, 04-Records/Daily-Log${copied.length ? `\n  copied → 02-Content/Sources/ (${copied.length})` : ''}`);
 

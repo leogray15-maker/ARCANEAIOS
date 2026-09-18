@@ -51,6 +51,7 @@ export const ROOMS = [
     domain: 'Content, email, launches, the attention funnel. Drafts wait here for approval.',
     brain: '02-Content',
     widgets: ['draft-queue', 'post-calendar'],
+    opens: '#beacon',
   },
 
   /* ============ C2 · COMMAND ============ */
@@ -60,6 +61,7 @@ export const ROOMS = [
     domain: 'Command. The shared memory, the four-block brief, standing doctrine, the goals.',
     brain: '03-Memory',
     widgets: ['brief', 'doctrine', 'goals'],
+    opens: '#bridge',
   },
   {
     id: 'warroom', name: 'THE WAR ROOM', sub: 'Strategy · The next move',
@@ -67,6 +69,7 @@ export const ROOMS = [
     domain: 'Which venture gets the next hour, the next pound, the next quarter.',
     brain: null,
     widgets: ['top-three-moves', 'stop-doing'],
+    opens: '#warroom',
   },
   {
     id: 'council', name: 'THE COUNCIL', sub: 'Deliberation · Verdicts',
@@ -128,6 +131,7 @@ export const ROOMS = [
     domain: 'The map of the Archives — every subject and module — and the products cut from them.',
     brain: '05-Knowledge',
     widgets: ['archives-map', 'pdf-catalogue'],
+    opens: '#library',
   },
   {
     id: 'lounge', name: 'THE LOUNGE', sub: 'Off the clock',

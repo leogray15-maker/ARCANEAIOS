@@ -12,7 +12,7 @@ dist/
 *firebase-adminsdk*.json
 serviceAccountKey.json
 
-# regenerable data
+# regenerable data (and the dev database, which is local by definition)
 data/archives/index.json
 data/archives/modules/
 
@@ -28,3 +28,4 @@ data/herald-auto.log
 # Obsidian workspace state (per-device); keep app/core-plugins config
 brain/.obsidian/workspace*.json
 brain/.obsidian/cache
+data/dev-db.json

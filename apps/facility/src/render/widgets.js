@@ -6,8 +6,8 @@
  * the vault knows). Controls carry `data-act` attributes; panel.js routes
  * the clicks and inputs back to the store. Nothing here mutates.
  */
-import { VENTURES, AGENTS, CAPS, GRADES, ROOM_BY_ID, BRIEF_BLOCKS } from '@arcane/config';
-import { INVENTORY, DISPATCH, PDF_PRODUCTS, COHORTS, BUILD_QUEUE, FUNNEL, MANUSCRIPTS, PROTOCOL, BUDGET, DOCTRINE_FALLBACK } from '../config/roomdata.js';
+import { VENTURES, AGENTS, CAPS, GRADES, ROOM_BY_ID } from '@arcane/config';
+import { INVENTORY, DISPATCH, COHORTS, BUILD_QUEUE, FUNNEL, MANUSCRIPTS, PROTOCOL, BUDGET, DOCTRINE_FALLBACK } from '../config/roomdata.js';
 import { signals } from '../core/vigil.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -19,7 +19,7 @@ const num = (act, id, field, value, w = 60) => `<input class="num" type="number"
 const table = (head, rows) => `<table class="grid"><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
 /** An editable list with optional tags: the smallest useful board. */
 function listBoard(store, key, { placeholder, tags = [], toneOf = () => 'ash', hint = '' } = {}) {
-  const items = store.list(key);
+  const items = store.openItems(key);
   return `${items.length ? items.map((it) => `<div class="order"><span>${esc(it.text)}</span> ${it.tag ? chip(it.tag, toneOf(it.tag)) : ''}${tags.length ? ` <span class="faint">→</span> ${tags.map((t) => `<button class="tiny ghost" data-act="list-tag" data-key="${key}" data-id="${it.id}" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}` : ''} <button class="tiny ghost" data-act="list-remove" data-key="${key}" data-id="${it.id}">×</button></div>`).join('') : `<p class="empty">Nothing here yet.</p>`}
     <form class="inline" data-act="list-add" data-key="${key}"><input name="text" placeholder="${esc(placeholder)}" style="flex:1;min-width:200px"><button type="submit">Add</button></form>${hint ? src(hint) : ''}`;
 }
@@ -46,50 +46,6 @@ function lab(store) {
     <p class="ash">${esc(DISPATCH.note)}</p>`;
 }
 
-/* ---------------- BEACON ---------------- */
-function beacon(store) {
-  const drafts = store.drafts();
-  const by = (st) => drafts.filter((d) => d.status === st).length;
-  const next = { draft: ['review', 'killed'], review: ['approved', 'killed'], approved: ['scheduled', 'posted', 'killed'], scheduled: ['posted', 'killed'], posted: [], killed: ['draft'] };
-  const tone = { draft: 'flare', review: 'cyan', approved: 'vital', scheduled: 'arcane', posted: 'vital', killed: 'deny' };
-  const list = drafts.filter((d) => d.status !== 'killed').slice(0, 12).map((d) => `<div class="card">
-      <div class="card-head">${chip(d.format, 'arcane')} ${chip(d.platform)} ${chip(d.status, tone[d.status])} <span class="ash">${esc(d.id)}</span></div>
-      <p class="hook">${esc(d.hook)}</p>
-      <p class="ash">${esc(d.source_subject)} · ${esc(d.source_module)} · ${d.word_count}w${d.compliance_notes ? ` · <span class="flare">note: ${esc(d.compliance_notes)}</span>` : ''}</p>
-      <div class="acts">${(next[d.status] || []).map((n) => `<button class="tiny" data-act="draft" data-id="${esc(d.id)}" data-status="${n}">${n}</button>`).join('')} <button class="tiny ghost" data-act="draft-open" data-id="${esc(d.id)}">read</button></div>
-      <pre class="body hidden" id="draft-${esc(d.id)}">${esc(d.body)}</pre>
-    </div>`).join('');
-  return `
-    <div class="stat-row"><div class="stat"><b>${by('draft')}</b><span>waiting</span></div><div class="stat"><b>${by('review')}</b><span>in review</span></div><div class="stat"><b>${by('approved') + by('scheduled')}</b><span>approved</span></div><div class="stat"><b>${by('posted')}</b><span>posted</span></div></div>
-    ${list || '<p class="empty">No drafts in the queue. Run /herald.</p>'}
-    <p><button data-act="open-content">Open the content board</button> <span class="ash">every draft, by status</span></p>
-    ${src('The queue is the brain\'s 02-Content at the last build. Status moved here is kept on this device until the vault sync lands; the vault stays the truth.')}`;
-}
-
-/* ---------------- BRIDGE ---------------- */
-function bridge(store, brain) {
-  const b = brain?.brief;
-  const blocks = BRIEF_BLOCKS.map((blk) => {
-    const rows = b?.blocks?.[blk.id] || [];
-    if (!rows.length) return `<h3>${blk.name}</h3><p class="empty">${esc(blk.note)}</p>`;
-    const head = Object.keys(rows[0]);
-    return `<h3>${blk.name}</h3>${table(head.map((h) => h.replace(/_/g, ' ')), rows.map((r) => `<tr>${head.map((h) => `<td>${esc(r[h])}</td>`).join('')}</tr>`))}`;
-  }).join('');
-  const goals = store.goalList().map((g) => `<tr><td>${esc(g.goal)}</td><td>${bar(store.goalPct(g), g.kind === 'money' ? 'gold' : 'arcane')}</td><td class="ash">${store.goalPct(g)}%</td></tr>`);
-  const turns = store.counsel().slice(-12);
-  const counsel = `<h3>Counsel <span class="faint">Leo ↔ ARCANE</span></h3>
-    <div class="counsel">${turns.length ? turns.map((t) => `<div class="turn ${t.who}"><span class="who">${t.who === 'leo' ? 'LEO' : 'ARCANE'}${t.specialist ? ` <span class="faint">· ${esc(t.specialist)}</span>` : ''}</span><p>${esc(t.text)}</p>${t.order ? `<p class="proposal">proposes <span class="chip ${['deny', 'flare', 'arcane', 'ash'][['P0', 'P1', 'P2', 'P3'].indexOf(t.order.priority)]}">${esc(t.order.priority)}</span> ${esc(ROOM_BY_ID[t.order.room]?.name || t.order.room)}: ${esc(t.order.text)} <button class="tiny" data-act="counsel-order" data-room="${esc(t.order.room)}" data-text="${esc(t.order.text)}" data-p="${['P0', 'P1', 'P2', 'P3'].indexOf(t.order.priority)}">add order</button></p>` : ''}</div>`).join('') : '<p class="empty">Ask the network something. ARCANE answers from the brief, names the specialist it concerns, and may propose one order.</p>'}</div>
-    <form class="inline" data-act="counsel-ask"><input name="q" placeholder="Speak to the network…" style="flex:1;min-width:240px" autocomplete="off"><button type="submit" class="primary">Ask</button>${turns.length ? '<button type="button" class="tiny ghost" data-act="counsel-clear">clear</button>' : ''}</form>
-    <p class="src">Counsel runs on the reasoning layer (Claude, server-side). Only a device with sync on can ask.</p>`;
-  return `
-    <p class="ash">Brief of <b>${esc(b?.date || '—')}</b> · memory on <b>${esc(store.where())}</b></p>
-    ${brain?.doctrine ? `<p class="doctrine">${esc(brain.doctrine)}</p>` : ''}
-    ${counsel}
-    ${blocks}
-    <h3>Goals</h3>${table(['Goal', 'Progress', ''], goals)}
-    <h3>Doctrine</h3><ul class="list">${(brain?.principles?.length ? brain.principles : DOCTRINE_FALLBACK).map((d) => `<li>${esc(d)}</li>`).join('')}</ul>`;
-}
-
 /* ---------------- THE VAULT ---------------- */
 function vault(store) {
   const rev = store.monthlyRevenue(), fixed = store.monthlyFixed(), runway = store.runwayMonths();
@@ -104,17 +60,6 @@ function vault(store) {
     <h3>The split — ${store.splitTotal()}%${store.splitTotal() !== 100 ? ' <span class="breach">(not 100)</span>' : ''}</h3>${table(['Pot', '%', 'This month', ''], split)}
     ${src(BUDGET.source)}
     <h3>Trading Journal</h3><p><button class="primary" data-act="open-journal">Open the Journal</button> <span class="ash">Trades, R-multiples, setups, psychology. Spec in <code>brain/05-Knowledge/Trading-Journal.md</code>.</span></p>`;
-}
-
-/* ---------------- THE LIBRARY ---------------- */
-function library(store, brain) {
-  const a = brain?.archives;
-  return `
-    ${a?.summary ? `<p>${esc(a.summary)}</p>` : '<p class="empty">Archives index not built. Run npm run herald:index.</p>'}
-    ${a?.lanes?.length ? table(['Lane', 'Modules', 'Handling'], a.lanes.map((l) => `<tr><td>${esc(l.lane)}</td><td>${esc(l.modules)}</td><td class="ash">${esc(l.handling).replace(/\*\*/g, '')}</td></tr>`)) : ''}
-    ${a?.subjects?.length ? `<h3>Largest subjects</h3>${table(['Subject', 'Lane', 'Modules', 'Words'], a.subjects.map((s) => `<tr><td>${esc(s.subject)}</td><td>${esc(s.lane)}</td><td>${esc(s.modules)}</td><td class="ash">${esc(s.words)}</td></tr>`))}` : ''}
-    <h3>PDF products</h3>${table(['Title', 'From', 'Pages', 'Price', 'Stage'], PDF_PRODUCTS.rows.map((r) => `<tr><td>${esc(r.title)}</td><td class="ash">${esc(r.from)}</td><td>${r.pages}</td><td>£${r.price}</td><td>${chip(r.stage, stageTone[r.stage])}</td></tr>`))}
-    ${src(PDF_PRODUCTS.source)}`;
 }
 
 /* ---------------- THE MARKET ---------------- */
@@ -161,8 +106,6 @@ const observatory = (store, brain) => {
     ${live.length ? table(['Severity', 'Room', 'Signal', 'Clears when'], live.map((s) => `<tr><td>${chip(s.severity, tone(s.severity))}</td><td>${esc(ROOM_BY_ID[s.room]?.name || s.room)}</td><td>${esc(s.text)}</td><td class="ash">${esc(s.clear)}</td></tr>`)) : '<p class="vital">Nothing moved that needs you. Quiet is a signal too.</p>'}
     ${brain?.signals?.length ? `<h3>From the vault</h3>${table(['When', 'Who', 'Signal', 'Severity', 'State'], brain.signals.map((s) => `<tr><td class="ash">${esc(s.when)}</td><td>${esc(s.who)}</td><td>${esc(s.signal)}</td><td>${chip(s.severity, tone(s.severity))}</td><td class="ash">${esc(s.state)}</td></tr>`))}` : ''}`;
 };
-const warroom = (store, brain) => { const rows = brain?.brief?.blocks?.rooms || []; return `<h3>The next three moves</h3>${listBoard(store, 'moves', { placeholder: 'A move, in one line', tags: ['now', 'next', 'stop'], toneOf: (t) => (t === 'now' ? 'vital' : t === 'stop' ? 'deny' : 'flare'), hint: 'VECTOR ranks the ventures by what is compounding and names what to stop doing. Three lines, tagged now / next / stop.' })}
-  <h3>Where the work is</h3>${rows.length ? table(Object.keys(rows[0]).map((h) => h.replace(/_/g, ' ')), rows.map((r) => `<tr>${Object.values(r).map((v) => `<td>${esc(v)}</td>`).join('')}</tr>`)) : '<p class="empty">The brief has no ROOMS block.</p>'}`; };
 const inventor = (store, brain) => `${listBoard(store, 'ideas', { placeholder: 'An idea, before it gets lost', tags: ['BUILD', 'WATCH', 'KILL'], toneOf: (t) => (t === 'BUILD' ? 'vital' : t === 'KILL' ? 'deny' : 'flare'), hint: 'SPARK takes an idea through market, competition, economics, MVP, cost and risk, then returns BUILD, WATCH or KILL. A BUILD becomes an order; a KILL gets one line on why.' })}
   <p class="ash">${Math.max(0, (brain?.files?.['00-Inbox'] || []).length - 1)} item(s) in the brain's inbox.</p>`;
 const intel = (store, brain) => `<h3>Watchlist</h3>${listBoard(store, 'watch', { placeholder: 'Competitor, supplier, market, regulation to watch', tags: ['opportunity', 'threat', 'signal'], toneOf: (t) => (t === 'opportunity' ? 'vital' : t === 'threat' ? 'deny' : 'cyan'), hint: 'Web research is not wired yet, so CIPHER cannot watch these alone. Until it can, this is the list it will be given.' })}
@@ -176,7 +119,8 @@ const sanctum = (store) => {
   <p class="ash">Energy and sleep logged here feed the Trading Journal's Energy vs R view.</p>`;
 };
 
+// BRIDGE, THE WAR ROOM, BEACON and THE LIBRARY are full applications (render/bridge.js, warroom.js, beacon.js, library.js); their rooms open those instead of a dashboard.
 export const WIDGETS = {
-  apothecary: lab, beacon, bridge, vault, archives: library, market, forge, vitals, scriptorium, sanctum,
-  records, council, control, garage, observatory, warroom, inventor, intel, dealroom, lounge,
+  apothecary: lab, vault, market, forge, vitals, scriptorium, sanctum,
+  records, council, control, garage, observatory, inventor, intel, dealroom, lounge,
 };

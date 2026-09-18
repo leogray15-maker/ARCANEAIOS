@@ -13,8 +13,8 @@ export const SKILLS = [
     status: 'production',
     summary: 'Turns Arcane Archives modules into post-ready drafts (short, medium, thread, email, teaser) and lands them in 02-Content/Drafts with complete frontmatter. Zero medical or dosing claims. Logs every run.',
     invoke: '/herald',
-    reads: ['archives', 'notion', '02-Content', '03-Memory', '05-Knowledge/Archives-Map.md'],
-    writes: ['02-Content/Drafts', '02-Content/Content-Log.md', '04-Records/Trace', '04-Records/Daily-Log'],
+    reads: ['archives', 'notion', 'database', '02-Content', '03-Memory', '05-Knowledge/Archives-Map.md', '05-Knowledge/Archives-Sources.md'],
+    writes: ['02-Content/Drafts', '02-Content/Sources', '02-Content/Content-Log.md', '04-Records/Trace', '04-Records/Daily-Log', 'database:content_drafts', 'database:agent_runs'],
     formats: ['short', 'medium', 'thread', 'email', 'teaser'],
   },
 ];

@@ -13,7 +13,9 @@
     <div class="status" id="bar-status"></div>
     <nav id="views">
       <button data-view="floor" class="on">FLOOR</button>
-      <button data-view="content">CONTENT</button>
+      <button data-view="bridge">BRIDGE</button>
+      <button data-view="library">LIBRARY</button>
+      <button data-view="beacon">BEACON</button>
       <button data-view="graph">BRAIN GRAPH</button>
     </nav>
     <div class="auth" id="auth"></div>
@@ -29,7 +31,10 @@
     <div id="strip"></div>
   </main>
   <section id="dash" class="view hidden"></section>
-  <section id="content" class="view hidden"></section>
+  <section id="bridge" class="view hidden"></section>
+  <section id="warroom" class="view hidden"></section>
+  <section id="library" class="view hidden"></section>
+  <section id="beacon" class="view hidden"></section>
   <section id="journal" class="view hidden"></section>
   <section id="graph" class="view hidden"><canvas id="graph-canvas"></canvas><div class="legend" id="graph-legend"></div></section>
   <script type="module" src="/src/main.js"></script>

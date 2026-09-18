@@ -1,7 +1,7 @@
 ---
 type: system-card
-created: 2026-09-16 22:11
-updated: 2026-09-16 22:11
+created: 2026-09-18 18:04
+updated: 2026-09-18 18:04
 status: active
 agent: FOUNDRY
 generated: true
@@ -19,6 +19,7 @@ What the network can reach. State is honest, never aspirational.
 | Notion | `read-only` | The Arcane Archives. Read only, by the operator's instruction. No agent may create, update or move a page. | [[ARCANE]], [[MERIDIAN]], [[HERALD]], [[ORACLE]], [[SCRIBE]], [[RELIC]] |
 | Claude | `live` | Reasoning for Counsel and the Council. | [[ARCANE]], [[VECTOR]], [[SPARK]] |
 | Archives index | `live` | Local index of the Archives export, built by HERALD. Offline, deterministic, regenerable. | [[ARCANE]], [[HERALD]], [[ORACLE]], [[SCRIBE]] |
+| Database | `live` | Supabase Postgres: the Archives modules, content drafts and revisions, agent runs, system events. Reached only through /api and the tools, with the service key; the browser never touches it directly. | [[HERALD]] |
 | Calendar | `not wired` | Not connected yet. | — |
 | Email | `not wired` | Not connected yet. | — |
 | Store | `not wired` | Arcane Peptides orders and stock. | [[MERIDIAN]], [[ANVIL]], [[ABACUS]] |

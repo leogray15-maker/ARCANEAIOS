@@ -8,20 +8,56 @@ ARCANEAIOSMAIN/                    the monorepo (GitHub: the-arcane)
 ├── .env.example                   ARCANE_BRAIN, ARCANE_ARCHIVES_EXPORT, VITE_FIREBASE_*
 │
 ├── packages/
-│   └── config/                    @arcane/config — THE single source of truth
+│   ├── config/                    @arcane/config — THE single source of truth
+│   │   └── src/
+│   │       ├── agents.js          19 agents: call, room, tools, caps, asks, skills, sprite
+│   │       ├── rooms.js           20 rooms: wing, resident, venture, brain folder, widgets, what a room opens
+│   │       ├── wings.js           4 wings
+│   │       ├── permissions.js     GRADES, CAPS, STANDING_RULES, holds()
+│   │       ├── ventures.js        4 ventures + OPERATOR
+│   │       ├── loop.js            BRIEF_BLOCKS, VERDICTS, ORDER/DRAFT states, DRAFT_TRANSITIONS, DRAFT_VIEWS
+│   │       └── skills.js          skill registry (reads/writes per skill)
+│   ├── database/                  @arcane/database — the runtime system of record (server-side only)
+│   │   └── src/
+│   │       ├── index.js           createDb(): PostgREST with the service key; errors name their migration
+│   │       ├── content.js         modules · drafts · revisions · runs · events, as verbs
+│   │       ├── state.js           the operating-state registry: orders · list_items · decisions · counsel · focus · goals · days
+│   │       ├── bridge.js          aggregate(): today · waiting · active · ventures, from the tables
+│   │       ├── memory.js          the in-memory twin (tests)
+│   │       ├── dev.js             the dev database: real index + data/dev-db.json
+│   │       └── modules-from-index.js   data/archives → archive_modules rows, with the gate
+│   └── content-engine/            @arcane/content-engine — HERALD's core, shared by /api/herald and herald:auto
 │       └── src/
-│           ├── agents.js          19 agents: call, room, tools, caps, asks, skills, sprite
-│           ├── rooms.js           20 rooms: wing, resident, venture, brain folder, widgets
-│           ├── wings.js           4 wings
-│           ├── permissions.js     GRADES, CAPS, STANDING_RULES, holds()
-│           ├── ventures.js        4 ventures + OPERATOR
-│           ├── loop.js            BRIEF_BLOCKS, VERDICTS, ORDER/DRAFT states
-│           └── skills.js          skill registry (reads/writes per skill)
+│           ├── herald.js          systemPrompt · schema · writeDrafts · stageText · gate · lintEdit · generate
+│           └── mock.js            the mock writer (explicit flag only)
+│
+├── api/                           Vercel functions — the only thing that touches the database
+│   ├── _auth.js                   the operator gate (bearer key, constant-time)
+│   ├── _lib.js                    db(), client(), systemContext()
+│   ├── modules.js                 GET the Archives (search, one module, subjects)
+│   ├── herald.js                  POST generate (module → drafts)
+│   ├── drafts.js                  GET/PATCH drafts (move, edit — linted)
+│   ├── runs.js                    GET runs, events, schema state
+│   ├── state.js                   GET/POST/PATCH/DELETE the operating state through the registry
+│   ├── bridge.js                  GET the Bridge aggregate
+│   ├── counsel.js · council.js    the reasoning layer
+│
+├── supabase/migrations/           0001 (unused) · 0002 arcane_sync · 0003 the Content Machine · 0004 the operating state
 │
 ├── tools/
 │   ├── validate-config.mjs        refuses a roster that breaks a standing rule
 │   ├── vault-gen.mjs              generates 01-System + knowledge cards into the brain
-│   └── lib/brain.mjs              vault path, frontmatter, generated-file guard, trace()
+│   ├── archives-sync.mjs          index → archive_modules, incremental
+│   ├── db-check.mjs               which migrations the database has had
+│   ├── dev-api.mjs                api/*.js on a port, for npm run dev
+│   ├── vault-sync.mjs             the floor → the vault (drafts mirrored from the database)
+│   ├── content-machine.test.mjs   the engine, the gates and the status machine, headless
+│   ├── operating-state.test.mjs   the registry, the Bridge aggregate and the vault mirror, headless
+│   └── lib/
+│       ├── brain.mjs              vault path, frontmatter, generated-file guard, trace()
+│       ├── state.mjs              the sync rows, folded
+│       ├── content-mirror.mjs     database ↔ vault for drafts
+│       └── state-mirror.mjs       database ↔ vault for orders, lists, focus, decisions, counsel
 │
 ├── brain/                         the Obsidian vault  (→ its own private repo on day 3)
 │   ├── CLAUDE.md                  master router for any agent opening the vault
@@ -52,17 +88,20 @@ ARCANEAIOSMAIN/                    the monorepo (GitHub: the-arcane)
 │       ├── index.html
 │       ├── vite.config.js
 │       └── src/
-│           ├── main.js
+│           ├── main.js               routes: #  #room/<id>  #bridge  #warroom  #library[/<module>]  #beacon[/<view>|/draft/<id>]  #journal  #graph
 │           ├── config/floorplan.js   geometry only; meaning imported from @arcane/config
-│           ├── core/                 store · cloud (Firestore) · routing · sim
-│           └── render/               factory · tiles · props · sprites · ui · panels
+│           ├── core/                 store (server tables + the blob) · cloud + sync (the sync row) · operator (the key) · api (the client) · reason · sim · vigil
+│           └── render/               factory · props · sprites (the world) · panel · widgets · bridge · warroom · library · beacon · journal · graph (the work)
 │
-├── firebase/                      firestore.rules · firestore.indexes.json (day 8)
 └── docs/
     ├── ARCHITECTURE.md            the diagrams
+    ├── CONTENT-MACHINE.md         Archives → HERALD → BEACON, end to end
+    ├── DATA-MODEL.md              the tables and the lifecycle
+    ├── SUPABASE.md                set-up, keys, the operator key
+    ├── HERALD-AUTO.md             the unattended run
     ├── SPRITES.md                 pixel direction
     ├── STRUCTURE.md               this file
-    └── PLAN.md                    the 10-day plan
+    └── PLAN.md                    the plan and what is done
 ```
 
 ## Why it is shaped this way
@@ -90,10 +129,11 @@ and the vault know the skill exists. A skill is both, always.
 extracted text that rebuilds in one second. It is never committed; the
 small map it produces is.
 
-**Secrets never enter the tree.** `.gitignore` refuses `.env`, any
-`*service-account*.json`, and `serviceAccountKey.json`. The facility gets
-public `VITE_` Firebase config only; anything privileged lives in a Vercel
-function later.
+**Secrets never enter the tree, and the database is never in the bundle.**
+`.gitignore` refuses `.env` and any service-account file. The facility
+build reads the Supabase URL and anon key by exact name and nothing else;
+`packages/database` is imported only by `api/` and `tools/`, and CI greps
+the bundle for a service key on every push.
 
 ## Separate repos, eventually
 

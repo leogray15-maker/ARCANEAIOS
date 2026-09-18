@@ -1,0 +1,13 @@
+{
+  "name": "@arcane/database",
+  "version": "3.0.0",
+  "description": "The runtime system of record: a thin PostgREST client for Supabase with the service key, the typed helpers for modules, drafts, revisions, runs and events, and an in-memory twin for tests.",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./memory": "./src/memory.js",
+    "./content": "./src/content.js"
+  }
+}

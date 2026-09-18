@@ -57,12 +57,14 @@ export function renderDash(el, roomId, { sim, store, brain }, { keepScroll = fal
 function ordersBoard(store, roomId) {
   const open = store.openOrders(roomId);
   const done = store.orders(roomId).filter((o) => o.done).slice(0, 5);
-  const row = (o) => `<label class="order ${o.done ? 'done' : ''}"><input type="checkbox" data-act="order-toggle" data-id="${o.id}" ${o.done ? 'checked' : ''}> <span class="chip ${PRIO_TONE[o.p]}">${PRIO[o.p]}</span> ${esc(o.t)}${o.holder ? ` <span class="faint">· ${esc(o.holder)}</span>` : ''}${o.blocked ? ` <span class="flare">· blocked: ${esc(o.blocked)}</span>` : ''}${o.fromBrain ? '' : ` <button class="tiny ghost" data-act="order-remove" data-id="${o.id}">×</button>`}</label>`;
+  const row = (o) => `<label class="order ${o.done ? 'done' : ''}"><input type="checkbox" data-act="order-toggle" data-id="${o.id}" ${o.done ? 'checked' : ''}> <span class="chip ${PRIO_TONE[o.p]}">${PRIO[o.p]}</span> ${esc(o.t)}${o.state && !['open', 'done'].includes(o.state) ? ` <span class="chip ${o.state === 'blocked' ? 'deny' : 'flare'}">${esc(o.state)}</span>` : ''}${o.holder ? ` <span class="faint">· ${esc(o.holder)}</span>` : ''}${o.blocked ? ` <span class="flare">· blocked: ${esc(o.blocked)}</span>` : ''}${o.done ? '' : ` <button class="tiny ghost" data-act="${o.state === 'blocked' ? 'order-unblock' : 'order-block'}" data-id="${o.id}">${o.state === 'blocked' ? 'unblock' : 'block'}</button> <button class="tiny ghost" data-act="order-remove" data-id="${o.id}" title="kill">×</button>`}</label>`;
+  const sv = store.serverStatus();
   return `
     ${open.map(row).join('') || '<p class="empty">No open orders here.</p>'}
     <form class="inline" data-act="order-add"><input name="text" placeholder="New order for this room" style="flex:1;min-width:160px"><select name="p"><option value="0">P0</option><option value="1">P1</option><option value="2" selected>P2</option><option value="3">P3</option></select><button type="submit">Add</button></form>
     ${done.length ? `<details><summary>${done.length} done</summary>${done.map(row).join('')}</details>` : ''}
-    <p class="src">Crew are drawn to rooms with open orders — P0 pulls hardest. Orders from the brain carry the holder named in 06-Orders.</p>`;
+    ${sv.tone !== 'vital' ? `<p class="${sv.tone}">${esc(sv.text)}</p>` : ''}
+    <p class="src">Orders are the unit of routed work: open · active · blocked · review · done · killed. Crew are drawn to rooms with open orders — P0 pulls hardest. The Bridge shows every P0 and P1 across the floor.</p>`;
 }
 
 function crewBlock(agent, here, roomId, sim) {
@@ -90,15 +92,14 @@ export function bindDash(el, { store, getRoom, go, brain }) {
     const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'INPUT' || b.tagName === 'FORM') return;
     const act = b.dataset.act, id = b.dataset.id, room = getRoom();
     if (act === 'back') go('#');
-    else if (act === 'order-remove') store.removeOrder(room, id);
+    else if (act === 'order-remove') { if (confirm('Kill this order? It stays in the record as killed.')) store.removeOrder(room, id); }
+    else if (act === 'order-block') { const why = prompt('Blocked on what?'); if (why !== null) store.setOrderState(room, id, 'blocked', why.trim() || 'unspecified'); }
+    else if (act === 'order-unblock') store.setOrderState(room, id, 'open');
     else if (act === 'stock-adj') store.adjustStock(id, Number(b.dataset.delta));
     else if (act === 'coa') store.cycleCoa(id);
     else if (act === 'draft') store.markDraft(id, b.dataset.status);
     else if (act === 'draft-open') { const pre = el.querySelector(`#draft-${CSS.escape(id)}`); if (pre) pre.classList.toggle('hidden'); }
     else if (act === 'open-journal') go('#journal');
-    else if (act === 'open-content') go('#content');
-    else if (act === 'counsel-order') { store.addOrder(b.dataset.room, b.dataset.text, Number(b.dataset.p)); }
-    else if (act === 'counsel-clear') store.clearCounsel();
     else if (act === 'list-remove') store.removeItem(b.dataset.key, id);
     else if (act === 'list-tag') store.tagItem(b.dataset.key, id, b.dataset.tag);
   });
@@ -121,15 +122,11 @@ export function bindDash(el, { store, getRoom, go, brain }) {
     if (f.dataset.act === 'order-add') { store.addOrder(room, f.text.value, Number(f.p.value)); f.reset(); }
     else if (f.dataset.act === 'stock-add') { store.addStockLine(f.code.value, f.size.value, f.vials.value); f.reset(); }
     else if (f.dataset.act === 'list-add') { store.addItem(f.dataset.key, f.text.value); f.reset(); }
-    else if (f.dataset.act === 'counsel-ask') {
-      const q = f.q.value.trim(); if (!q) return;
-      store.addCounsel('leo', q); f.q.value = ''; busy(f, 'thinking…');
-      reason.ask(store, brain, q).then((r) => store.addCounsel('arcane', r.answer, { specialist: r.specialist, order: r.order || null })).catch((e) => store.addCounsel('arcane', `— ${e.message}`)).finally(() => busy(f));
-    }
     else if (f.dataset.act === 'council-ask') {
       const q = f.q.value.trim(); if (!q) return;
       busy(f, 'the Council is sitting…');
-      reason.council(store, brain, q).then((r) => store.addDecision({ question: q, ...r })).catch((e) => store.addDecision({ question: q, verdict: 'WATCH', summary: `The Council could not sit: ${e.message}`, conditions: [], dissent: '', positions: [] })).finally(() => busy(f));
+      // A Council that could not sit is not a decision: say so in the bar and record nothing.
+      reason.council(store, brain, q).then((r) => store.addDecision({ question: q, ...r })).catch((e) => store.say(`The Council could not sit: ${e.message}`, 'breach')).finally(() => busy(f));
     }
     else if (f.dataset.act === 'decision-outcome') { store.setDecisionOutcome(f.dataset.id, f.outcome.value.trim()); }
   });

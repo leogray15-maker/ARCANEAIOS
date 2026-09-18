@@ -10,6 +10,7 @@ import {
   AGENTS, ARCANE, CREW, COUNCIL, TOOLS, TOOL_BY_ID,
   ROOMS, WINGS, roomsInWing,
   GRADES, CAPS, CAP_IDS, SKILLS, AGENT_BY_ID, ROOM_BY_ID, VENTURES,
+  DRAFT_STATES, DRAFT_TRANSITIONS, DRAFT_VIEWS,
 } from '../packages/config/src/index.js';
 
 const fails = [];
@@ -78,6 +79,16 @@ for (const s of SKILLS) {
     }
   }
 }
+
+/* ---- the draft lifecycle is closed: every move lands on a known state, every state has a view, only humans move past draft ---- */
+for (const [from, tos] of Object.entries(DRAFT_TRANSITIONS)) {
+  ok(DRAFT_STATES.includes(from), `draft transition from unknown state "${from}"`);
+  for (const to of tos) ok(DRAFT_STATES.includes(to), `draft transition ${from} → unknown state "${to}"`);
+}
+for (const st of DRAFT_STATES) ok(DRAFT_TRANSITIONS[st], `draft state "${st}" has no transitions (dead end must be explicit: [])`);
+const viewed = DRAFT_VIEWS.flatMap((v) => v.states);
+for (const st of DRAFT_STATES) ok(viewed.includes(st), `draft state "${st}" appears in no BEACON view`);
+ok(new Set(viewed).size === viewed.length, 'a draft state appears in two BEACON views');
 
 /* ---- report ---- */
 if (fails.length) {

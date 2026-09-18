@@ -15,13 +15,16 @@ Obsidian vault (Arcane ARCHIVES, read only)
 Archives-Sources.md                — the Allowed / Never gate (yours to edit)
    │  npm run herald:auto           — pick · copy the note · write five cuts (Claude API) · lint · emit · trace
    ▼
-brain/02-Content/Drafts            — status: draft   (Board.md lists everything, by status)
-   │  commit + push                 — the site rebuilds with brain.json
+brain/02-Content/Drafts  +  content_drafts      — status: draft   (files for the record; rows so BEACON sees them at once, when the service key is in .env)
    ▼
-arcaneaios.vercel.app  →  CONTENT view / BEACON    — you move status: review · approved · scheduled · posted · killed
-   │  npm run vault:sync            — those decisions come back into the draft files (needs the service-role key in .env)
+arcaneaios.vercel.app  →  BEACON                — you edit, approve, reject, schedule, publish, regenerate; every change is a revision in the database
+   │  npm run vault:sync                        — the database's drafts land in the vault as generated files, in their status folders
    ▼
 brain/02-Content/{Drafts,Approved,Posted,Killed}   — the record
+
+The same engine runs from the floor: Library → module → Generate
+(docs/CONTENT-MACHINE.md). `auto.mjs` is the unattended pick-and-write
+on this Mac; the prompt and the gate are shared.
 ```
 
 ## Run it
@@ -44,7 +47,7 @@ draft that trips it is repaired once by the model, then dropped.
 ## Needs
 
 - `ANTHROPIC_API_KEY` in `.env` with credits on the account.
-- `SUPABASE_SERVICE_ROLE_KEY` in `.env` for `vault:sync` (from the Vercel integration's variables — `storage_SUPABASE_SERVICE_ROLE_KEY`; server-side only, never bundled).
+- `SUPABASE_SERVICE_ROLE_KEY` in `.env` for `vault:sync` and for `emit.mjs` to land rows (from the Vercel integration's variables — `storage_SUPABASE_SERVICE_ROLE_KEY`; server-side only, never bundled). Without it, drafts land in the vault only and `vault:sync` imports them later.
 - The vault at `ARCANE_VAULT` (default `~/Desktop/Arcane`) with the brain symlinked in as `ARCANE-AI-OS-v3`.
 - GitHub push access from this Mac for `--push`.
 

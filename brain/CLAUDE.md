@@ -30,11 +30,11 @@ facility re-syncs from it.
 | --- | --- | --- | --- |
 | `00-Inbox/` | THE INVENTOR'S ROOM · SPARK | Anything unsorted. Ideas, pastes, voice notes. | Human, any agent |
 | `01-System/` | THE CONTROL ROOM · WARDEN | Doctrine, permission matrix, tools, agent and room cards, skills. | **Generated** from `packages/config` — do not hand-edit generated files |
-| `02-Content/` | BEACON · HERALD | Content drafts and their lifecycle. `Drafts/` is the landing zone. | HERALD (drafts only), human (moves status) |
+| `02-Content/` | BEACON · HERALD | Content drafts and their lifecycle. `Drafts/` is the landing zone. | HERALD (drafts only), human (moves status). Since the Content Machine, a draft's status and text are decided on the floor (BEACON) and kept in the database; `npm run vault:sync` writes every draft here as a generated file in its status folder. A hand-emitted draft stays hand-kept until it is imported. |
 | `03-Memory/` | BRIDGE · ARCANE | Shared memory, the current four-block brief, signals. | ARCANE, VIGIL, human |
 | `04-Records/` | THE RECORDS · RELIC | Trace (every run), daily log, decisions, the journal, protocol, counsel. | Every agent appends; nobody edits history. `Journal/`, `Decisions/DEC-*`, `Protocol.md`, `Counsel.md`, `Journal-Log.md` and `05-Knowledge/Lists.md` are written by `npm run vault:sync` from the floor |
-| `05-Knowledge/` | THE LIBRARY · ORACLE | Facility, ventures, goals, operator, the Archives map. | ORACLE, HERALD (Archives map), human |
-| `06-Orders/` | BRIDGE · ARCANE | The open-orders board. | ARCANE, human |
+| `05-Knowledge/` | THE LIBRARY · ORACLE | Facility, ventures, goals, operator, the Archives map; `Lists.md` and `Focus.md` from the floor. | ORACLE, HERALD (Archives map), human; `vault:sync` for Lists.md and Focus.md |
+| `06-Orders/` | BRIDGE · ARCANE | The open-orders board. | The `orders` table, through `npm run vault:sync` (both tables are rebuilt from it by number; the prose above them is hand-kept). New rows typed here are imported into the table on the next sync. |
 | `99-Templates/` | — | The shape of every file type. Copy, never edit in place. | Human |
 
 ## Standing rules

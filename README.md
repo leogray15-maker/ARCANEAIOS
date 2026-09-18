@@ -22,14 +22,23 @@ creator.
 npm install
 npm run check           # the roster obeys the standing rules
 npm run vault:write     # generate the brain's system cards
-npm run herald:index    # index the Arcane Archives export (set ARCANE_ARCHIVES_EXPORT if not default)
+npm run herald:index    # index the Arcane Archives (the Obsidian vault, or ARCANE_ARCHIVES_EXPORT)
+npm run dev:local       # the facility with the API on a dev database and a mock HERALD — no keys needed
 ```
 
-Open `brain/` in Obsidian. Then, in Claude Code, `/herald`.
+Open the Library, pick a module, Generate content, decide in BEACON. For
+the real thing: the migrations in `supabase/migrations`, the keys in
+`.env` (see `.env.example`), `npm run archives:sync`, then `npm run dev`.
+`docs/CONTENT-MACHINE.md` is the pipeline; `docs/SUPABASE.md` the set-up.
+
+Open `brain/` in Obsidian. In Claude Code, `/herald` runs the same engine
+from the terminal.
 
 ## Read next
 
 - `docs/ARCHITECTURE.md` — how the facility, brain, agents and content pipeline connect
+- `docs/CONTENT-MACHINE.md` — Archives → HERALD → BEACON, end to end
+- `docs/DATA-MODEL.md` — the tables, the draft lifecycle, who may write what
 - `docs/STRUCTURE.md` — why the repo is shaped this way
 - `docs/SPRITES.md` — pixel direction: sizes, palette, animation
 - `docs/PLAN.md` — the ten-day build order

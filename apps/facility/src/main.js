@@ -16,7 +16,10 @@ import { createBuffer, bakeStatic, drawLive, present } from './render/factory.js
 import { bakeSprites } from './render/sprites.js';
 import { renderDash, bindDash } from './render/panel.js';
 import { renderJournal, bindJournal } from './render/journal.js';
-import { renderContent, bindContent } from './render/content.js';
+import { renderLibrary, bindLibrary, libraryKey } from './render/library.js';
+import { renderBeacon, bindBeacon } from './render/beacon.js';
+import { renderBridge, bindBridge } from './render/bridge.js';
+import { renderWarroom, bindWarroom } from './render/warroom.js';
 import { BrainGraph } from './render/graph.js';
 import { Strip } from './render/strip.js';
 import { signals } from './core/vigil.js';
@@ -25,11 +28,12 @@ import { Store } from './core/store.js';
 import { exampleTrades } from './core/journal.js';
 import { sync } from './core/sync.js';
 import { cloud } from './core/cloud.js';
+import { operator } from './core/operator.js';
 
 const $ = (id) => document.getElementById(id);
 
 const stage = $('stage'), canvas = $('floor'), tip = $('tip');
-const views = { dash: $('dash'), content: $('content'), journal: $('journal'), graph: $('graph') };
+const views = { dash: $('dash'), library: $('library'), beacon: $('beacon'), bridge: $('bridge'), warroom: $('warroom'), journal: $('journal'), graph: $('graph') };
 const staticBuf = createBuffer();
 const buf = createBuffer();
 const sprites = bakeSprites(AGENTS);
@@ -44,6 +48,8 @@ const store = new Store(brain);
 store.sessionStart = Date.now();
 const sim = new Sim(store);
 const ctx = { sim, store, brain };
+window.arcane = { store, sim, brain };   // for the console; nothing reads it
+let contentCounts = null;   // BEACON's counts by status, once it has loaded them; the bar reads them
 const graph = new BrainGraph($('graph-canvas'), $('graph-legend'), ctx, (roomId) => go(`#room/${roomId}`));
 const strip = new Strip($('strip'), ctx);
 
@@ -126,7 +132,9 @@ for (const b of document.querySelectorAll('#hud button')) b.addEventListener('cl
 window.addEventListener('resize', () => { resize(); graph.resize(); });
 window.addEventListener('keydown', (e) => {
   if (e.target.matches('input, select, textarea')) return;
-  if (e.key === 'Escape') { if (state.screen !== 'floor') go('#'); return; }
+  if (e.key === 'Escape') { if (state.screen === 'beacon' && /^#beacon\/draft\//.test(location.hash)) go('#beacon'); else if (state.screen === 'library' && /^#library\//.test(location.hash)) go('#library'); else if (state.screen !== 'floor') go('#'); return; }
+  if (state.screen === 'floor' && !e.metaKey && !e.ctrlKey && !e.altKey) { if (e.key === 'b') return go('#bridge'); if (e.key === 'w') return go('#warroom'); if (e.key === 'l') return go('#library'); if (e.key === 'n') return go('#beacon'); }
+  if (state.screen === 'library') return libraryKey(e);
   if (state.screen !== 'floor') return;
   if (e.key === '0') setZoom('fit'); else if (e.key === '1') setZoom('1'); else if (e.key === '2') setZoom('2'); else if (e.key === '3') setZoom('3'); else if (e.key === '4') setZoom('4');
 });
@@ -151,14 +159,17 @@ function route() {
   const h = location.hash || '#';
   const room = /^#room\/([a-z]+)/.exec(h)?.[1];
   if (room && ROOM_BY_ID[room]?.opens) { location.hash = ROOM_BY_ID[room].opens; return; }
-  const screen = room && ROOM_BY_ID[room] ? 'dash' : h.startsWith('#journal') ? 'journal' : h.startsWith('#content') ? 'content' : h.startsWith('#graph') ? 'graph' : 'floor';
+  const screen = room && ROOM_BY_ID[room] ? 'dash' : h.startsWith('#journal') ? 'journal' : h.startsWith('#library') ? 'library' : h.startsWith('#beacon') ? 'beacon' : h.startsWith('#content') ? 'beacon' : h.startsWith('#bridge') ? 'bridge' : h.startsWith('#warroom') ? 'warroom' : h.startsWith('#graph') ? 'graph' : 'floor';
   state.screen = screen;
   state.selected = room && ROOM_BY_ID[room] ? room : null;
   for (const [k, el] of Object.entries(views)) el.classList.toggle('hidden', k !== screen);
   for (const b of document.querySelectorAll('#views button')) b.classList.toggle('on', b.dataset.view === (screen === 'dash' ? 'floor' : screen));
   if (screen === 'dash') { sim.command(state.selected); renderDash(views.dash, state.selected, ctx); views.dash.scrollTop = 0; }
   if (screen === 'journal') { sim.command('trading'); renderJournal(views.journal, ctx, h); }
-  if (screen === 'content') renderContent(views.content, ctx, h);
+  if (screen === 'bridge') { sim.command('bridge'); renderBridge(views.bridge, ctx, h); }
+  if (screen === 'warroom') { sim.command('warroom'); renderWarroom(views.warroom, ctx, h); }
+  if (screen === 'library') { sim.command('archives'); renderLibrary(views.library, ctx, h); }
+  if (screen === 'beacon') { sim.command('beacon'); renderBeacon(views.beacon, ctx, h.startsWith('#content') ? '#beacon' : h); }
   if (screen === 'graph') graph.show();
   else graph.hide();
   state.staticDirty = true;
@@ -168,27 +179,42 @@ window.addEventListener('hashchange', route);
 for (const b of document.querySelectorAll('#views button')) b.addEventListener('click', () => go(b.dataset.view === 'floor' ? '#' : `#${b.dataset.view}`));
 bindDash(views.dash, { store, getRoom: () => state.selected, go, brain });
 bindJournal(views.journal, { store, go });
-bindContent(views.content, { store, go });
+bindLibrary(views.library, { go, brain });
+bindBeacon(views.beacon, { go, onCounts: (c) => { contentCounts = c; barStatus(); } });
+bindBridge(views.bridge, { store, go, brain, onCounts: (c) => { contentCounts = c; barStatus(); } });
+bindWarroom(views.warroom, { store, go, brain });
 store.onChange(() => {
   if (state.screen === 'dash') renderDash(views.dash, state.selected, ctx, { keepScroll: true });
   if (state.screen === 'journal') renderJournal(views.journal, ctx, location.hash, { keepScroll: true });
-  if (state.screen === 'content') renderContent(views.content, ctx, location.hash, { keepScroll: true });
+  if (state.screen === 'bridge') renderBridge(views.bridge, ctx, location.hash, { keepScroll: true });
+  if (state.screen === 'warroom') renderWarroom(views.warroom, ctx, location.hash, { keepScroll: true });
   barStatus();
 });
 store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } });
+// The server rung: orders, moves, decisions, counsel, focus, goals, the day. Loads now, again when the key changes, and every minute.
+store.loadServer().then(() => { route(); store.startServerRefresh(); });
+operator.onChange(() => { store.loadServer().then(() => route()); });
 sync.onChange(() => { store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } }); renderSync(); });
 
-/** Sync control in the bar: a dot when synced; click to reveal this device's code or paste another's. */
+/**
+ * The device control in the bar: the sync code (state across devices) and
+ * the operator key (the API). Click to open; nothing is shown until asked.
+ */
 function renderSync() {
   const el = $('auth');
-  if (!cloud.enabled) { el.innerHTML = `<span class="faint" title="${cloud.reason}">no sync</span>`; return; }
-  el.innerHTML = `<button class="tiny ghost" id="sync-toggle" title="sync across devices">● SYNC</button>`;
+  const dot = `<span class="${operator.present ? 'vital' : 'flare'}" title="${operator.present ? 'operator key on this device' : 'no operator key — the Library and BEACON will ask for one'}">●</span>`;
+  el.innerHTML = `<button class="tiny ghost" id="sync-toggle" title="this device: sync code and operator key">${dot} ${cloud.enabled ? 'SYNC' : 'DEVICE'}</button>`;
   $('sync-toggle').onclick = () => {
-    el.innerHTML = `<span class="ash">this device:</span> <code id="sync-code" title="click to copy" style="cursor:pointer">${sync.code}</code>
-      <form id="sync-join" style="display:inline-flex;gap:4px"><input name="code" placeholder="paste another device's code" style="width:230px"><button class="tiny" type="submit">join</button></form>
+    el.innerHTML = `${cloud.enabled ? `<span class="ash">sync:</span> <code id="sync-code" title="click to copy" style="cursor:pointer">${sync.code}</code>
+      <form id="sync-join" style="display:inline-flex;gap:4px"><input name="code" placeholder="paste another device's code" style="width:200px"><button class="tiny" type="submit">join</button></form>` : `<span class="faint" title="${cloud.reason}">no sync</span>`}
+      <form id="op-key" style="display:inline-flex;gap:4px;margin-left:12px"><input name="key" type="password" placeholder="${operator.present ? 'operator key is set — paste to replace' : 'operator key'}" style="width:180px" autocomplete="off"><button class="tiny" type="submit">${operator.present ? 'replace' : 'set'}</button>${operator.present ? '<button class="tiny ghost" type="button" id="op-clear">forget</button>' : ''}</form>
       <button class="tiny ghost" id="sync-close">close</button>`;
-    $('sync-code').onclick = () => navigator.clipboard?.writeText(sync.code).then(() => { $('sync-code').textContent = 'copied'; setTimeout(renderSync, 900); });
-    $('sync-join').onsubmit = (e) => { e.preventDefault(); if (!sync.use(e.target.code.value)) { e.target.code.value = ''; e.target.code.placeholder = 'that is not a sync code'; } };
+    if (cloud.enabled) {
+      $('sync-code').onclick = () => navigator.clipboard?.writeText(sync.code).then(() => { $('sync-code').textContent = 'copied'; setTimeout(renderSync, 900); });
+      $('sync-join').onsubmit = (e) => { e.preventDefault(); if (!sync.use(e.target.code.value)) { e.target.code.value = ''; e.target.code.placeholder = 'that is not a sync code'; } };
+    }
+    $('op-key').onsubmit = (e) => { e.preventDefault(); if (e.target.key.value.trim()) { operator.set(e.target.key.value); renderSync(); route(); } };
+    const clr = $('op-clear'); if (clr) clr.onclick = () => { operator.clear(); renderSync(); };
     $('sync-close').onclick = renderSync;
   };
 }
@@ -197,7 +223,11 @@ renderSync();
 function barStatus() {
   const away = sim.agents.filter((a) => a.id !== 'arcane' && a.room !== a.home).length;
   const sig = signals(store.state, brain); const worst = sig.some((s) => s.severity === 'breach') ? 'breach' : sig.some((s) => s.severity === 'warn') ? 'flare' : 'ash';
-  $('bar-status').innerHTML = `${brain?.brief?.date ? `brief <b>${brain.brief.date}</b> · ` : ''}memory <b>${store.where()}</b> · <b>${store.totalOpen()}</b> open orders · <b>${store.drafts().filter((d) => d.status === 'draft').length}</b> drafts waiting · <a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}`;
+  const waiting = contentCounts ? (contentCounts.draft || 0) + (contentCounts.review || 0) : store.drafts().filter((d) => d.status === 'draft').length;
+  const sv = store.serverStatus();
+  const notice = store.noticeNow();
+  if (notice) { $('bar-status').innerHTML = `<span class="${notice.tone}">${notice.text}</span>`; return; }
+  $('bar-status').innerHTML = `<span class="${sv.tone}" title="${sv.text}">●</span> ${brain?.brief?.date ? `<a href="#bridge">brief <b>${brain.brief.date}</b></a> · ` : ''}<a href="#bridge"><b>${store.totalOpen()}</b> open orders</a> · <a href="#beacon"><b>${waiting}</b> draft${waiting === 1 ? '' : 's'} waiting</a> · <a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}${sv.tone !== 'vital' ? ` · <span class="${sv.tone}">${sv.text}</span>` : ''}`;
 }
 
 /* ============================================================

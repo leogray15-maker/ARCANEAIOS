@@ -17,6 +17,7 @@ export default defineConfig({
     __SUPABASE_URL__: JSON.stringify(env('NEXT_PUBLIC_storage_SUPABASE_URL', 'storage_SUPABASE_URL', 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL', 'VITE_SUPABASE_URL')),
     __SUPABASE_ANON__: JSON.stringify(env('NEXT_PUBLIC_storage_SUPABASE_PUBLISHABLE_KEY', 'storage_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_storage_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'VITE_SUPABASE_ANON_KEY')),
   },
-  server: { fs: { allow: [path.resolve(here, '../..')] } },
+  // /api is served by tools/dev-api.mjs (npm run api) on 8787, the same functions Vercel runs from api/.
+  server: { fs: { allow: [path.resolve(here, '../..')] }, proxy: { '/api': { target: `http://127.0.0.1:${process.env.ARCANE_API_PORT || 8787}`, changeOrigin: false } } },
   build: { target: 'es2022', sourcemap: true, rollupOptions: { input: { main: path.resolve(here, 'index.html'), sheet: path.resolve(here, 'sheet.html') } } },
 });

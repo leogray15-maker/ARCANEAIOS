@@ -59,6 +59,55 @@ Dates assume a start of 2026-09-17.
 - [x] Work and talk cels; the Forge, Market and Library dressed to their references
 - Still for Leo: run migration 0002, top up Anthropic credits, `ANTHROPIC_API_KEY` on Vercel, `SUPABASE_SERVICE_ROLE_KEY` in `.env`, install the HERALD schedule — all listed as open orders in `06-Orders/Orders.md`
 
+## Also done 2026-09-18 — the Content Machine
+
+The first thing built after the floor: the loop Leo runs every day.
+Library → module → HERALD → BEACON → approve, with the database as the
+runtime truth and the vault as the record. `docs/CONTENT-MACHINE.md`,
+`docs/DATA-MODEL.md`.
+
+- [x] `supabase/migrations/0003_content_machine.sql`: `archive_modules` (+ full-text search, `archive_subjects` view), `knowledge_sources`, `content_drafts`, `content_revisions`, `agent_runs`, `system_events`; RLS on, service role only
+- [x] `packages/database`: PostgREST client with errors that name their migration; the verbs (modules, drafts, revisions, runs, events); an in-memory twin for tests; the dev database (real index + `data/dev-db.json`)
+- [x] `packages/content-engine`: HERALD's one engine — prompt, schema, `writeDrafts`, staging in the lint's contract, the gate, one repair, landing with provenance and a run; `herald:auto` and `emit.mjs` use it, so the terminal and the floor write with one voice
+- [x] `api/`: the operator gate (`ARCANE_OPERATOR_KEY`, bearer, constant-time, fails closed) on every route including Counsel and the Council; `modules`, `herald` (300 s), `drafts` (moves along `DRAFT_TRANSITIONS`, edits linted), `runs`
+- [x] THE LIBRARY as an application: subjects, full-text search, the gate as a filter, the module with its text and provenance, Generate content, what has been cut from it
+- [x] BEACON as an application: Drafts · Approved · Scheduled · Published · Rejected; the workspace — editor (linted on save), moves, schedule with a date, publish with a URL, reject with a reason, regenerate, alternate take, copy, restore any revision, the history
+- [x] `DRAFT_TRANSITIONS` / `DRAFT_VIEWS` in config, proven closed by `npm run check`
+- [x] `tools/archives-sync.mjs` (index → database, by content hash), `tools/db-check.mjs`, `tools/dev-api.mjs` (+ Vite proxy; `npm run dev`, `npm run dev:local`), `tools/lib/content-mirror.mjs` (database → vault, vault → database), `vault:sync` mirrors drafts
+- [x] `tools/content-machine.test.mjs` in `npm test`: the gate, the engine, the status machine, edits, regenerate, the record — 35 checks, no network
+- [x] The whole loop walked in a headless browser on the dev database: key prompt → browse → search → module → generate → draft → edit (saved as a revision) → an edit naming a dose refused → approve → reload persists → the queue → reject with a note → regenerate with a parent
+- [x] The CONTENT view is gone; the top bar reads LIBRARY · BEACON; the bar's "drafts waiting" comes from the database
+- [x] The frontmatter reader now reads JSON-quoted scalars back exactly (a hook with an inner quote used to fail its own lint)
+- Still for Leo, in order (also open orders in `06-Orders/Orders.md`): run `0002` and `0003` in the SQL editor; put `SUPABASE_SERVICE_ROLE_KEY` and a fresh `ARCANE_OPERATOR_KEY` in `.env` and the Vercel project; `npm run archives:sync`; top up Anthropic credits and set `ANTHROPIC_API_KEY` on Vercel; `npm run vault:sync` once to import the five drafts from 2026-09-16; delete `arcaneaios-firebase-adminsdk-*.json` from the repo folder (untracked, but it should not be there)
+- Not verified here, because it cannot be from this machine: the SQL against a live Postgres (no psql/Docker; migration was written to PostgREST's documented behaviour and the client to its filter grammar) and live Claude generation (no credits). Everything else above ran.
+
+## Also done 2026-09-18 (evening) — the command rooms on real state
+
+The floor's operating state moved out of the per-device JSON blob into
+tables, and the first two command rooms were built on them.
+
+- [x] `supabase/migrations/0004_operating_state.sql`: `orders`, `list_items`, `decisions`, `counsel_turns`, `venture_focus`, `goal_progress`, `days`; RLS on, service role only
+- [x] `packages/database/src/state.js`: one registry (columns, validators, defaults, id minting) and the verbs; `api/state.js` the gateway; every change a system event; orders are never deleted
+- [x] `packages/database/src/bridge.js`: the aggregate — today · waiting · active · ventures — served by `api/bridge.js` and written into the brief by `tools/brief.mjs`
+- [x] The store's server rung: orders, lists, decisions, counsel, focus, goal progress and the day are cached from `/api/state`; a change applies at once and goes up; a refusal reloads and the bar says why; read-only without the operator key; this device's blob is imported once
+- [x] BRIDGE as an application: the day's focus line; P0/P1 across the floor with done/block/kill; due orders; moves tagged now; waiting on you (drafts, approved, verdicts without outcomes, blocked, review, stale P0s, outcomes recorded inline); runs and rooms with work; Counsel persisted; doctrine; ventures with their rank and allocation; VIGIL; goals with typed progress; the record
+- [x] THE WAR ROOM as an application: the next three moves (now/next/later, reorder, edit, done with an outcome, reopen), the venture ranking (rank, push/maintain/starve, one line of why), stop doing, where the work is, verdicts
+- [x] Every orders board can block (with a reason), unblock and kill; brain-seeded rows become real rows the first time they are touched; "Blocked on: #5" resolves against the vault's closed rows
+- [x] Counsel and the Council go through the API client (the operator key travels with them) and Counsel is told today's focus, the ranking, the moves and the stop list
+- [x] `vault:sync` mirrors the tables: Orders.md rebuilt by number (and new rows typed in Obsidian imported first), `05-Knowledge/Lists.md`, `Focus.md`, `04-Records/Decisions/`, `Decision-Log.md`, `Counsel.md`
+- [x] `tools/operating-state.test.mjs` (43 checks) in `npm test`; the Bridge and the War Room walked in headless Chromium on the dev database
+- Still for Leo: run `0004` (order #17), then set the ranking and the day's focus (#18) — plus everything from the morning (#11–#16)
+
+## Next — the rooms in order
+
+1. THE VAULT: money as a monthly ledger (revenue per venture per month, fixed costs, cash snapshots, the split) — tables, not one mutable number; runway from history; the journal link. `vigil.js` reads it.
+2. THE RECORDS: runs, events, decisions with outcomes, the trace from the vault, lessons — one timeline with filters.
+3. SANCTUM: `days` grows (energy, sleep, note), the protocol moves to a table, private entries (journal, principles, objectives) with the strongest boundary.
+4. THE LAB: stock lines, COA state and dispatch on tables; VIGIL's stock signals read them.
+5. THE TRADING FLOOR: `trades` (+ setups, check-ins) on tables; the journal's stats and VIGIL's drawdown signal read them.
+6. THE CONTROL ROOM: `knowledge_sources`, `agent_runs`, `system_events`, `db-check` on the floor.
+7. Agents beyond HERALD only where a workflow needs one: VECTOR proposing the ranking from the numbers is the first candidate.
+
 ## Day 1 · Thu 17 — Brain in Obsidian, HERALD in the hand
 
 - Open `brain/` as a vault in Obsidian; confirm templates, daily notes, graph.

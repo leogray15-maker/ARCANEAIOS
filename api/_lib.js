@@ -1,32 +1,27 @@
 /**
- * Shared by the reasoning endpoints: the roster and doctrine from config,
- * the gate that a request must come from a known device, and one place to
- * build the Anthropic client.
+ * Shared by every API function: the roster and doctrine from config, the
+ * operator gate (`_auth.js`), one database client and one Anthropic client.
  *
- * The functions run on Vercel's Node runtime. ANTHROPIC_API_KEY comes from
- * the project's environment; the Supabase service-role key (set by the
- * integration as storage_SUPABASE_SERVICE_ROLE_KEY) is used only to check
- * that the caller's sync code is a real row — never sent to the browser.
+ * The functions run on Vercel's Node runtime. ANTHROPIC_API_KEY,
+ * ARCANE_OPERATOR_KEY and the Supabase service-role key (set by the
+ * integration as storage_SUPABASE_SERVICE_ROLE_KEY) come from the
+ * project's environment and never reach the browser.
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { AGENTS, COUNCIL, ROOMS, ROOM_BY_ID, VENTURES, STANDING_RULES, BRIEF_BLOCKS, VERDICTS, OPERATOR } from '../packages/config/src/index.js';
+import { openDb } from '../packages/database/src/dev.js';
+export { json, guard, operator } from './_auth.js';
 
 export const MODEL = process.env.ARCANE_MODEL || 'claude-opus-5';
-const SUPABASE_URL = process.env.NEXT_PUBLIC_storage_SUPABASE_URL || process.env.SUPABASE_URL || 'https://pjdzdfmnfuneumzqoijn.supabase.co';
-const SERVICE_KEY = process.env.storage_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-export function json(res, status, body) { res.status(status).setHeader('Content-Type', 'application/json').send(JSON.stringify(body)); }
-
-/** Only a device that already has a row may ask the network to think. */
-export async function knownDevice(code) {
-  if (!/^sync-[a-z2-7]{26}$/.test(String(code || ''))) return false;
-  if (!SERVICE_KEY) return true;                                       // no way to check: allow, and say so in the logs
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/arcane_sync?id=eq.${code}&select=id`, { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } });
-    if (!r.ok) return false;
-    return (await r.json()).length > 0;
-  } catch { return false; }
-}
+/**
+ * One database client per process. Throws a DatabaseError (503) when the
+ * service key is missing, which `guard` turns into a plain answer. On a
+ * laptop, ARCANE_DB=memory gives the dev database instead (the real index
+ * from disk, content kept in data/dev-db.json); Vercel never builds that.
+ */
+let DB = null;
+export function db() { return DB || (DB = openDb()); }
 
 export function client() {
   if (!process.env.ANTHROPIC_API_KEY) return null;

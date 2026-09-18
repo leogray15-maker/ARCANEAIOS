@@ -43,11 +43,12 @@ export function parseFrontmatter(text) {
   if (!m) return { data: null, body: text };
   const data = {};
   for (const raw of m[1].split(/\r?\n/)) {
-    const line = raw.replace(/\s+#.*$/, '').trimEnd();
-    if (!line.trim() || line.trim().startsWith('#')) continue;
-    const kv = /^([A-Za-z_][\w-]*):\s*(.*)$/.exec(line);
+    if (!raw.trim() || raw.trim().startsWith('#')) continue;
+    const kv = /^([A-Za-z_][\w-]*):\s*(.*)$/.exec(raw.trimEnd());
     if (!kv) continue;
-    data[kv[1]] = parseScalar(kv[2]);
+    // A trailing comment is stripped from a plain scalar; a quoted one keeps its " #" (a hook may contain one).
+    const value = /^["']/.test(kv[2]) ? kv[2] : kv[2].replace(/\s+#.*$/, '');
+    data[kv[1]] = parseScalar(value);
   }
   return { data, body: m[2] };
 }
@@ -59,7 +60,10 @@ function parseScalar(v) {
     const inner = v.slice(1, -1).trim();
     return inner ? inner.split(',').map((s) => parseScalar(s)) : [];
   }
-  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1, -1);
+  // Double-quoted scalars are written with JSON.stringify, so an inner quote
+  // or backslash is escaped; read them back the same way.
+  if (v.startsWith('"') && v.endsWith('"')) { try { return JSON.parse(v); } catch { return v.slice(1, -1); } }
+  if (v.startsWith("'") && v.endsWith("'")) return v.slice(1, -1);
   if (v === 'true') return true;
   if (v === 'false') return false;
   if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);

@@ -1,12 +1,12 @@
 /**
  * Counsel — Leo ↔ ARCANE.
  *
- * POST { code, question, context, history? } → { answer, order? }
+ * POST { code, question, context, history? } → { answer, order? }   (operator key in the Authorization header)
  * ARCANE answers from the brief and shared memory, may pull one specialist
  * in by name, and may propose exactly one order for a room. It never acts;
  * the operator adds the order if he wants it.
  */
-import { json, knownDevice, client, systemContext, MODEL, ROOM_LIST } from './_lib.js';
+import { json, guard, client, systemContext, MODEL, ROOM_LIST } from './_lib.js';
 
 const schema = {
   type: 'object', additionalProperties: false,
@@ -17,11 +17,9 @@ const schema = {
   }, required: ['answer', 'specialist', 'order'],
 };
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return json(res, 405, { error: 'POST' });
-  const { code, question, context = {}, history = [] } = req.body || {};
+export default guard(['POST'], async (req, res) => {
+  const { question, context = {}, history = [] } = req.body || {};
   if (!question?.trim()) return json(res, 400, { error: 'no question' });
-  if (!(await knownDevice(code))) return json(res, 403, { error: 'unknown device — open the floor once with sync on' });
   const c = client();
   if (!c) return json(res, 503, { error: 'the reasoning layer is not wired: set ANTHROPIC_API_KEY in the Vercel project' });
   try {
@@ -38,4 +36,4 @@ export default async function handler(req, res) {
     const status = e.status === 429 ? 429 : e.status === 401 ? 503 : 502;
     return json(res, status, { error: /credit balance/i.test(e.message) ? 'the Anthropic account has no credits' : e.message });
   }
-}
+});

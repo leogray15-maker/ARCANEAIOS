@@ -1,0 +1,13 @@
+{
+  "name": "@arcane/content-engine",
+  "version": "3.0.0",
+  "description": "HERALD's generation core: module in, linted drafts out, landed in the database with a run and a record. Shared by /api/herald and herald:auto.",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./herald": "./src/herald.js",
+    "./mock": "./src/mock.js"
+  }
+}

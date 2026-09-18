@@ -32,7 +32,10 @@ and system change. A skill cannot out-rank its agent, so neither can you.
 7. **Emit.** `npm run herald:emit -- --note "<what this run was>"`. Emit copies
    the source note verbatim into `02-Content/Sources/` first — the original is
    never touched — then the batch lands whole or not at all, `Board.md` is
-   regenerated, and the Trace is written before you report.
+   regenerated, and the Trace is written before you report. When the service
+   key is in `.env` the same drafts land in the database (`content_drafts`,
+   `agent_runs`) so BEACON shows them at once; otherwise `npm run vault:sync`
+   imports them later.
 8. **Report** in Leo's register: run id, module, count, warnings worth a look,
    path. The drafts are in the vault; don't paste them unless asked.
 
@@ -87,3 +90,8 @@ module's own lines again, because the post is usually already in there.
 
 Paths: brain via `ARCANE_BRAIN` (default `./brain`); export via
 `ARCANE_ARCHIVES_EXPORT`; staging via `HERALD_STAGING` (default `.herald-staging`).
+
+The same run happens from the floor: THE LIBRARY → a module → Generate
+content → `api/herald.js` → `packages/content-engine/src/herald.js`, which
+uses this skill's references, schema and lint. One engine, two doors.
+`docs/CONTENT-MACHINE.md`.

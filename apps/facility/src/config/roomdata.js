@@ -36,20 +36,6 @@ export const DISPATCH = {
   stages: ['packing', 'ready', 'shipped', 'idle'],
 };
 
-/* ---------------- THE LIBRARY ---------------- */
-
-export const PDF_PRODUCTS = {
-  source: 'Placeholder — cut from real modules in The Arcane Archives.',
-  rows: [
-    { title: 'The Shame Opening', from: 'Mind HiJacking', pages: 9, price: 9.99, stage: 'draft' },
-    { title: 'Fifteen Openers That Move People', from: 'Mind HiJacking', pages: 24, price: 19.99, stage: 'idea' },
-    { title: 'Envy or Fear: Reading Your Critics', from: 'Mindset Mastery', pages: 12, price: 7.99, stage: 'idea' },
-    { title: 'Retention Beats Acquisition', from: 'Entrepreneurship Mastery', pages: 14, price: 12.99, stage: 'draft' },
-    { title: 'The Three Constraints', from: 'Mindset Mastery', pages: 16, price: 12.99, stage: 'idea' },
-  ],
-  stages: ['live', 'draft', 'idea'],
-};
-
 /* ---------------- VITALS ---------------- */
 
 export const COHORTS = {

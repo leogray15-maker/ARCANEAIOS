@@ -1,7 +1,7 @@
 ---
 type: system-card
-created: 2026-09-16 22:11
-updated: 2026-09-16 22:11
+created: 2026-09-18 18:04
+updated: 2026-09-18 18:04
 status: active
 agent: HERALD
 generated: true
@@ -28,6 +28,7 @@ Seated on [[The Council]], voice weight 4.
 - Shared memory — `live`
 - Notion — `read-only`
 - Archives index — `live`
+- Database — `live`
 
 ## Permissions
 

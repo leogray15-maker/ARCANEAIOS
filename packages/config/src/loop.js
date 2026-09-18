@@ -41,6 +41,29 @@ export const ORDER_PRIORITY = ['P0', 'P1', 'P2', 'P3'];
 /** A content draft's life, from HERALD's hand to the public. Only a human moves it past `draft`. */
 export const DRAFT_STATES = ['draft', 'review', 'approved', 'scheduled', 'posted', 'killed'];
 
+/**
+ * Which moves a human may make from each state. Every surface — BEACON,
+ * the API, vault:sync — reads this one map, so a button that exists on
+ * the floor is a move the server accepts, and nothing else is.
+ */
+export const DRAFT_TRANSITIONS = {
+  draft:     ['review', 'approved', 'killed'],
+  review:    ['approved', 'draft', 'killed'],
+  approved:  ['scheduled', 'posted', 'draft', 'killed'],
+  scheduled: ['posted', 'approved', 'killed'],
+  posted:    ['approved'],
+  killed:    ['draft'],
+};
+
+/** How BEACON groups the states into its views. Vocabulary stays the six states above; these are the tabs. */
+export const DRAFT_VIEWS = [
+  { id: 'drafts',    name: 'Drafts',    states: ['draft', 'review'],  note: 'Waiting for a decision' },
+  { id: 'approved',  name: 'Approved',  states: ['approved'],         note: 'Cleared to go out' },
+  { id: 'scheduled', name: 'Scheduled', states: ['scheduled'],        note: 'Has a date' },
+  { id: 'published', name: 'Published', states: ['posted'],           note: 'Out in public' },
+  { id: 'rejected',  name: 'Rejected',  states: ['killed'],           note: 'Not going out; kept for the record' },
+];
+
 /** Who performs the action an order resolves to. */
 export const ACTORS = ['human', 'agent'];
 

@@ -21,6 +21,9 @@ import { VENTURES, ROOMS, ROOM_BY_ID, AGENT_BY_ID, BRIEF_BLOCKS } from '../packa
 import { brainDir, REPO, writeGenerated, replaceBlock, replaceSection, serializeFrontmatter, stamp, stampDate, parseFrontmatter } from './lib/brain.mjs';
 import { floorState, money, ventureRevenue, monthlyRevenue, monthlyFixed, runwayMonths } from './lib/state.mjs';
 import { signals } from '../apps/facility/src/core/vigil.js';
+import { loadEnv } from '../packages/database/src/index.js';
+import { openDb } from '../packages/database/src/dev.js';
+import { aggregate } from '../packages/database/src/bridge.js';
 
 const dry = process.argv.includes('--dry');
 const brain = brainDir();
@@ -39,15 +42,27 @@ const { state, reason } = await floorState().catch((e) => ({ state: null, reason
 const s = state || { orders: {}, ledger: {}, goals: {}, budget: { cash: 0, fixed: {}, split: {} }, stock: [], drafts: {}, log: [], journal: { trades: [] }, protocol: {} };
 const from = state ? `the vault and the floor (${state.devices} device${state.devices === 1 ? '' : 's'})` : `the vault alone (${reason})`;
 
-/* ---------- orders: the vault's rows plus the floor's ---------- */
+/* ---------- orders: the database when it answers, else the vault's rows plus the blob's ---------- */
 const PR = ['P0', 'P1', 'P2', 'P3'];
+let agg = null, aggReason = '';
+loadEnv();
+try { agg = await aggregate(openDb(), { now }); } catch (e) { aggReason = e.message; }
 const open = [];
-for (const o of vault.orders.open) if (!/done|killed/.test(o.state)) open.push({ room: ROOMS.find((r) => r.name === o.room)?.id || 'bridge', text: o.order, p: PR.indexOf(o.priority) < 0 ? 2 : PR.indexOf(o.priority), holder: o.holder, blocked: o.blocked, ts: 0 });
-for (const [room, list] of Object.entries(s.orders)) for (const o of list) if (!o.done && !o.fromBrain && !open.some((x) => x.text === o.t)) open.push({ room, text: o.t, p: o.p, holder: o.holder || AGENT_BY_ID[ROOM_BY_ID[room]?.agent]?.name || 'Leo', blocked: o.blocked || '', ts: o.ts || 0 });
-// Done flags set on the site apply to the vault's rows too.
+if (agg) {
+  const seen = new Set();
+  const take = (o) => { if (seen.has(o.id)) return; seen.add(o.id); open.push({ room: o.room, text: o.text, p: o.priority, holder: o.holder_name || o.holder, blocked: o.blocked_on || '', ts: new Date(o.created_at).getTime(), state: o.state }); };
+  for (const o of [...agg.today.orders, ...agg.waiting.blocked, ...agg.waiting.review, ...agg.waiting.stale, ...agg.today.due]) take(o);
+  for (const r of agg.active.rooms) take(r.top);
+} else {
+  for (const o of vault.orders.open) if (!/done|killed/.test(o.state)) open.push({ room: ROOMS.find((r) => r.name === o.room)?.id || 'bridge', text: o.order, p: PR.indexOf(o.priority) < 0 ? 2 : PR.indexOf(o.priority), holder: o.holder, blocked: o.blocked, ts: 0 });
+  for (const [room, list] of Object.entries(s.orders)) for (const o of list) if (!o.done && !o.fromBrain && !open.some((x) => x.text === o.t)) open.push({ room, text: o.t, p: o.p, holder: o.holder || AGENT_BY_ID[ROOM_BY_ID[room]?.agent]?.name || 'Leo', blocked: o.blocked || '', ts: o.ts || 0 });
+}
+// Done flags set in the blob apply to the vault's rows too (the pre-table path).
 const doneText = new Set(Object.values(s.orders).flat().filter((o) => o.done).map((o) => o.t));
 const live = open.filter((o) => !doneText.has(o.text)).sort((a, b) => a.p - b.p || a.ts - b.ts);
+const openCount = agg ? agg.active.open : live.length;
 const recent = (s.log || []).filter((l) => now - l.ts < 7 * DAY);
+const focusOf = (id) => agg?.ventures.find((v) => v.id === id) || null;
 
 /* ---------- VENTURES ---------- */
 const ventures = VENTURES.map((v) => {
@@ -57,7 +72,8 @@ const ventures = VENTURES.map((v) => {
   const stuck = live.find((o) => o.room === v.room && o.p <= 1);
   const l = s.ledger?.[v.id];
   const number = l?.calibrated ? (v.price ? `${l.units} ${v.unitLabel} · ${money(ventureRevenue(s, v))} / mo` : `${money(l.mrr)} / mo`) : `— ${v.unitLabel}`;
-  return `| ${v.name} | ${cell(moved)} | ${stuck ? cell(`${stuck.text}${stuck.ts ? ` (${Math.floor((now - stuck.ts) / DAY)}d)` : ''}`) : '—'} | ${number} |`;
+  const f = focusOf(v.id);
+  return `| ${v.name} | ${f ? `${f.rank || '—'} · ${f.allocation}${f.why ? ` — ${cell(f.why)}` : ''}` : '—'} | ${cell(moved)} | ${stuck ? cell(`${stuck.text}${stuck.ts ? ` (${Math.floor((now - stuck.ts) / DAY)}d)` : ''}`) : '—'} | ${number} |`;
 });
 
 /* ---------- MONEY ---------- */
@@ -92,11 +108,11 @@ const day = stampDate(now);
 const briefFile = path.join(brain, '03-Memory', 'Brief.md');
 const prev = fs.existsSync(briefFile) ? parseFrontmatter(fs.readFileSync(briefFile, 'utf8')).data : null;
 const fm = { type: 'brief', created: prev?.created || stamp(now), updated: stamp(now), status: 'active', agent: 'ARCANE', brief_date: day, generated: true, source: 'tools/brief.mjs', tags: ['brief'] };
-const blocks = { ventures: ['| Venture | Moved | Stuck | The number |', '| --- | --- | --- | --- |', ...ventures], money: ['| Cash | Revenue this month | Fixed costs | Split | Runway |', '| --- | --- | --- | --- | --- |', moneyRow], goals: ['| Goal | Progress | Moved |', '| --- | --- | --- |', ...goals], rooms: ['| Room | Open | Holder | Blocked on |', '| --- | --- | --- | --- |', ...(rooms.length ? rooms : ['| — | nothing open | — | — |'])] };
+const blocks = { ventures: ['| Venture | Focus | Moved | Stuck | The number |', '| --- | --- | --- | --- | --- |', ...ventures], money: ['| Cash | Revenue this month | Fixed costs | Split | Runway |', '| --- | --- | --- | --- | --- |', moneyRow], goals: ['| Goal | Progress | Moved |', '| --- | --- | --- |', ...goals], rooms: ['| Room | Open | Holder | Blocked on |', '| --- | --- | --- | --- |', ...(rooms.length ? rooms : ['| — | nothing open | — | — |'])] };
 const text = serializeFrontmatter(fm) + `# Brief — ${day}
 
 > Four blocks, same order every time. Read all four before acting.
-> Written by [[ARCANE]] at ${stamp(now)} from ${from}. ${live.length} open order${live.length === 1 ? '' : 's'}, ${vault.drafts.filter((d) => draftStatus(d) === 'draft').length} drafts waiting, ${sig.length} signal${sig.length === 1 ? '' : 's'} (${worst}) → [[Signals]].
+> Written by [[ARCANE]] at ${stamp(now)} from ${from}${agg ? ' and the database' : ` (database: ${aggReason})`}. ${openCount} open order${openCount === 1 ? '' : 's'}, ${agg?.drafts ? (agg.drafts.draft || 0) + (agg.drafts.review || 0) : vault.drafts.filter((d) => draftStatus(d) === 'draft').length} drafts waiting, ${sig.length} signal${sig.length === 1 ? '' : 's'} (${worst}) → [[Signals]].${agg?.today?.focus ? `\n> Today's focus: ${agg.today.focus}` : ''}
 
 ${BRIEF_BLOCKS.map((b) => `## ${b.name}\n\n${blocks[b.id].join('\n')}`).join('\n\n')}
 `;
@@ -125,4 +141,4 @@ if (fs.existsSync(dailyFile)) { const t = fs.readFileSync(dailyFile, 'utf8'); fs
 
 // Re-export so the site reads the brief it just got.
 spawnSync('node', [path.join(REPO, 'tools', 'vault-export.mjs')], { stdio: 'ignore' });
-console.log(`✓ brief ${day} ${wrote} from ${from} — ${live.length} open orders, ${rooms.length} rooms with work, ${sig.length} signals (${worst})`);
+console.log(`✓ brief ${day} ${wrote} from ${from}${agg ? ' and the database' : ''} — ${openCount} open orders, ${rooms.length} rooms with work, ${sig.length} signals (${worst})`);

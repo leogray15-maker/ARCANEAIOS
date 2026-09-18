@@ -37,39 +37,63 @@ flowchart TB
   end
 
   subgraph SOURCES["Sources (read-only)"]
-    NX[Arcane Archives<br/>Notion export on disk]
-    NC[Notion connector<br/>read tools only]
+    NX[Arcane Archives<br/>Obsidian vault · Notion export on disk]
+  end
+
+  subgraph ENGINE["packages/content-engine + packages/database"]
+    GEN[generate: prompt → Claude → lint gate → repair → land]
+    DBC[createDb · modules · drafts · revisions · runs · events]
+  end
+
+  subgraph API["api/ — Vercel functions, operator key on every call"]
+    AM[modules]
+    AH[herald]
+    AD[drafts]
+    AR[runs]
+    AS[state · bridge]
+    AC[counsel · council]
+  end
+
+  subgraph DB["Supabase Postgres — the runtime system of record"]
+    KN[(archive_modules<br/>knowledge_sources)]
+    CT[(content_drafts<br/>content_revisions)]
+    OS[(orders · list_items · decisions<br/>counsel_turns · venture_focus · goal_progress · days)]
+    AG[(agent_runs)]
+    EV[(system_events)]
+    SY[(arcane_sync<br/>stock · ledger · protocol · journal, for now)]
   end
 
   subgraph FACILITY["apps/facility — Vite, canvas, Vercel"]
-    FLOOR[Floor: 20 rooms, props, sprites]
-    ROUTE[Attention routing<br/>crew → open orders + commander]
+    FLOOR[Floor: 21 rooms, props, sprites]
+    BRI[BRIDGE<br/>today · waiting · active · signals · ventures]
+    WAR[THE WAR ROOM<br/>moves · ranking · stop]
+    LIB[THE LIBRARY<br/>browse · search · module · Generate]
+    BEA[BEACON<br/>Drafts · Approved · Scheduled · Published · Rejected]
     DASH[Room dashboards<br/>State · Orders · Crew · Files]
   end
 
-  subgraph LIVE["Firebase — live state"]
-    FS[(Firestore<br/>positions · open orders · presence)]
-    AU[Auth]
-  end
-
   CONFIG -->|npm run vault:write| SYS
-  CONFIG --> FACILITY
-  CONFIG --> SKILLS
+  CONFIG --> FACILITY & API & ENGINE
   NX -->|herald:index| HER
-  NC -.->|one page, when stale| HER
-  HER -->|drafts + logs| CON
-  HER -->|Trace, Daily-Log| REC
-  HER -->|Archives-Map| KNO
-  HER -->|counts| MEM
-  MEM -->|brief| HER
-  CC -->|/herald| HER
+  HER -->|archives:sync| KN
+  CC -->|/herald · herald:auto| HER
+  HER -->|emit: files + rows| CON & CT & REC
+  ENGINE --> DBC --> DB
+  AH --> GEN
+  AM --> KN
+  AD --> CT
+  AR --> AG & EV
+  FA --> BRI & WAR & LIB & BEA & FLOOR
+  LIB --> AM & AH
+  BEA --> AD & AH
+  BRI & WAR & DASH -->|the store| AS --> OS
+  BRI --> AC
+  FACILITY <-->|anon key, RLS| SY
+  CT -->|vault:sync| CON
+  OS -->|vault:sync| ORD & REC & KNO
   OB <--> BRAIN
-  FA <--> FACILITY
-  FACILITY <-->|sync| FS
-  AU --> FS
-  BRAIN -->|git sync| FACILITY
-  ROUTE --> ORD
-  DASH --> CON & MEM & REC
+  MEM -->|brief| HER
+  DASH --> MEM & REC
 ```
 
 ## The core loop
@@ -112,11 +136,14 @@ sequenceDiagram
 | Question | Answer lives in | Why there |
 | --- | --- | --- |
 | Who are the agents and what may they do? | `packages/config` | Code the validator can refuse. Everything else is generated from it. |
-| What is true right now? | `brain/03-Memory/Shared-Memory.md` (durable) + Firestore (live) | Durable wins on conflict; the facility re-syncs from the vault. |
-| What happened? | `brain/04-Records/Trace/` | Append-only. No trace, no run. |
-| What was produced? | `brain/02-Content/` | Frontmatter status is the lifecycle; only humans move it. |
+| What is true right now? | `brain/03-Memory/Shared-Memory.md` (durable) + `arcane_sync` (stock, ledger, protocol, journal — until their rooms are built) | Durable wins on conflict; the facility re-syncs from the vault. |
+| What is the floor working on, and what did Leo decide? | `orders`, `list_items`, `decisions`, `counsel_turns`, `venture_focus`, `goal_progress`, `days`; mirrored into `06-Orders`, `05-Knowledge/Lists.md`, `Focus.md`, `04-Records` by `vault:sync` | The rooms write tables through one registry; the Bridge aggregates them; the vault records them. |
+| What happened? | `system_events` + `brain/04-Records/Trace/` | Append-only. No trace, no run. |
+| What was produced, and where is it in its life? | `content_drafts` / `content_revisions`; mirrored to `brain/02-Content/` by `vault:sync` | The floor decides; the vault records. Only humans move a status; every change is a revision. |
+| What did an agent do? | `agent_runs` | Objective, sources, output, usage, error, the device that asked. |
 | What does the floor look like? | `apps/facility/src/config/floorplan.js` | Geometry and props are presentation; they import meaning from config. |
-| What do the Archives contain? | `data/archives/index.json` (regenerable) + `brain/05-Knowledge/Archives-Map.md` | Index is big and derived; the map is small and committed. |
+| What do the Archives contain? | the Obsidian vault → `data/archives` (regenerable) → `archive_modules` (searchable) | The vault is the source; the index is derived; the table is what the Library reads. |
+| Who may call the API? | `ARCANE_OPERATOR_KEY` on the server, pasted once per browser | The site is public; the OS is not. A sync code is identity, not authority. |
 
 ## The permission model, in one paragraph
 
@@ -138,14 +165,19 @@ for their home station and a cooldown so they do not oscillate. Routing is
 BFS over the corridor graph. The score is computed from `06-Orders` (via
 Firestore mirror) so the floor is a picture of the work, not a screensaver.
 
+## The Content Machine
+
+`docs/CONTENT-MACHINE.md` has the pipeline step by step and
+`docs/DATA-MODEL.md` the tables. In one line: the vault is indexed to
+disk, the index is synced to Postgres, the Library reads Postgres, HERALD
+writes from it through one engine (shared by the API and the CLI) behind
+the lint gate, BEACON is where Leo decides, and `vault:sync` lands the
+result back in the brain as the record.
+
 ## Deployment
 
-- `apps/facility` → Vercel (static build, `VITE_*` public Firebase config).
-- `brain/` → its own private GitHub repo (`arcane-brain`), synced by
-  Obsidian Git on desktop and read by skills via `ARCANE_BRAIN`. Kept as a
-  folder in this monorepo until day 3, then split (`git subtree split`).
-- `packages/config` → published to nowhere; imported by path. Vercel builds
-  the facility with it; skills import it relative to the repo.
-- Firestore rules: authenticated operator only; agents never hold a service
-  account in the browser. Server-side reasoning (Counsel/Council) comes
-  later behind a Vercel function with `ANTHROPIC_API_KEY`.
+- `apps/facility` → Vercel (static build; only the Supabase URL and anon key are injected, by name).
+- `api/*.js` → Vercel functions on the same project, with `ANTHROPIC_API_KEY`, `ARCANE_OPERATOR_KEY` and the service-role key in the project environment. `vercel.json` includes `.claude/skills/herald/**` so the references ship with the functions, and allows 300 s for HERALD.
+- Supabase: `supabase/migrations/*.sql` run in order in the SQL editor; `npm run db:check` reports the state.
+- `brain/` → its own private GitHub repo (`arcane-brain`), synced by Obsidian Git on desktop and read by skills via `ARCANE_BRAIN`. Kept as a folder in this monorepo until the split (`git subtree split`).
+- `packages/*` → published to nowhere; imported by path and by workspace symlink.

@@ -1,13 +1,13 @@
 /**
  * The reasoning layer, from the browser: Counsel and the Council live in
  * two serverless functions; this assembles the context they need from the
- * brain export and the store, and sends this device's sync code so only a
- * known device can ask.
+ * brain export and the store — the brief, the open orders, the numbers,
+ * today's focus, the venture ranking and the moves — and sends it with the
+ * operator key.
  */
-import { ROOM_BY_ID } from '@arcane/config';
-import { sync } from './sync.js';
-import { stats } from './journal.js';
-import { fmtR, fmtPct } from './journal.js';
+import { ROOM_BY_ID, VENTURES } from '@arcane/config';
+import { api } from './api.js';
+import { stats, fmtR, fmtPct } from './journal.js';
 
 function context(store, brain) {
   const orders = [];
@@ -19,16 +19,16 @@ function context(store, brain) {
     `- content: ${store.draftsBy('draft').length} drafts waiting · ${store.draftsBy('approved').length + store.draftsBy('scheduled').length} approved · ${store.draftsBy('posted').length} posted`,
     `- journal: ${js.n} closed trades · win rate ${fmtPct(js.winRate)} · total ${fmtR(js.totalR)} · expectancy ${fmtR(js.avgR)} · plan followed ${fmtPct(js.planRate)}`,
     `- funnel: ${store.state.funnel.visitors} visitors → ${store.state.funnel.leads} leads → ${store.state.funnel.orders} orders`,
+    `- today's focus: ${store.day(new Date().toISOString().slice(0, 10)).focus || '(none set)'}`,
+    `- venture ranking (THE WAR ROOM): ${VENTURES.map((v) => ({ v, f: store.focusOf(v.id) })).sort((a, b) => (a.f.rank || 9) - (b.f.rank || 9)).map(({ v, f }, i) => `${i + 1}. ${v.name} — ${f.allocation}${f.why ? ` (${f.why})` : ''}`).join('; ')}`,
+    `- moves: ${store.openItems('moves').map((m) => `[${m.tag}] ${m.text}`).join('; ') || '(none)'}`,
+    `- stop doing: ${store.openItems('stop').map((m) => m.text).join('; ') || '(none)'}`,
   ].join('\n');
   return { brief: brain?.brief, doctrine: brain?.doctrine, memory: brain?.memory, orders, extra };
 }
 
-async function post(path, body) {
-  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: sync.code, ...body }) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || `${r.status}`);
-  return j;
-}
+// Through the API client: the operator key goes with it, and Claude may take a while.
+const post = (path, body) => api.post(path, body, { timeout: 180_000 });
 
 export const reason = {
   ask: (store, brain, question) => post('/api/counsel', { question, context: context(store, brain), history: store.counsel().slice(-8) }),

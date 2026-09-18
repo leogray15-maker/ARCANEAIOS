@@ -23,16 +23,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import Anthropic from '@anthropic-ai/sdk';
-import { SKILL_DIR, REPO, STAGING_DIR, FORMATS, FORMAT_IDS, PLATFORMS, loadIndex, moduleText, sourceGate, subjectAllowed } from './lib.mjs';
+import { SKILL_DIR, REPO, STAGING_DIR, FORMATS, FORMAT_IDS, loadIndex, moduleText, sourceGate, subjectAllowed } from './lib.mjs';
 import { lintPath } from './lint.mjs';
 import { brainDir } from '../../../../tools/lib/brain.mjs';
+import { writeDrafts, stageText, DEFAULT_MODEL } from '../../../../packages/content-engine/src/herald.js';
 
 /* ---------- env ---------- */
 try { for (const line of fs.readFileSync(path.join(REPO, '.env'), 'utf8').split('\n')) { const m = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line.trim()); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); } } catch {}
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? (args[i + 1] ?? true) : d; };
 const has = (k) => args.includes(k);
-const MODEL = process.env.HERALD_MODEL || 'claude-opus-5';
+const MODEL = process.env.HERALD_MODEL || DEFAULT_MODEL;
 const formats = String(opt('--formats', FORMAT_IDS.join(','))).split(',').map((s) => s.trim()).filter((f) => FORMAT_IDS.includes(f));
 const count = Number(opt('--count', 1));
 const dry = has('--dry'), push = has('--push'), mock = has('--mock');
@@ -41,7 +42,6 @@ if (!mock && !process.env.ANTHROPIC_API_KEY) { console.error('✗ ANTHROPIC_API_
 const brain = brainDir();
 const index = loadIndex();
 const gate = sourceGate(brain);
-const ref = (f) => fs.readFileSync(path.join(SKILL_DIR, 'references', f), 'utf8');
 const say = (m) => console.log(`[herald ${new Date().toISOString().slice(11, 19)}] ${m}`);
 
 /* ---------- pick ---------- */
@@ -55,56 +55,21 @@ const picks = [];
 for (let i = 0; i < count && pool.length; i++) { const w = pool.map((m) => Math.log(m.words) * (0.6 + Math.random())); const j = w.indexOf(Math.max(...w)); picks.push(pool.splice(j, 1)[0]); }
 
 /* ---------- write ---------- */
-const client = new Anthropic();
-const system = [
-  'You are HERALD, the content creator inside THE ARCANE. You write as Leo. You produce post-ready drafts from one module of his Archives, and nothing else.',
-  'Read the three references below and obey them exactly. The compliance rules are enforced by a lint after you write; a draft that trips one is thrown away, so write inside the rules rather than near them.',
-  '\n## VOICE\n' + ref('voice.md'), '\n## FORMATS\n' + ref('formats.md'), '\n## COMPLIANCE\n' + ref('compliance.md'),
-  '\nHard requirements for every draft: the `hook` field is exactly the first line of the body. Threads are 5–9 posts, each starting "1/", "2/" … on its own paragraph, each under 280 characters after the number. Emails start with a "Subject: …" line then a "Preview: …" line, then a blank line, then the body, and end with "Leo" on its own line. Word counts: ' + FORMAT_IDS.map((f) => `${f} ${FORMATS[f].words[0]}–${FORMATS[f].words[1]}`).join(', ') + '. No hashtags, no emojis, no preamble. Never name a compound, a dose, or a treatment. Never promise a return.',
-].join('\n');
-
-const schema = {
-  type: 'object', additionalProperties: false,
-  properties: {
-    angle: { type: 'string', description: 'One line: what the reader believes walking in, what they believe walking out.' },
-    drafts: { type: 'array', items: { type: 'object', additionalProperties: false, properties: {
-      format: { type: 'string', enum: FORMAT_IDS }, platform: { type: 'string', enum: PLATFORMS }, title: { type: 'string' }, hook: { type: 'string' },
-      cta: { type: 'string', enum: ['none', 'archives', 'reply', 'follow', 'link'] }, tags: { type: 'array', items: { type: 'string' } }, body: { type: 'string' },
-    }, required: ['format', 'platform', 'title', 'hook', 'cta', 'tags', 'body'] } },
-  }, required: ['angle', 'drafts'],
-};
+// The prompt, the schema and the call live in packages/content-engine (shared with /api/herald), so the floor and the
+// terminal write with one voice. This wraps a module from the local index in the shape the engine expects.
+const client = mock ? null : new Anthropic();
+const asModule = (mod) => ({ ...mod, body: moduleText(mod), notion_id: mod.notionId, source_path: mod.path, source_url: mod.notionId ? `https://www.notion.so/${mod.notionId}` : '' });
 
 async function write(mod, repair = null) {
   if (mock) return mockDrafts(mod);
-  const text = moduleText(mod);
-  const ask = `Module: "${mod.title}" from the course "${mod.subject}" (${mod.words} words).\n\nWrite one draft for each of these formats: ${formats.join(', ')}. Choose the platform each belongs on. Same idea, one cut per surface.\n\n<module>\n${text.slice(0, 40000)}\n</module>` + (repair ? `\n\nYour previous drafts failed the gate. Fix every one of these and return the full set again:\n${repair}` : '');
-  let r;
-  try {
-    r = await client.messages.create({
-      model: MODEL, max_tokens: 16000, system, thinking: { type: 'adaptive' }, output_config: { effort: 'high', format: { type: 'json_schema', schema } },
-      messages: [{ role: 'user', content: ask }],
-    });
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) throw new Error('the API key was rejected — check ANTHROPIC_API_KEY in .env');
-    if (e instanceof Anthropic.RateLimitError) throw new Error('rate limited — try again in a minute');
-    if (e instanceof Anthropic.BadRequestError && /credit balance/i.test(e.message)) throw new Error('the Anthropic account has no credits — top up at console.anthropic.com → Plans & Billing, then run again');
-    if (e instanceof Anthropic.APIError) throw new Error(`API error ${e.status}: ${e.message}`);
-    throw e;
-  }
-  if (r.stop_reason === 'refusal') throw new Error(`refused: ${r.stop_details?.category || ''} ${r.stop_details?.explanation || ''}`);
-  const out = r.content.find((b) => b.type === 'text')?.text || '';
-  const parsed = JSON.parse(out);
-  say(`${MODEL}: ${parsed.drafts.length} drafts · ${r.usage.input_tokens} in / ${r.usage.output_tokens} out`);
+  const parsed = await writeDrafts({ client, model: MODEL, module: asModule(mod), formats, repair });
+  say(`${MODEL}: ${parsed.drafts.length} drafts · ${parsed.usage.in} in / ${parsed.usage.out} out`);
   return parsed;
 }
 
 function stage(mod, parsed) {
   fs.rmSync(STAGING_DIR, { recursive: true, force: true }); fs.mkdirSync(STAGING_DIR, { recursive: true });
-  parsed.drafts.forEach((d, i) => {
-    const fm = { type: 'content-draft', id: 'HER-YYYYMMDD-NNN', title: d.title.slice(0, 60), format: d.format, platform: d.platform, status: 'draft', agent: 'HERALD', run: '', source_subject: mod.subject, source_module: mod.title, source_ref: mod.id, source_url: mod.notionId ? `https://www.notion.so/${mod.notionId}` : '', angle: parsed.angle, hook: d.hook, cta: d.cta, tags: [...new Set([mod.lane, ...d.tags.map((t) => t.toLowerCase().replace(/[^a-z0-9-]/g, ''))])].filter(Boolean).slice(0, 5), word_count: 0, compliance: 'pass', compliance_notes: '', created: '', updated: '', approved_by: '', scheduled_for: '', posted_at: '', posted_url: '' };
-    const yaml = Object.entries(fm).map(([k, v]) => `${k}: ${Array.isArray(v) ? `[${v.join(', ')}]` : JSON.stringify(String(v))}`).join('\n');
-    fs.writeFileSync(path.join(STAGING_DIR, `${String(i + 1).padStart(2, '0')}-${d.format}.md`), `---\n${yaml}\n---\n${d.body.trim()}\n`);
-  });
+  parsed.drafts.forEach((d, i) => fs.writeFileSync(path.join(STAGING_DIR, `${String(i + 1).padStart(2, '0')}-${d.format}.md`), stageText(asModule(mod), parsed, d)));
 }
 
 /** A stand-in for the model, for testing the plumbing: the bodies of drafts already in the brain, re-titled for this module. */
