@@ -13,6 +13,15 @@ const chip = (text, tone = '') => `<span class="chip ${tone}">${esc(text)}</span
 const tone = (o) => (o === 'Win' ? 'vital' : o === 'Loss' ? 'deny' : o === 'Open' ? 'cyan' : 'ash');
 const opt = (list, cur, blank = false) => (blank ? '<option value=""></option>' : '') + list.map((v) => `<option ${v === cur ? 'selected' : ''}>${esc(v)}</option>`).join('');
 const field = (label, inner, cls = '') => `<label class="field ${cls}"><span>${esc(label)}</span>${inner}</label>`;
+/**
+ * The same caption over a group of tick boxes. It is a div, not a label:
+ * each box already carries its own label, and a label inside a label is
+ * invalid — the browser then has to guess which control the caption means,
+ * so clicking "Rule breaks" could toggle whichever box it guessed.
+ */
+const group = (label, inner, cls = '') => `<div class="field ${cls}"><span>${esc(label)}</span>${inner}</div>`;
+/** One tick box that reads as a yes/no. */
+const yesNo = (name, on) => `<div class="checks"><label class="chk"><input type="checkbox" name="${name}" ${on ? 'checked' : ''}> yes</label></div>`;
 const checks = (name, list, cur = []) => `<div class="checks">${list.map((v) => `<label class="chk"><input type="checkbox" name="${name}" value="${esc(v)}" ${cur.includes(v) ? 'checked' : ''}> ${esc(v)}</label>`).join('')}</div>`;
 
 function statRow(s) {
@@ -64,7 +73,7 @@ function tabNew(store, id) {
     ${t ? `<p class="ash">${esc(t.id)} · ${chip(dd.outcome, tone(dd.outcome))} ${fmtR(dd.r)} · ${fmtGbp(dd.pnl)}</p>` : ''}
     <h3>Before <span class="faint">fill in under sixty seconds, before the order</span></h3>
     <div class="fields">
-      ${field('Opened', `<input type="datetime-local" name="opened" value="${v('opened', local(now))}" required>`)}
+      ${field('Opened', `<input type="datetime-local" name="opened" value="${v('opened', local(now))}" required>`, 'mid')}
       ${field('Instrument', `<input name="instrument" value="${v('instrument', 'XAUUSD')}">`)}
       ${field('Direction', `<select name="direction">${opt(['Long', 'Short'], t?.direction)}</select>`)}
       ${field('Session', `<select name="session">${opt(SESSIONS, t?.session, true)}</select>`)}
@@ -83,19 +92,18 @@ function tabNew(store, id) {
       ${field('Sleep (h)', `<input type="number" step="0.5" name="sleep" value="${v('sleep')}">`)}
       ${field('Stress 1–5', `<input type="number" name="stress" min="1" max="5" value="${v('stress')}">`)}
       ${field('Thesis', `<textarea name="thesis" rows="2">${v('thesis')}</textarea>`, 'wide')}
-      ${field('Edge seen', checks('edges', EDGES, t?.edges), 'wide')}
+      ${group('Edge seen', checks('edges', EDGES, t?.edges), 'wide')}
     </div>
     <h3>After <span class="faint">fill in before the next trade</span></h3>
     <div class="fields">
-      ${field('Closed', `<input type="datetime-local" name="closed" value="${v('closed')}">`)}
+      ${field('Closed', `<input type="datetime-local" name="closed" value="${v('closed')}">`, 'mid')}
       ${field('Exit', `<input type="number" step="any" name="exit" value="${v('exit')}">`)}
       ${field('Emotion during', `<select name="emotionDuring">${opt(EMOTIONS, t?.emotionDuring, true)}</select>`)}
       ${field('Emotion after', `<select name="emotionAfter">${opt(EMOTIONS, t?.emotionAfter, true)}</select>`)}
       ${field('Process grade', `<select name="process">${opt(PROCESS, t?.process, true)}</select>`)}
       ${field('Chart URL', `<input name="chart" value="${v('chart')}" placeholder="TradingView link">`)}
-      ${field('Plan followed', `<label class="chk"><input type="checkbox" name="planFollowed" ${t?.planFollowed ? 'checked' : ''}> yes</label>`)}
-      ${field('Streamed on Kick', `<label class="chk"><input type="checkbox" name="streamed" ${t?.streamed ? 'checked' : ''}> yes</label>`)}
-      ${field('Rule breaks', checks('ruleBreaks', RULE_BREAKS, t?.ruleBreaks), 'wide')}
+      ${group('Discipline', `<div class="checks"><label class="chk"><input type="checkbox" name="planFollowed" ${t?.planFollowed ? 'checked' : ''}> plan followed</label><label class="chk"><input type="checkbox" name="streamed" ${t?.streamed ? 'checked' : ''}> streamed on Kick</label></div>`, 'wide')}
+      ${group('Rule breaks', checks('ruleBreaks', RULE_BREAKS, t?.ruleBreaks), 'wide')}
       ${field('Execution', `<textarea name="execution" rows="2">${v('execution')}</textarea>`, 'wide')}
       ${field('Review', `<textarea name="review" rows="2">${v('review')}</textarea>`, 'wide')}
       ${field('Lesson', `<input name="lesson" value="${v('lesson')}" placeholder="one sentence, or blank">`, 'wide')}
@@ -160,7 +168,7 @@ function tabPsychology(store) {
     <h3>Check in</h3><form data-act="checkin-save"><div class="fields">
       ${field('Type', `<select name="type">${opt(['Pre-market', 'Post-session', 'Urge'], 'Pre-market')}</select>`)}${field('Mood', `<select name="mood">${opt(EMOTIONS, '', true)}</select>`)}
       ${field('Energy 1–5', '<input type="number" name="energy" min="1" max="5">')}${field('Stress 1–5', '<input type="number" name="stress" min="1" max="5">')}${field('Sleep (h)', '<input type="number" step="0.5" name="sleep">')}
-      ${field('Urge', checks('urges', URGES), 'wide')}${field('Acted on it', '<label class="chk"><input type="checkbox" name="acted"> yes</label>')}
+      ${group('Urge', checks('urges', URGES), 'wide')}${group('Acted on it', yesNo('acted', false))}
       ${field('Trigger', '<input name="trigger" placeholder="what set it off">', 'wide')}${field('Note', '<textarea name="note" rows="2"></textarea>', 'wide')}
     </div><div class="acts"><button type="submit" class="primary">Log</button></div></form>
     <h3>Log</h3>${cs.length ? `<table class="grid"><thead><tr><th>When</th><th>Type</th><th>Mood</th><th class="r">E / S</th><th>Urge</th><th>Acted</th><th>Note</th><th></th></tr></thead><tbody>${cs.map((c) => `<tr><td class="faint">${new Date(c.ts).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</td><td>${chip(c.type, c.type === 'Urge' ? 'flare' : 'ash')}</td><td>${esc(c.mood || '')}</td><td class="r">${c.energy || '—'} / ${c.stress || '—'}</td><td>${(c.urges || []).map((u) => chip(u)).join('')}</td><td>${c.type === 'Urge' ? (c.acted ? chip('acted', 'deny') : chip('held', 'vital')) : ''}</td><td class="ash">${esc([c.trigger, c.note].filter(Boolean).join(' — '))}</td><td><button class="tiny ghost" data-act="checkin-delete" data-id="${c.id}">×</button></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Nothing logged. The urges you did not act on are the data that shows the discipline is working.</p>'}`;
