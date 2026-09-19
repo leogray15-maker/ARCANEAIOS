@@ -17,9 +17,8 @@ This file routes Claude Code. The brain has its own router at
 | The brief and live signals | `npm run brief` — Brief.md is generated; change what it reads |
 | The floor's state back into the vault | `npm run vault:sync` — needs the service key in `.env` |
 | HERALD, the content skill | `.claude/skills/herald/SKILL.md` — invoke `/herald` |
-<<<<<<< HEAD
 | HERALD's engine (shared by the API and the CLI) | `packages/content-engine/src/herald.js` |
-| The Archives index | `npm run herald:index` → `data/archives/` (gitignored) → `npm run archives:sync` → Postgres |
+| The Archives index | `npm run herald:index` (Notion or the vault — `docs/ARCHIVES.md`) → `data/archives/` (gitignored) → `npm run archives:sync` → Postgres |
 | The database (tables, verbs, migrations) | `packages/database/`, `supabase/migrations/`, `docs/DATA-MODEL.md` — `npm run db:check` |
 | The floor's operating state (orders, moves, decisions, focus, the day) | `packages/database/src/state.js` (the registry) · `api/state.js` · the store's server rung in `apps/facility/src/core/store.js` |
 | The Bridge's picture | `packages/database/src/bridge.js` — one aggregate for `api/bridge.js` and `tools/brief.mjs` |
@@ -28,9 +27,6 @@ This file routes Claude Code. The brain has its own router at
 | What each room does, and which are real | `docs/ROOMS.md` |
 | The API (the only thing that touches the database) | `api/*.js` — operator key on every call (`api/_auth.js`) |
 | The Content Machine, end to end | `docs/CONTENT-MACHINE.md` |
-=======
-| The Archives index | `npm run herald:index` → `data/archives/` (gitignored) · `docs/ARCHIVES.md` |
->>>>>>> 76fa0ba54f36debeacc6b8669ca3ea880c702848
 | Architecture, sprites, structure, plan | `docs/` |
 | The facility app | `apps/facility/` — `npm run dev` (with the API) · `npm run dev:local` (no keys needed) |
 

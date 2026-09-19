@@ -27,7 +27,7 @@ per browser. FIT · 2x · 3x zoom the floor.
 Click a room to open it; ARCANE walks there. Crew drift toward rooms
 with open orders — P0 pulls hardest — so the floor is a picture of the
 work. Keys on the floor: `b` Bridge, `w` War Room, `l` Library, `n`
-Beacon, `p` the Lab, `v` the Vault, `s` Sanctum, `r` the Records, `j` the Journal, `0–4` zoom, `Esc` back. Hover a room for its open orders and who
+Beacon, `p` the Lab, `v` the Vault, `s` Sanctum, `r` the Records, `j` the Journal, `i` the Intelligence, `c` the Control Room, `0–4` zoom, `Esc` back. Hover a room for its open orders and who
 is there.
 
 **The strip** (bottom of the floor). London time, the three sessions
@@ -112,12 +112,13 @@ live. Click a note to open it in Obsidian.
 
 ### THE LIBRARY — REAL · `#library`
 *What it is for.* What we know. The Arcane Archives, searchable.
-*What it does.* Subjects on the left (green = Allowed for HERALD, grey = open on request, red = never); full-text search across titles, subjects and the text of every module (`/` focuses it); filters for the gate and the lane; the results with words and gate. Open a module: its full text, provenance (id, source note, Notion id, course, indexed when, flags), what has already been cut from it (linked into BEACON), and **Generate content** — tick the formats, add a note, and HERALD writes; refused drafts are named with the gate's reason; the rest land in BEACON.
+*What it does.* The Archives are indexed from Leo's Obsidian vault or straight from Notion (`docs/ARCHIVES.md`), then synced into the database. Subjects on the left (green = Allowed for HERALD, grey = open on request, red = never); full-text search across titles, subjects and the text of every module (`/` focuses it); filters for the gate and the lane; the results with words and gate. Open a module: its full text, provenance (id, source note, Notion id, course, indexed when, flags), what has already been cut from it (linked into BEACON), and **Generate content** — tick the formats, add a note, and HERALD writes; refused drafts are named with the gate's reason; the rest land in BEACON.
 *Where it lives.* `archive_modules` (put there by `npm run herald:index && npm run archives:sync` from the Obsidian vault, incremental by content hash). Read-only: nothing in the Archives is ever written to.
 
-### INTELLIGENCE — WORKING (lists REAL)
-*What it is for.* Competitors, markets, pricing, suppliers, regulation.
-*What it does.* A watchlist tagged opportunity / threat / signal; the vault's signals table. Web research is not wired; this is the list CIPHER will be given.
+### THE INTELLIGENCE — REAL · `#intel`
+*What it is for.* What the world did — competitors, markets, pricing, suppliers, regulation.
+*What it does.* The watchlist is yours (add, tag opportunity / threat / signal, remove) and CIPHER researches **only** what is on it. Run the watch, or ask it one question, and it reads the open web through Anthropic's search tool, then reports up to eight items: kind, headline, what it means for a venture by name, the entry it came from, the source, and how firm it is — confirmed, reported or rumour. An item may carry one proposal, the smallest next action routed to a room; it becomes an order only when you press *take it*. Every run is recorded in `agent_runs`, so the room shows the history and THE RECORDS and THE CONTROL ROOM show the watch beside HERALD's runs. A failed run says why (no credits, no key) and is recorded as failed.
+*Where it lives.* `list_items` (list `watch`) and `agent_runs`; `/api/intel` reads the watchlist from the table, not from the caller. The only outward-facing call in the system. It writes nothing but its own run.
 
 ### THE OBSERVATORY — WORKING
 *What it is for.* Everything that changes while nobody is looking.

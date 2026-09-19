@@ -1,26 +1,25 @@
 #!/usr/bin/env node
 /**
- * The reasoning endpoints' gate.
+ * The API's gate.
  *
  *   node tools/api.test.mjs
  *
- * These three functions are the only part of THE ARCANE that faces the
- * public internet, and the only part that spends money when it runs. What
- * matters here is what happens *before* the model is called: the method
- * check, the device check, the shape of the request, and the refusal when
- * no key is configured. None of that needs an API key to assert, and all
- * of it is what a bad request would hit first.
+ * `api/` is the only part of THE ARCANE that faces the public internet,
+ * the only part that reaches the database, and the only part that spends
+ * money when it runs. What matters here is what happens *before* any of
+ * that: the method check, the operator key, the shape of the request, and
+ * the refusal when a key is not configured. None of it needs a real key
+ * to assert, and all of it is what a bad request hits first.
  *
- * The model call itself is not exercised — it costs real money and needs
- * a key. What this proves is that nothing reaches it that should not.
+ * The model call itself is never exercised — it costs money and needs a
+ * key. What this proves is that nothing reaches it that should not.
  */
-import assert from 'node:assert';
-
 let failures = 0;
 const ok = async (name, fn) => {
   try { await fn(); console.log(`✓ ${name}`); }
   catch (e) { console.log(`✗ ${name} — ${e.message}`); failures++; }
 };
+const eq = (got, want, what) => { if (got !== want) throw new Error(`${what}: expected ${want}, got ${got}`); };
 
 /** Stand in for Vercel's response object, recording what the handler sent. */
 function res() {
@@ -32,89 +31,113 @@ function res() {
 }
 const call = async (handler, req) => { const r = res(); await handler(req, r); return r; };
 
-// No key: knownDevice allows a well-formed code through, and client()
-// returns null, so every endpoint must stop at 503 rather than throw.
+const KEY = 'an-operator-key-long-enough';
+const CODE = 'sync-abcdefghijklmnopqrstuvwxyz';
+const auth = (k) => ({ authorization: `Bearer ${k}` });
+
+// No Anthropic key and no database: every endpoint must stop with a
+// sentence rather than throw, and never reach the model.
 delete process.env.ANTHROPIC_API_KEY;
 delete process.env.storage_SUPABASE_SERVICE_ROLE_KEY;
 delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const GOOD = 'sync-abcdefghijklmnopqrstuvwxyz';
-const BAD = 'sync-not-a-real-code';
+delete process.env.ARCANE_DB;
 
 const counsel = (await import('../api/counsel.js')).default;
 const council = (await import('../api/council.js')).default;
 const intel = (await import('../api/intel.js')).default;
+const herald = (await import('../api/herald.js')).default;
+const stateApi = (await import('../api/state.js')).default;
+const bridge = (await import('../api/bridge.js')).default;
+const drafts = (await import('../api/drafts.js')).default;
+const modules = (await import('../api/modules.js')).default;
+const runsApi = (await import('../api/runs.js')).default;
+const health = (await import('../api/health.js')).default;
 
-const endpoints = [
+const POST = [
   ['counsel', counsel, { question: 'what should I do today?' }],
   ['council', council, { question: 'should I raise the price?' }],
-  ['intel', intel, { watchlist: [{ text: 'a competitor' }] }],
+  ['intel', intel, { question: '' }],
+  ['herald', herald, { module_id: 'x' }],
+  ['state', stateApi, { table: 'orders', row: { room: 'forge', text: 'x' } }],
 ];
+const GET = [['bridge', bridge], ['drafts', drafts], ['modules', modules], ['runs', runsApi], ['health', health], ['state', stateApi]];
 
-for (const [name, handler, payload] of endpoints) {
-  await ok(`${name}: GET is refused`, async () => {
-    const r = await call(handler, { method: 'GET', body: {} });
-    assert.equal(r.code, 405);
-  });
-
-  await ok(`${name}: an unknown device is refused`, async () => {
-    const r = await call(handler, { method: 'POST', body: { code: BAD, ...payload } });
-    assert.equal(r.code, 403, `got ${r.code}: ${JSON.stringify(r.body)}`);
-  });
-
-  await ok(`${name}: a missing device is refused`, async () => {
-    const r = await call(handler, { method: 'POST', body: { ...payload } });
-    assert.equal(r.code, 403);
-  });
-
-  await ok(`${name}: no API key stops before the model`, async () => {
-    const r = await call(handler, { method: 'POST', body: { code: GOOD, ...payload } });
-    assert.equal(r.code, 503, `got ${r.code}: ${JSON.stringify(r.body)}`);
-    assert.match(r.body.error, /ANTHROPIC_API_KEY/);
-  });
-
-  await ok(`${name}: a body with no JSON at all is refused`, async () => {
-    const r = await call(handler, { method: 'POST' });
-    assert.ok(r.code >= 400, `got ${r.code}`);
+/* ---- with no operator key on the server, nothing opens ---- */
+delete process.env.ARCANE_OPERATOR_KEY;
+for (const [name, handler, body] of POST) {
+  await ok(`${name}: refuses when the server has no operator key`, async () => {
+    const r = await call(handler, { method: 'POST', headers: auth(KEY), query: {}, body: { code: CODE, ...body } });
+    eq(r.code, 503, 'status');
+    if (!/ARCANE_OPERATOR_KEY/.test(r.body.error)) throw new Error(`says why: ${r.body.error}`);
   });
 }
 
-// Endpoint-specific request shape, checked before the device gate where it
-// costs nothing, and after it where the check would leak what exists.
-await ok('counsel: an empty question is refused', async () => {
-  const r = await call(counsel, { method: 'POST', body: { code: GOOD, question: '   ' } });
-  assert.equal(r.code, 400);
+/* ---- with a key on the server, the caller must carry it ---- */
+process.env.ARCANE_OPERATOR_KEY = KEY;
+for (const [name, handler, body] of POST) {
+  await ok(`${name}: 401 without a key, 403 with the wrong one`, async () => {
+    const none = await call(handler, { method: 'POST', headers: {}, query: {}, body: { code: CODE, ...body } });
+    eq(none.code, 401, 'no key');
+    const wrong = await call(handler, { method: 'POST', headers: auth('not-the-key-but-long'), query: {}, body: { code: CODE, ...body } });
+    eq(wrong.code, 403, 'wrong key');
+  });
+}
+for (const [name, handler] of GET) {
+  await ok(`${name}: GET is gated too`, async () => {
+    const none = await call(handler, { method: 'GET', headers: {}, query: {} });
+    eq(none.code, 401, 'no key');
+  });
+}
+
+/* ---- the method check ---- */
+await ok('counsel: GET is refused', async () => {
+  const r = await call(counsel, { method: 'GET', headers: auth(KEY), query: {}, body: {} });
+  eq(r.code, 405, 'status');
+});
+await ok('bridge: POST is refused', async () => {
+  const r = await call(bridge, { method: 'POST', headers: auth(KEY), query: {}, body: {} });
+  eq(r.code, 405, 'status');
 });
 
-await ok('council: an empty question is refused', async () => {
-  const r = await call(council, { method: 'POST', body: { code: GOOD, question: '' } });
-  assert.equal(r.code, 400);
+/* ---- past the gate: the shape of the request, before any model or table ---- */
+await ok('counsel: an empty question is refused before the model', async () => {
+  const r = await call(counsel, { method: 'POST', headers: auth(KEY), query: {}, body: { code: CODE, question: '  ' } });
+  eq(r.code, 400, 'status');
+});
+await ok('council: an empty question is refused before the model', async () => {
+  const r = await call(council, { method: 'POST', headers: auth(KEY), query: {}, body: { code: CODE, question: '' } });
+  eq(r.code, 400, 'status');
+});
+await ok('herald: a missing module_id is refused before the model', async () => {
+  const r = await call(herald, { method: 'POST', headers: auth(KEY), query: {}, body: { code: CODE } });
+  eq(r.code, 400, 'status');
+});
+await ok('state: an unknown table is refused', async () => {
+  const r = await call(stateApi, { method: 'POST', headers: auth(KEY), query: {}, body: { code: CODE, table: 'secrets', row: {} } });
+  eq(r.code, 400, 'status');
+  if (!/table must be one of/.test(r.body.error)) throw new Error(r.body.error);
 });
 
-await ok('intel: an empty watchlist with no question is refused', async () => {
-  const r = await call(intel, { method: 'POST', body: { code: GOOD, watchlist: [] } });
-  assert.equal(r.code, 400, `got ${r.code}: ${JSON.stringify(r.body)}`);
-  assert.match(r.body.error, /watchlist/);
+/* ---- with no database, a gated call says so instead of throwing ---- */
+await ok('bridge: no service key is a 503 that names the key', async () => {
+  const r = await call(bridge, { method: 'GET', headers: auth(KEY), query: {} });
+  eq(r.code, 503, 'status');
+  if (!/SUPABASE_SERVICE_ROLE_KEY/.test(r.body.error)) throw new Error(r.body.error);
+});
+await ok('health: answers even with nothing configured, and never leaks a value', async () => {
+  const r = await call(health, { method: 'GET', headers: auth(KEY), query: {} });
+  eq(r.code, 200, 'status');
+  const s = JSON.stringify(r.body);
+  if (!/"anthropic":false/.test(s) || !/"service_key":false/.test(s)) throw new Error('reports what is missing');
+  if (s.includes(KEY)) throw new Error('leaked the operator key');
+  if (r.body.env.operator_key !== true) throw new Error('reports the operator key as set, without its value');
 });
 
-await ok('intel: a question alone is enough to run', async () => {
-  const r = await call(intel, { method: 'POST', body: { code: GOOD, watchlist: [], question: 'what is a competitor charging?' } });
-  assert.equal(r.code, 503);   // reached the model call and stopped for the key
+/* ---- the key is compared whole, not by prefix ---- */
+await ok('a prefix of the key is not the key', async () => {
+  const r = await call(counsel, { method: 'POST', headers: auth(KEY.slice(0, -1)), query: {}, body: { code: CODE, question: 'x' } });
+  eq(r.code, 403, 'status');
 });
 
-// The watchlist is the operator's list, so it must survive being handed in
-// as either plain strings or the store's own {id,text} items.
-await ok('intel: the watchlist takes strings or store items', async () => {
-  for (const watchlist of [['a competitor'], [{ id: 'x', text: 'a competitor' }]]) {
-    const r = await call(intel, { method: 'POST', body: { code: GOOD, watchlist } });
-    assert.equal(r.code, 503, `${JSON.stringify(watchlist)} → ${r.code}`);
-  }
-});
-
-await ok('intel: a watchlist of blanks counts as empty', async () => {
-  const r = await call(intel, { method: 'POST', body: { code: GOOD, watchlist: ['', '   ', { text: '' }] } });
-  assert.equal(r.code, 400);
-});
-
-console.log(failures ? `\n✗ api: ${failures} failed` : `\n✓ api: the gate holds on all three endpoints`);
+console.log(failures ? `\n✗ api gate: ${failures} failed` : `\n✓ api gate: every endpoint refuses before it reaches the model or the database`);
 process.exit(failures ? 1 : 0);

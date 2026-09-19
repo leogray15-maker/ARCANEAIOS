@@ -6,7 +6,7 @@ Four kinds of thing, four places, never one table.
 | --- | --- | --- | --- |
 | **Knowledge** | What do the Archives say? | `archive_modules`, `knowledge_sources` · the vault export on disk | `tools/archives-sync.mjs` |
 | **Content** | What are we saying? | `content_drafts`, `content_revisions` · mirrored to `brain/02-Content` | HERALD (`draft` only), Leo (everything else) |
-| **Agents** | What did an agent do, and how did it go? | `agent_runs` · `04-Records/Trace` for CLI runs | the engine, `emit.mjs` |
+| **Agents** | What did an agent do, and how did it go? | `agent_runs` · `04-Records/Trace` for CLI runs | HERALD's engine, CIPHER's watch, `emit.mjs` |
 | **Records** | What happened? | `system_events` (append-only) · `04-Records/*` | every write above |
 | **Memory** | What is true about Leo and the ventures? | `brain/03-Memory`, `05-Knowledge` (Markdown) | ARCANE, Leo |
 | **Operating state** | What is the floor working on? | `orders`, `list_items`, `decisions`, `counsel_turns`, `venture_focus`, `goal_progress`, `days` · mirrored into the vault | the rooms, through `/api/state` |
@@ -110,7 +110,8 @@ Check constraints hold `status` to the six states and `format` to the five forma
 `draft_id` · `revision` · `kind` (generated | edit | status | regenerate) · `actor` · `status_before` · `status_after` · `title` · `body` · `platform` · `note` · `created_at`. Unique on (draft_id, revision). Every change is a revision, so the history of a draft is one ordered list.
 
 ### agent_runs
-`id` (`HER-R-YYYYMMDD-NNN`) · `agent` · `skill` · `objective` · `status` (running | ok | failed | refused) · `model` · `input` (jsonb: module, formats, parent) · `sources[]` · `output` (jsonb: draft ids, refused, warnings) · `usage` (jsonb: tokens) · `error` · `device` (the sync code that asked) · `started_at` · `finished_at`.
+`id` (`HER-R-YYYYMMDD-NNN` for HERALD, `CIP-R-…` for CIPHER) · `agent` · `skill` · `objective` · `status` (running | ok | failed | refused) · `model` · `input` (jsonb: the module and formats, or the watch's question and terms) · `sources[]` · `output` (jsonb: draft ids, refused and warnings, or the watch's items, summary and the pages it opened) · `usage` (jsonb: tokens, searches) · `error` · `device` (the sync code that asked) · `started_at` · `finished_at`.
+Every agent that runs is recorded here, so THE RECORDS, THE CONTROL ROOM and each agent's own room read one list. CIPHER's run carries the watch itself in `output`: THE INTELLIGENCE reads the last one back rather than keeping its own copy.
 
 ### system_events
 `at` · `kind` (draft.generated | draft.status | draft.edited | draft.imported | run.ok | run.failed | run.refused | sync.modules) · `actor` · `subject_type` · `subject_id` · `summary` · `data` (jsonb).

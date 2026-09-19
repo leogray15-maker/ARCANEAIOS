@@ -127,6 +127,18 @@ Leo brought the supplier sheet (per 10-vial kit, USD) and his store prices (per 
 - [x] 14 more checks in `tools/operating-state.test.mjs` (71); the Vault, Sanctum, the Journal, the Records and the Control Room walked in headless Chromium with no page errors
 - Still for Leo: run `0005`–`0008` (orders #19, #21), `npm run products:import` (#20), then type this month's figures in THE VAULT (#22) and tick the protocol
 
+## Also done 2026-09-19 (evening) — the merge repaired, and the watch made real
+
+A cloud session's PR (Notion as an Archives source; CIPHER reading the open web) merged into main while the state layer was landing. The merge left six files with conflict markers committed, `npm test` red, `/api/intel` importing a `knownDevice` gate that no longer exists, and THE INTELLIGENCE calling `store.intel()` against a store that no longer had it.
+
+- [x] Resolved the six conflicts by union where both sides were true (`.gitignore`, `.env.example`, `CLAUDE.md`, `docs/ARCHITECTURE.md`, and two generated brain cards regenerated)
+- [x] `api/intel.js` ported to the operator gate, and its run recorded in `agent_runs` (`CIP-R-…`) like HERALD's — status, model, terms, items, the pages it opened, tokens and searches; a failure is recorded as failed with its reason
+- [x] The watchlist is read server-side from `list_items`, not from the caller's copy: one source of truth, and the client cannot widen what CIPHER researches
+- [x] THE INTELLIGENCE is an application (`#intel`, key `i`): the watchlist, run the watch or ask it one question, the items with kind, source and confidence, *take it* to turn a proposal into an order, the run history — and the same runs appear in THE RECORDS and THE CONTROL ROOM
+- [x] `tools/api.test.mjs` rewritten for the operator gate: every endpoint (counsel, council, intel, herald, state, bridge, drafts, modules, runs, health) refuses without the key, with the wrong key, on the wrong method, and before reaching the model or the database; health never leaks a key's value; a prefix of the key is not the key
+- [x] Kept the PR's good work as it stands: the Notion indexer and its stub tests, `docs/ARCHIVES.md`, the archives fixture test
+- [x] `npm test` green again (the suite now also runs the archives and API-gate tests); the room walked in headless Chromium — a run with no credits fails visibly and lands as a failed run in all three rooms
+
 ## Next
 
 1. THE LAB, second pass: sales recorded against lots (stock counts down from a dispatched order), gross margin realised in the Vault from those sales, a reorder point from the sell-through.

@@ -112,6 +112,7 @@ export const ROOMS = [
     domain: 'Competitors, markets, pricing, suppliers, regulation. Opportunity, threat, signal, action.',
     brain: null,
     widgets: ['daily-intel'],
+    opens: '#intel',
   },
   {
     id: 'observatory', name: 'THE OBSERVATORY', sub: 'Continuous watch',

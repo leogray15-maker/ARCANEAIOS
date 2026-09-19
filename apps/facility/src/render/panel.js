@@ -101,8 +101,6 @@ export function bindDash(el, { store, getRoom, go, brain }) {
     else if (act === 'open-content') go('#content');
     else if (act === 'counsel-order') { store.addOrder(b.dataset.room, b.dataset.text, Number(b.dataset.p)); }
     else if (act === 'counsel-clear') store.clearCounsel();
-    else if (act === 'intel-order') { store.addOrder(b.dataset.room, b.dataset.text, Number(b.dataset.p)); }
-    else if (act === 'intel-clear') store.clearIntel();
     else if (act === 'list-remove') store.removeItem(b.dataset.key, id);
     else if (act === 'list-tag') store.tagItem(b.dataset.key, id, b.dataset.tag);
   });
@@ -124,12 +122,11 @@ export function bindDash(el, { store, getRoom, go, brain }) {
       // A Council that could not sit is not a decision: say so in the bar and record nothing.
       reason.council(store, brain, q).then((r) => store.addDecision({ question: q, ...r })).catch((e) => store.say(`The Council could not sit: ${e.message}`, 'breach')).finally(() => busy(f));
     }
-    else if (f.dataset.act === 'intel-run') {
-      const q = f.q.value.trim(); f.q.value = ''; busy(f, 'reading…');
-      reason.intel(store, brain, q)
-        .then((r) => store.setIntel(r))
-        .catch((e) => store.setIntel({ items: [], quiet: true, summary: `The watch could not run: ${e.message}` }))
-        .finally(() => busy(f));
+    else if (f.dataset.act === 'council-ask') {
+      const q = f.q.value.trim(); if (!q) return;
+      busy(f, 'the Council is sitting…');
+      // A Council that could not sit is not a decision: say so in the bar and record nothing.
+      reason.council(store, brain, q).then((r) => store.addDecision({ question: q, ...r })).catch((e) => store.say(`The Council could not sit: ${e.message}`, 'breach')).finally(() => busy(f));
     }
     else if (f.dataset.act === 'decision-outcome') { store.setDecisionOutcome(f.dataset.id, f.outcome.value.trim()); }
   });

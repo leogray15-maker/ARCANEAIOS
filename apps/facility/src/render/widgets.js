@@ -78,46 +78,15 @@ const observatory = (store, brain) => {
 };
 const inventor = (store, brain) => `${listBoard(store, 'ideas', { placeholder: 'An idea, before it gets lost', tags: ['BUILD', 'WATCH', 'KILL'], toneOf: (t) => (t === 'BUILD' ? 'vital' : t === 'KILL' ? 'deny' : 'flare'), hint: 'SPARK takes an idea through market, competition, economics, MVP, cost and risk, then returns BUILD, WATCH or KILL. A BUILD becomes an order; a KILL gets one line on why.' })}
   <p class="ash">${Math.max(0, (brain?.files?.['00-Inbox'] || []).length - 1)} item(s) in the brain's inbox.</p>`;
-const KIND_TONE = { opportunity: 'vital', threat: 'deny', signal: 'cyan', action: 'flare' };
 
 /** How long ago a run was, in the register the rest of the floor uses. */
-function ago(ts) {
-  const mins = Math.round((Date.now() - ts) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.round(mins / 60);
-  return hrs < 24 ? `${hrs} hour${hrs === 1 ? '' : 's'} ago` : `${Math.round(hrs / 24)} day(s) ago`;
-}
 
-function watchRun(store) {
-  const run = store.intel();
-  if (!run) return `<p class="empty">The watch has not run today.</p>`;
-  const stale = Date.now() - run.ts > 12 * 3600 * 1000;
-  const head = `<p class="ash">Read ${ago(run.ts)}${run.usage?.searches ? ` · ${run.usage.searches} search${run.usage.searches === 1 ? '' : 'es'}` : ''}${stale ? ' · <b class="flare">stale</b>' : ''}</p>`;
-  if (run.quiet && !(run.items || []).length) return `${head}<p class="empty">${esc(run.summary || 'Nothing moved. A quiet day reported as quiet is a good watch.')}</p>`;
-  const items = (run.items || []).map((it) => `<div class="order">
-    <div style="flex:1">
-      <div>${chip(it.kind, KIND_TONE[it.kind] || 'ash')} <b>${esc(it.headline)}</b></div>
-      <p class="ash" style="margin:.35rem 0 0">${esc(it.detail)}</p>
-      <p class="faint" style="margin:.25rem 0 0">${esc(it.confidence)}${it.source ? ` · ${esc(it.source)}` : ' · no source found'}${it.watching ? ` · watching: ${esc(it.watching)}` : ''}</p>
-    </div>
-    ${it.proposal ? `<button class="tiny" data-act="intel-order" data-room="${esc(it.proposal.room)}" data-text="${esc(it.proposal.text)}" data-p="${['P0', 'P1', 'P2', 'P3'].indexOf(it.proposal.priority)}">take it</button>` : ''}
-  </div>`).join('');
-  return `${head}<p>${esc(run.summary || '')}</p>${items}`;
-}
-
-const intel = (store, brain) => `<h3>The watch</h3>
-  <form class="inline" data-act="intel-run"><input name="q" placeholder="Ask the watch something specific, or leave empty to run the standing watch" style="flex:1;min-width:200px"><button type="submit">Run</button></form>
-  ${watchRun(store)}
-  ${store.intel() ? `<p><button class="tiny ghost" data-act="intel-clear">clear the run</button></p>` : ''}
-  <h3>Watchlist</h3>${listBoard(store, 'watch', { placeholder: 'Competitor, supplier, market, regulation to watch', tags: ['opportunity', 'threat', 'signal'], toneOf: (t) => (t === 'opportunity' ? 'vital' : t === 'threat' ? 'deny' : 'cyan'), hint: 'CIPHER researches these and nothing else. It reads and proposes; it never acts. Every proposal waits for you to take it.' })}
-  ${brain?.signals?.length ? `<h3>Signals</h3>${table(['When', 'Who', 'Signal', 'Severity'], brain.signals.slice(0, 8).map((s) => `<tr><td class="ash">${esc(s.when)}</td><td>${esc(s.who)}</td><td>${esc(s.signal)}</td><td>${chip(s.severity, s.severity === 'breach' ? 'deny' : s.severity === 'warn' ? 'flare' : 'ash')}</td></tr>`))}` : ''}`;
 const dealroom = (store) => `<h3>Pipeline</h3>${listBoard(store, 'pipeline', { placeholder: 'Company · contact · what for', tags: ['lead', 'contacted', 'meeting', 'proposal', 'won', 'lost'], toneOf: (t) => (t === 'won' ? 'vital' : t === 'lost' ? 'deny' : t === 'meeting' || t === 'proposal' ? 'flare' : 'cyan'), hint: 'The CRM is not wired. ENVOY researches a company, drafts the outreach and prepares the meeting brief. Sends nothing without your word.' })}`;
 const lounge = (store) => { const mins = Math.round((Date.now() - (store.sessionStart || Date.now())) / 60000); return `<div class="stat-row"><div class="stat ${mins > 90 ? 'breach' : ''}"><b>${mins}</b><span>minutes in the building</span></div></div>
   <h3>Stop doing</h3>${listBoard(store, 'stop', { placeholder: 'A thing to stop doing', hint: 'EMBER is the only agent whose job is to tell you to leave. Past ninety minutes the counter turns red.' })}`; };
-// BRIDGE, THE WAR ROOM, THE VAULT, THE LAB, SANCTUM, THE RECORDS, THE CONTROL ROOM, BEACON and THE LIBRARY are full
+// BRIDGE, THE WAR ROOM, THE VAULT, THE LAB, SANCTUM, THE RECORDS, THE CONTROL ROOM, THE INTELLIGENCE, BEACON and THE LIBRARY are full
 // applications (render/*.js); their rooms open those instead of a dashboard. The rest are dashboards with a widget.
 export const WIDGETS = {
   market, forge, vitals, scriptorium,
-  council, garage, observatory, inventor, intel, dealroom, lounge,
+  council, garage, observatory, inventor, dealroom, lounge,
 };

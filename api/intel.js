@@ -1,7 +1,7 @@
 /**
  * CIPHER — the watch.
  *
- * POST { code, watchlist, context, question? } → { items, summary, sources, asOf }
+ * POST { code, context, question? } → { run, items, summary, sources, asOf }
  *
  * The one endpoint that looks outside the building. Everything else in
  * THE ARCANE reasons over what Leo already knows; this reads the open web
@@ -10,11 +10,18 @@
  * action.
  *
  * The watchlist is the operator's, not the model's — CIPHER researches
- * what Leo put on it in the Intelligence room and nothing else. It holds
+ * what Leo put on it in THE INTELLIGENCE and nothing else, and the server
+ * reads that list itself rather than trusting the caller's copy. It holds
  * `analyse` on data and `recommend` at most: it reports and proposes, and
  * every item lands as something to read, never something done.
+ *
+ * Every run is recorded in `agent_runs` like HERALD's, so THE RECORDS and
+ * THE CONTROL ROOM show the watch beside every other agent, and the room
+ * reads its latest run back from there instead of keeping one in a blob.
  */
-import { json, knownDevice, client, systemContext, MODEL, ROOM_LIST } from './_lib.js';
+import { json, guard, db, client, systemContext, MODEL, ROOM_LIST } from './_lib.js';
+import { state } from '../packages/database/src/state.js';
+import { runs, nextId } from '../packages/database/src/content.js';
 
 const KINDS = ['opportunity', 'threat', 'signal', 'action'];
 
@@ -57,16 +64,20 @@ function sourcesOf(content) {
   return out;
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return json(res, 405, { error: 'POST' });
-  const { code, watchlist = [], context = {}, question = '' } = req.body || {};
-  if (!(await knownDevice(code))) return json(res, 403, { error: 'unknown device — open the floor once with sync on' });
-  const terms = (Array.isArray(watchlist) ? watchlist : []).map((w) => String(w?.text ?? w).trim()).filter(Boolean).slice(0, 12);
+export default guard(['POST'], async (req, res, auth) => {
+  const { context = {}, question = '' } = req.body || {};
+  // The watchlist is read from the table, not from the caller: one source of truth.
+  const items = await state.list(db(), 'list_items');
+  const terms = items.filter((i) => i.list === 'watch' && !i.done).sort((a, b) => a.position - b.position).map((i) => String(i.text).trim()).filter(Boolean).slice(0, 12);
   if (!terms.length && !question.trim()) {
-    return json(res, 400, { error: 'nothing to watch — add a competitor, supplier, market or regulation to the watchlist in the Intelligence room' });
+    return json(res, 400, { error: 'nothing to watch — add a competitor, supplier, market or regulation to the watchlist in THE INTELLIGENCE' });
   }
   const c = client();
   if (!c) return json(res, 503, { error: 'the reasoning layer is not wired: set ANTHROPIC_API_KEY in the Vercel project' });
+
+  const now = new Date();
+  const runId = await nextId(db(), 'agent_runs', 'CIP-R', now);
+  await runs.start(db(), { id: runId, agent: 'CIPHER', skill: 'watch', objective: question.trim() ? `answer: ${question.trim().slice(0, 120)}` : `the standing watch — ${terms.length} entr${terms.length === 1 ? 'y' : 'ies'}`, model: MODEL, input: { question: question.trim(), terms }, sources: terms, device: auth.device });
 
   const brief = question.trim()
     ? `Leo has asked the watch a direct question: ${question.trim()}\n\nThe standing watchlist, for context:\n${terms.map((t) => `- ${t}`).join('\n') || '(empty)'}`
@@ -93,20 +104,27 @@ export default async function handler(req, res) {
       output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
     });
 
-    if (r.stop_reason === 'refusal') return json(res, 200, { items: [], summary: 'The watch will not run that one.', quiet: true, sources: [] });
+    if (r.stop_reason === 'refusal') {
+      await runs.finish(db(), runId, { status: 'refused', error: 'the model refused the watch' });
+      return json(res, 200, { run: runId, items: [], summary: 'The watch will not run that one.', quiet: true, sources: [] });
+    }
     // The search tool can pause a long turn; the client is told rather than
     // handed a half-run watch it would mistake for a quiet day.
-    if (r.stop_reason === 'pause_turn') return json(res, 503, { error: 'the watch ran long and paused — run it again' });
+    if (r.stop_reason === 'pause_turn') {
+      await runs.finish(db(), runId, { status: 'failed', error: 'the watch ran long and paused' });
+      return json(res, 503, { error: 'the watch ran long and paused — run it again' });
+    }
 
     const out = JSON.parse(r.content.find((b) => b.type === 'text')?.text || '{}');
-    return json(res, 200, {
-      ...out,
-      sources: sourcesOf(r.content),
-      asOf: new Date().toISOString(),
-      usage: { in: r.usage.input_tokens, out: r.usage.output_tokens, cached: r.usage.cache_read_input_tokens || 0, searches: r.usage.server_tool_use?.web_search_requests || 0 },
-    });
+    const sources = sourcesOf(r.content);
+    const usage = { in: r.usage.input_tokens, out: r.usage.output_tokens, cached: r.usage.cache_read_input_tokens || 0, searches: r.usage.server_tool_use?.web_search_requests || 0 };
+    // The run carries the watch itself: the room reads it back from here.
+    await runs.finish(db(), runId, { status: 'ok', usage, output: { items: out.items || [], summary: out.summary || '', quiet: !!out.quiet, sources, terms } });
+    return json(res, 200, { run: runId, ...out, sources, asOf: now.toISOString(), usage });
   } catch (e) {
     const status = e.status === 429 ? 429 : e.status === 401 ? 503 : 502;
-    return json(res, status, { error: /credit balance/i.test(e.message) ? 'the Anthropic account has no credits' : e.message });
+    const error = /credit balance/i.test(e.message) ? 'the Anthropic account has no credits' : e.message;
+    await runs.finish(db(), runId, { status: 'failed', error }).catch(() => {});
+    return json(res, status, { error });
   }
-}
+});

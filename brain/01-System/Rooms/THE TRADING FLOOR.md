@@ -1,12 +1,7 @@
 ---
 type: system-card
-<<<<<<< HEAD
 created: 2026-09-17 10:58
 updated: 2026-09-17 10:58
-=======
-created: 2026-09-17 10:49
-updated: 2026-09-17 10:49
->>>>>>> 76fa0ba54f36debeacc6b8669ca3ea880c702848
 status: active
 agent: ARCANE
 generated: true
