@@ -70,13 +70,13 @@ export class Strip {
     const weather = w ? `${w.t}°C ${WMO[w.code] || ''} · wind ${w.wind} km/h · ☼ ${w.sunrise} ☾ ${w.sunset}` : 'weather —';
     const gold = this.gold ? `XAUUSD <b>${Number(this.gold.price).toLocaleString('en-US', { maximumFractionDigits: 2 })}</b>${this.gold.chg !== undefined ? ` <span class="${this.gold.chg >= 0 ? 'vital' : 'breach'}">${this.gold.chg >= 0 ? '+' : ''}${Number(this.gold.chg).toFixed(2)}%</span>` : ''}` : 'XAUUSD —';
     const posted = store.draftsBy('posted').length, waiting = store.draftsBy('draft').length;
-    const today = new Date().toISOString().slice(0, 10); const done = Object.values(store.protocolDay(today)).filter(Boolean).length;
+    const today = new Date().toISOString().slice(0, 10); const done = store.protocolDone(today), items = store.protocolItems().length;
     const tradesToday = store.trades().filter((t) => (t.opened || '').startsWith(today)).length;
     this.el.innerHTML = `
       <span class="w"><b>${time}</b> <span class="ash">${date}</span></span>
       <span class="w">${sessions}</span>
       <span class="w">${gold}</span>
       <span class="w ash">${this.place} · ${weather}</span>
-      <span class="w ash"><b>${store.totalOpen()}</b> orders · <b>${waiting}</b> drafts waiting · <b>${posted}</b> posted · <b>${tradesToday}</b> trade${tradesToday === 1 ? '' : 's'} today · protocol <b>${done}/5</b> · <b>${sim.agents.filter((a) => a.state === 'walk').length}</b> walking</span>`;
+      <span class="w ash"><b>${store.totalOpen()}</b> orders · <b>${waiting}</b> drafts waiting · <b>${posted}</b> posted · <b>${tradesToday}</b> trade${tradesToday === 1 ? '' : 's'} today · protocol <b>${done}/${items || '—'}</b> · <b>${sim.agents.filter((a) => a.state === 'walk').length}</b> walking</span>`;
   }
 }

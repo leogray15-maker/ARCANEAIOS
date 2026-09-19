@@ -31,7 +31,8 @@
     "dev": "node tools/dev.mjs",
     "dev:local": "node tools/dev.mjs --local",
     "archives:sync": "node tools/archives-sync.mjs",
-    "db:check": "node tools/db-check.mjs"
+    "db:check": "node tools/db-check.mjs",
+    "products:import": "node tools/products-import.mjs"
   },
   "engines": {
     "node": ">=20"

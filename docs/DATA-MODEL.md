@@ -10,14 +10,17 @@ Four kinds of thing, four places, never one table.
 | **Records** | What happened? | `system_events` (append-only) · `04-Records/*` | every write above |
 | **Memory** | What is true about Leo and the ventures? | `brain/03-Memory`, `05-Knowledge` (Markdown) | ARCANE, Leo |
 | **Operating state** | What is the floor working on? | `orders`, `list_items`, `decisions`, `counsel_turns`, `venture_focus`, `goal_progress`, `days` · mirrored into the vault | the rooms, through `/api/state` |
-| **Working set (not yet on tables)** | Stock, ledger, protocol, the journal | `arcane_sync` (one JSON row per device) | the facility store |
+| **The Lab** | What is sold, what it costs, what is on the shelf, what is going out | `products`, `stock_lots`, `dispatch`, `settings` (0005) · mirrored to `05-Knowledge/Lab.md` | THE LAB, `tools/products-import.mjs` |
+| **The Vault** | What came in, what goes out, what is in the bank | `ledger_months`, `fixed_costs`, `cash_snapshots`, `pots` (0006) · mirrored to `05-Knowledge/Money.md` | THE VAULT, THE MARKET, VITALS |
+| **The operator** | How Leo is, what he holds to | `days`, `protocol_items`, `protocol_ticks`, `entries` (0007) · only the day and the protocol mirrored | SANCTUM, the Bridge (the focus) |
+| **The Journal** | Every trade | `trades`, `setups`, `checkins` (0008) · mirrored to `04-Records/Journal/` | THE TRADING FLOOR |
+| **The device** | Where the crew stand, this session's floor log | `arcane_sync` (one JSON row per device) | the facility store — nothing that matters lives here any more |
 
-The operating state used to ride in `arcane_sync` too. It moved to
-tables (`0004_operating_state.sql`) because two devices could not agree
-on a JSON blob, and because the Bridge has to aggregate it. What is left
-in the blob — stock, the ledger, the protocol, the journal — moves the
-same way when its room is built (THE VAULT, THE LAB, SANCTUM, THE
-TRADING FLOOR). `tools/lib/state.mjs` still folds the blob for those.
+Everything a room shows used to ride in `arcane_sync` as one JSON blob
+per device. It all moved to tables (0004–0008) because two devices could
+not agree on a blob, nothing in it could be validated, and the Bridge has
+to aggregate it. The blob now carries only crew positions and the floor
+log; `tools/lib/state.mjs` still folds it for those.
 
 ## The operating state (supabase/migrations/0004_operating_state.sql)
 
@@ -51,8 +54,33 @@ A verdict without an outcome is "waiting on you" on the Bridge.
 ### days
 `day` (pk) · `focus` · `note` · `energy` (1–10) · `sleep`. The Bridge writes the focus line; SANCTUM will write the rest.
 
+### THE LAB (supabase/migrations/0005_lab.sql)
+
+**products** — `id` (slug, e.g. `ghk-cu-50mg`) · `name` · `size` · `category` · `listed` (on the store) · `sell_gbp` (per vial) · `supplier_id` · `supplier_code` · `supplier_section` · `kit_cost_usd` · `kit_vials` · `active` · `note`. Never deleted: `active` false retires a line.
+**stock_lots** — `id` (`LOT-YYYYMMDD-NNN`) · `product_id` → products · `batch` · `vials` (≥ 0) · `coa` (none | pending | published) · `coa_url` · `cost_usd` (this lot's kit cost when it differed) · `received` · `note`. A product's stock is the sum of its lots; its COA is the worst live lot's.
+**dispatch** — `id` (`DSP-YYYYMMDD-NNN`) · `ref` · `items` · `stage` (packing | ready | shipped | delivered | cancelled) · `tracking` · `note` · `shipped_at`. Never deleted: `cancelled` is a stage.
+**settings** — `key` (fx_gbp_per_usd | landed_overhead_pct | low_stock_vials) · `value` · `note`. The numbers a room computes with, typed once.
+The arithmetic is `apps/facility/src/core/lab.js` (landed cost per vial = kit cost ÷ vials × rate × (1 + overhead); margin on the vial price; `labSummary`), imported by the floor, the Bridge aggregate and the vault mirror alike.
+
+### THE VAULT (0006)
+**ledger_months** — `id` (`YYYY-MM:venture`) · `month` · `venture` · `revenue_gbp` (typed; for a priced venture, units × price when empty) · `units` · `visitors` · `leads` · `orders` · `note`. One row per venture per month; THE MARKET and VITALS write the same rows.
+**fixed_costs** — `id` (slug) · `name` · `amount_gbp` · `room` · `active` · `note`. Retired, not deleted.
+**cash_snapshots** — `day` (pk) · `cash_gbp` · `note`. Runway is the latest snapshot over the monthly shortfall.
+**pots** — `id` · `name` · `pct` (0–100) · `note` · `accent` · `position`. The split; the Vault flags a total that is not 100.
+The arithmetic is `apps/facility/src/core/money.js` (`moneySummary`, `history`), imported by the floor, the aggregate, the brief and the mirror.
+
+### SANCTUM (0007)
+**protocol_items** — `id` (slug) · `name` · `target` · `unit` · `cadence` (day | week) · `active` · `position`.
+**protocol_ticks** — `id` (`YYYY-MM-DD:item`) · `day` · `item_id` · `done` · `value`.
+**entries** — `id` (`ENT-YYYYMMDD-NNN`) · `kind` (journal | reflection | principle | objective | decision) · `title` · `body` · `status` (open | kept | done | dropped) · `private`. Never deleted, never mirrored.
+
+### THE TRADING FLOOR (0008)
+**trades** — `id` (`T-YYYYMMDD-NN`) · `instrument` · `direction` (Long | Short) · `session` · `killzone` · `setup` · `bias` · `grade` · `conviction` · `entry` · `stop` · `target` · `exit` · `risk` · `size` · `opened` · `closed` · `plan_followed` · `rule_breaks[]` · `emotion_before/during/after` · `energy` · `sleep` · `stress` · `streamed` · `process` · `thesis` · `execution` · `review` · `lesson` · `chart` · `example`. R, outcome and the statistics are computed in `core/journal.js`, never stored.
+**setups** — `id` (slug) · `name` · `status` · `session` · `tf` · `conditions` · `trigger` · `stop` · `target` · `aplus` · `invalidation`.
+**checkins** — `id` · `type` · `mood` · `stress` · `energy` · `sleep` · `streamed` · `acted` · `trigger` · `note`.
+
 ### The Bridge aggregate
-`packages/database/src/bridge.js` reads these tables plus draft counts, runs and events and arranges them: today (focus, P0/P1 not blocked, moves tagged now, due), waiting (drafts, blocked, review, verdicts without outcomes, stale P0s), active (runs, rooms with work), ventures (rank, allocation, open, top order). `api/bridge.js` serves it; `tools/brief.mjs` writes the brief from it.
+`packages/database/src/bridge.js` reads these tables plus draft counts, runs and events and arranges them: today (focus, P0/P1 not blocked, moves tagged now, due), waiting (drafts, blocked, review, verdicts without outcomes, stale P0s), active (runs, rooms with work), ventures (rank, allocation, open, top order), the Lab's summary, this month's money and today's protocol. `api/bridge.js` serves it; `tools/brief.mjs` writes the brief from it.
 
 ### The store
 `apps/facility/src/core/store.js` caches the server tables in the shapes

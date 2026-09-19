@@ -52,6 +52,10 @@ const MIGRATION_OF = {
   content_drafts: '0003_content_machine.sql', content_revisions: '0003_content_machine.sql', agent_runs: '0003_content_machine.sql', system_events: '0003_content_machine.sql',
   orders: '0004_operating_state.sql', list_items: '0004_operating_state.sql', decisions: '0004_operating_state.sql', counsel_turns: '0004_operating_state.sql',
   venture_focus: '0004_operating_state.sql', goal_progress: '0004_operating_state.sql', days: '0004_operating_state.sql',
+  settings: '0005_lab.sql', products: '0005_lab.sql', stock_lots: '0005_lab.sql', dispatch: '0005_lab.sql',
+  ledger_months: '0006_vault.sql', fixed_costs: '0006_vault.sql', cash_snapshots: '0006_vault.sql', pots: '0006_vault.sql',
+  protocol_items: '0007_sanctum.sql', protocol_ticks: '0007_sanctum.sql', entries: '0007_sanctum.sql',
+  trades: '0008_trading.sql', setups: '0008_trading.sql', checkins: '0008_trading.sql',
 };
 
 function translate(status, body, table) {
@@ -124,7 +128,7 @@ export function createDb({ url, key, fetch: f = globalThis.fetch } = config()) {
 export async function checkSchema(db) {
   const out = [];
   for (const table of Object.keys(MIGRATION_OF)) {
-    const key = { archive_subjects: 'subject', venture_focus: 'venture', goal_progress: 'goal_id', days: 'day' }[table] || 'id';
+    const key = { archive_subjects: 'subject', venture_focus: 'venture', goal_progress: 'goal_id', days: 'day', settings: 'key', cash_snapshots: 'day' }[table] || 'id';
     try { await db.get(table, { select: key, limit: 1 }); out.push({ table, ok: true, migration: MIGRATION_OF[table] }); }
     catch (e) { out.push({ table, ok: false, migration: MIGRATION_OF[table], error: e.message }); }
   }

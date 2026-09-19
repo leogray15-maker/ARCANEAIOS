@@ -20,6 +20,11 @@ import { renderLibrary, bindLibrary, libraryKey } from './render/library.js';
 import { renderBeacon, bindBeacon } from './render/beacon.js';
 import { renderBridge, bindBridge } from './render/bridge.js';
 import { renderWarroom, bindWarroom } from './render/warroom.js';
+import { renderLab, bindLab } from './render/lab.js';
+import { renderVault, bindVault } from './render/vault.js';
+import { renderSanctum, bindSanctum } from './render/sanctum.js';
+import { renderRecords, bindRecords } from './render/records.js';
+import { renderControl, bindControl } from './render/control.js';
 import { BrainGraph } from './render/graph.js';
 import { Strip } from './render/strip.js';
 import { signals } from './core/vigil.js';
@@ -33,7 +38,7 @@ import { operator } from './core/operator.js';
 const $ = (id) => document.getElementById(id);
 
 const stage = $('stage'), canvas = $('floor'), tip = $('tip');
-const views = { dash: $('dash'), library: $('library'), beacon: $('beacon'), bridge: $('bridge'), warroom: $('warroom'), journal: $('journal'), graph: $('graph') };
+const views = { dash: $('dash'), library: $('library'), beacon: $('beacon'), bridge: $('bridge'), warroom: $('warroom'), lab: $('lab'), vault: $('vault'), sanctum: $('sanctum'), records: $('records'), control: $('control'), journal: $('journal'), graph: $('graph') };
 const staticBuf = createBuffer();
 const buf = createBuffer();
 const sprites = bakeSprites(AGENTS);
@@ -132,8 +137,8 @@ for (const b of document.querySelectorAll('#hud button')) b.addEventListener('cl
 window.addEventListener('resize', () => { resize(); graph.resize(); });
 window.addEventListener('keydown', (e) => {
   if (e.target.matches('input, select, textarea')) return;
-  if (e.key === 'Escape') { if (state.screen === 'beacon' && /^#beacon\/draft\//.test(location.hash)) go('#beacon'); else if (state.screen === 'library' && /^#library\//.test(location.hash)) go('#library'); else if (state.screen !== 'floor') go('#'); return; }
-  if (state.screen === 'floor' && !e.metaKey && !e.ctrlKey && !e.altKey) { if (e.key === 'b') return go('#bridge'); if (e.key === 'w') return go('#warroom'); if (e.key === 'l') return go('#library'); if (e.key === 'n') return go('#beacon'); }
+  if (e.key === 'Escape') { if (state.screen === 'beacon' && /^#beacon\/draft\//.test(location.hash)) go('#beacon'); else if (state.screen === 'library' && /^#library\//.test(location.hash)) go('#library'); else if (state.screen === 'lab' && /^#lab\//.test(location.hash)) go('#lab'); else if (['vault', 'sanctum', 'records'].includes(state.screen) && /^#[a-z]+\//.test(location.hash)) go(`#${state.screen}`); else if (state.screen !== 'floor') go('#'); return; }
+  if (state.screen === 'floor' && !e.metaKey && !e.ctrlKey && !e.altKey) { if (e.key === 'b') return go('#bridge'); if (e.key === 'w') return go('#warroom'); if (e.key === 'l') return go('#library'); if (e.key === 'n') return go('#beacon'); if (e.key === 'p') return go('#lab'); if (e.key === 'v') return go('#vault'); if (e.key === 's') return go('#sanctum'); if (e.key === 'r') return go('#records'); if (e.key === 'j') return go('#journal'); }
   if (state.screen === 'library') return libraryKey(e);
   if (state.screen !== 'floor') return;
   if (e.key === '0') setZoom('fit'); else if (e.key === '1') setZoom('1'); else if (e.key === '2') setZoom('2'); else if (e.key === '3') setZoom('3'); else if (e.key === '4') setZoom('4');
@@ -159,7 +164,7 @@ function route() {
   const h = location.hash || '#';
   const room = /^#room\/([a-z]+)/.exec(h)?.[1];
   if (room && ROOM_BY_ID[room]?.opens) { location.hash = ROOM_BY_ID[room].opens; return; }
-  const screen = room && ROOM_BY_ID[room] ? 'dash' : h.startsWith('#journal') ? 'journal' : h.startsWith('#library') ? 'library' : h.startsWith('#beacon') ? 'beacon' : h.startsWith('#content') ? 'beacon' : h.startsWith('#bridge') ? 'bridge' : h.startsWith('#warroom') ? 'warroom' : h.startsWith('#graph') ? 'graph' : 'floor';
+  const screen = room && ROOM_BY_ID[room] ? 'dash' : h.startsWith('#journal') ? 'journal' : h.startsWith('#library') ? 'library' : h.startsWith('#beacon') ? 'beacon' : h.startsWith('#content') ? 'beacon' : h.startsWith('#bridge') ? 'bridge' : h.startsWith('#warroom') ? 'warroom' : h.startsWith('#lab') ? 'lab' : h.startsWith('#vault') ? 'vault' : h.startsWith('#sanctum') ? 'sanctum' : h.startsWith('#records') ? 'records' : h.startsWith('#control') ? 'control' : h.startsWith('#graph') ? 'graph' : 'floor';
   state.screen = screen;
   state.selected = room && ROOM_BY_ID[room] ? room : null;
   for (const [k, el] of Object.entries(views)) el.classList.toggle('hidden', k !== screen);
@@ -168,6 +173,11 @@ function route() {
   if (screen === 'journal') { sim.command('trading'); renderJournal(views.journal, ctx, h); }
   if (screen === 'bridge') { sim.command('bridge'); renderBridge(views.bridge, ctx, h); }
   if (screen === 'warroom') { sim.command('warroom'); renderWarroom(views.warroom, ctx, h); }
+  if (screen === 'lab') { sim.command('apothecary'); renderLab(views.lab, ctx, h); }
+  if (screen === 'vault') { sim.command('vault'); renderVault(views.vault, ctx, h); }
+  if (screen === 'sanctum') { sim.command('sanctum'); renderSanctum(views.sanctum, ctx, h); }
+  if (screen === 'records') { sim.command('records'); renderRecords(views.records, ctx, h); }
+  if (screen === 'control') { sim.command('control'); renderControl(views.control, ctx, h); }
   if (screen === 'library') { sim.command('archives'); renderLibrary(views.library, ctx, h); }
   if (screen === 'beacon') { sim.command('beacon'); renderBeacon(views.beacon, ctx, h.startsWith('#content') ? '#beacon' : h); }
   if (screen === 'graph') graph.show();
@@ -183,11 +193,21 @@ bindLibrary(views.library, { go, brain });
 bindBeacon(views.beacon, { go, onCounts: (c) => { contentCounts = c; barStatus(); } });
 bindBridge(views.bridge, { store, go, brain, onCounts: (c) => { contentCounts = c; barStatus(); } });
 bindWarroom(views.warroom, { store, go, brain });
+bindLab(views.lab, { store, go });
+bindVault(views.vault, { store, go });
+bindSanctum(views.sanctum, { store, go });
+bindRecords(views.records, { store, go, brain });
+bindControl(views.control, { store, go });
 store.onChange(() => {
   if (state.screen === 'dash') renderDash(views.dash, state.selected, ctx, { keepScroll: true });
   if (state.screen === 'journal') renderJournal(views.journal, ctx, location.hash, { keepScroll: true });
   if (state.screen === 'bridge') renderBridge(views.bridge, ctx, location.hash, { keepScroll: true });
   if (state.screen === 'warroom') renderWarroom(views.warroom, ctx, location.hash, { keepScroll: true });
+  if (state.screen === 'lab') renderLab(views.lab, ctx, location.hash, { keepScroll: true });
+  if (state.screen === 'vault') renderVault(views.vault, ctx, location.hash, { keepScroll: true });
+  if (state.screen === 'sanctum') renderSanctum(views.sanctum, ctx, location.hash, { keepScroll: true });
+  if (state.screen === 'records') renderRecords(views.records, ctx, location.hash, { keepScroll: true });
+  if (state.screen === 'control') renderControl(views.control, ctx, location.hash, { keepScroll: true });
   barStatus();
 });
 store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } });

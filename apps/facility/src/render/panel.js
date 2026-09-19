@@ -95,8 +95,6 @@ export function bindDash(el, { store, getRoom, go, brain }) {
     else if (act === 'order-remove') { if (confirm('Kill this order? It stays in the record as killed.')) store.removeOrder(room, id); }
     else if (act === 'order-block') { const why = prompt('Blocked on what?'); if (why !== null) store.setOrderState(room, id, 'blocked', why.trim() || 'unspecified'); }
     else if (act === 'order-unblock') store.setOrderState(room, id, 'open');
-    else if (act === 'stock-adj') store.adjustStock(id, Number(b.dataset.delta));
-    else if (act === 'coa') store.cycleCoa(id);
     else if (act === 'draft') store.markDraft(id, b.dataset.status);
     else if (act === 'draft-open') { const pre = el.querySelector(`#draft-${CSS.escape(id)}`); if (pre) pre.classList.toggle('hidden'); }
     else if (act === 'open-journal') go('#journal');
@@ -107,20 +105,13 @@ export function bindDash(el, { store, getRoom, go, brain }) {
     const i = e.target; const act = i.dataset.act; if (!act) return;
     const room = getRoom();
     if (act === 'order-toggle') store.toggleOrder(room, i.dataset.id);
-    else if (act === 'ledger') store.setLedger(i.dataset.id, i.dataset.field, i.value);
-    else if (act === 'fixed') store.setBudget('fixed', i.dataset.id, i.value);
-    else if (act === 'split') store.setBudget('split', i.dataset.id, i.value);
-    else if (act === 'cash') store.setBudget('cash', 'cash', i.value);
-    else if (act === 'funnel') store.setFunnel(i.dataset.field, i.value);
-    else if (act === 'goal') store.setGoal(i.dataset.id, i.value);
-    else if (act === 'protocol') store.toggleProtocol(i.dataset.day, i.dataset.item);
+    else if (act === 'ledger') { const month = i.dataset.month, venture = i.dataset.id, f = i.dataset.field, v = i.value === '' ? null : Number(i.value); setTimeout(() => store.setLedger(month, venture, { [f]: v }), 0); }
   });
   el.addEventListener('submit', (e) => {
     const f = e.target; if (!f.dataset.act) return;
     e.preventDefault();
     const room = getRoom();
     if (f.dataset.act === 'order-add') { store.addOrder(room, f.text.value, Number(f.p.value)); f.reset(); }
-    else if (f.dataset.act === 'stock-add') { store.addStockLine(f.code.value, f.size.value, f.vials.value); f.reset(); }
     else if (f.dataset.act === 'list-add') { store.addItem(f.dataset.key, f.text.value); f.reset(); }
     else if (f.dataset.act === 'council-ask') {
       const q = f.q.value.trim(); if (!q) return;

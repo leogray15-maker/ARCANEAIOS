@@ -1,7 +1,7 @@
 ---
 type: orders
 created: 2026-09-16 22:00
-updated: 2026-09-18 19:20
+updated: 2026-09-19 13:30
 status: active
 agent: ARCANE
 tags: [orders]
@@ -18,7 +18,7 @@ orders, weighted by priority. An order is `open` until someone takes it,
 | # | Order | Room | Holder | Actor | Priority | State | Blocked on |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 3 | Fill Shared-Memory figures | [[BRIDGE]] | Leo | human | P1 | open | — |
-| 5 | Run supabase/migrations/0002_sync_codes.sql in the Supabase SQL editor | [[FORGE]] | Leo | human | P0 | open | — |
+| 5 | Run supabase/migrations/0002_sync_codes.sql in the Supabase SQL editor | [[FORGE]] | Leo | human | P0 | done | — |
 | 6 | Top up Anthropic API credits so HERALD, Counsel and the Council can run | [[BRIDGE]] | Leo | human | P0 | open | — |
 | 7 | Set ANTHROPIC_API_KEY in the Vercel project environment | [[FORGE]] | Leo | human | P1 | open | #6 |
 | 8 | Put SUPABASE_SERVICE_ROLE_KEY in .env so vault:sync and the brief can read the floor | [[FORGE]] | Leo | human | P1 | open | #5 |
@@ -32,6 +32,10 @@ orders, weighted by priority. An order is `open` until someone takes it,
 | 16 | Delete arcaneaios-firebase-adminsdk-fbsvc-*.json from the repo folder (untracked, gitignored, but a service account does not belong there) and rotate it in Firebase | [[THE CONTROL ROOM]] | Leo | human | P1 | open | — |
 | 17 | Run supabase/migrations/0004_operating_state.sql in the Supabase SQL editor (after 0003) — the Bridge, the War Room and every orders board write to it | [[FORGE]] | Leo | human | P0 | open | #11 |
 | 18 | Set the venture ranking in THE WAR ROOM and today's focus on the BRIDGE — the first real state the floor holds | [[THE WAR ROOM]] | Leo | human | P1 | open | #12, #17 |
+| 19 | Run supabase/migrations/0005_lab.sql in the Supabase SQL editor (after 0004) — THE LAB's tables | [[FORGE]] | Leo | human | P0 | open | #17 |
+| 20 | npm run products:import — the catalogue with the supplier costs into the database; then in THE LAB type the kit cost for the 13 lines with no supplier match, and stock in what is on the shelf | [[THE LAB]] | Leo | human | P1 | open | #8, #19 |
+| 21 | Run supabase/migrations/0006_vault.sql, 0007_sanctum.sql and 0008_trading.sql in the SQL editor (after 0005) — THE VAULT, SANCTUM and the Journal's tables | [[FORGE]] | Leo | human | P0 | open | #19 |
+| 22 | Type this month's figures in THE VAULT (members, orders, revenue, fixed costs, a cash snapshot) so the brief's MONEY block and the goals stop saying — | [[THE VAULT]] | Leo | human | P1 | open | #21 |
 
 ## Closed
 

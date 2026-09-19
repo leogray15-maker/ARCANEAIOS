@@ -15,7 +15,7 @@ import { REPO, createDb, config } from './index.js';
 import { moduleRows } from './modules-from-index.js';
 
 const FILE = path.join(REPO, 'data', 'dev-db.json');
-const PERSIST = ['knowledge_sources', 'content_drafts', 'content_revisions', 'agent_runs', 'system_events', 'orders', 'list_items', 'decisions', 'counsel_turns', 'venture_focus', 'goal_progress', 'days'];
+const PERSIST = ['knowledge_sources', 'content_drafts', 'content_revisions', 'agent_runs', 'system_events', 'orders', 'list_items', 'decisions', 'counsel_turns', 'venture_focus', 'goal_progress', 'days', 'settings', 'products', 'stock_lots', 'dispatch', 'ledger_months', 'fixed_costs', 'cash_snapshots', 'pots', 'protocol_items', 'protocol_ticks', 'entries', 'trades', 'setups', 'checkins'];
 
 export function devDb({ file = FILE } = {}) {
   let saved = {};
@@ -25,6 +25,11 @@ export function devDb({ file = FILE } = {}) {
   const modules = moduleRows();
   seed.archive_modules = modules.rows;
   if (!seed.knowledge_sources.length) seed.knowledge_sources = [{ id: 'vault', kind: 'obsidian-vault', location: modules.source, status: modules.rows.length ? 'ok' : 'idle', module_count: modules.rows.length, last_synced_at: modules.built, last_error: modules.rows.length ? '' : 'no data/archives/index.json — run npm run herald:index' }];
+  // The rows the migrations seed, so the dev database starts where Postgres would.
+  if (!seed.fixed_costs.length) seed.fixed_costs = [['stock', 'Stock & storage', 'apothecary'], ['shipping', 'Packaging & postage', 'apothecary'], ['testing', 'HPLC & COA testing', 'apothecary'], ['software', 'Software & hosting', 'forge'], ['ads', 'Ads & promotion', 'beacon'], ['personal', 'Personal fixed costs', 'sanctum']].map(([id, name, room]) => ({ id, name, room, amount_gbp: 0, active: true, note: '' }));
+  if (!seed.pots.length) seed.pots = [['tax', 'Tax set-aside', 25, 'VAT and corporation tax. Untouchable.', 'breach'], ['reinvest', 'Reinvest', 35, 'Stock, build, ads — the compounding half.', 'arcane'], ['pay', 'Pay yourself', 25, 'The reason any of this exists.', 'vital'], ['reserve', 'War chest', 15, 'Runway. Lets you say no to bad deals.', 'gold']].map(([id, name, pct, note, accent], position) => ({ id, name, pct, note, accent, position }));
+  if (!seed.protocol_items.length) seed.protocol_items = [['train', 'Train', 4, 'per week', 'week'], ['sleep', 'Sleep floor', 7.5, 'hours', 'day'], ['deep-work', 'Deep work block', 3, 'hours', 'day'], ['steps', 'Steps', 8000, 'per day', 'day'], ['read', 'Read', 20, 'pages', 'day']].map(([id, name, target, unit, cadence], position) => ({ id, name, target, unit, cadence, active: true, position }));
+  if (!seed.settings.length) seed.settings = [{ key: 'fx_gbp_per_usd', value: '0.746' }, { key: 'landed_overhead_pct', value: '0' }, { key: 'low_stock_vials', value: '12' }];
   const db = memoryDb(seed);
   let timer = null;
   const save = () => { clearTimeout(timer); timer = setTimeout(() => { try { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(Object.fromEntries(PERSIST.map((t) => [t, db.tables[t] || []])))); } catch (e) { console.error(`dev db: could not save: ${e.message}`); } }, 100); };

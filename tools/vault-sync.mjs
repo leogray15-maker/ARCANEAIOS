@@ -13,10 +13,13 @@
  *   drafts           ← content_drafts, as generated files in their status folders (hand-emitted files go up first)
  *   orders           ← orders, the two tables in 06-Orders/Orders.md (rows the vault had go up first, by number)
  *   lists, focus     ← list_items, venture_focus, days → 05-Knowledge/Lists.md, Focus.md
+ *   the Lab          ← products, stock_lots, settings, dispatch → 05-Knowledge/Lab.md
  *   decisions        ← decisions → 04-Records/Decisions/<id>.md + rows in Decision-Log.md
  *   counsel          ← counsel_turns → 04-Records/Counsel.md
- *   protocol         ← the blob → 04-Records/Protocol.md
- *   journal trades   ← the blob → 04-Records/Journal/<id>.md + Journal-Log.md
+ *   protocol         ← protocol_items, protocol_ticks → 04-Records/Protocol.md
+ *   journal trades   ← trades → 04-Records/Journal/<id>.md + Journal-Log.md
+ *   money            ← ledger_months, fixed_costs, cash_snapshots, pots → 05-Knowledge/Money.md
+ *   (SANCTUM's entries stay in the database; they are never written here)
  *
  * then writes the brief. Needs SUPABASE_SERVICE_ROLE_KEY in .env; without it, says so.
  */
@@ -26,13 +29,11 @@ import { spawnSync } from 'node:child_process';
 import { ROOMS, ROOM_BY_ID, AGENT_BY_ID } from '../packages/config/src/index.js';
 import { brainDir, REPO, parseFrontmatter, serializeFrontmatter, writeGenerated, stamp, stampDate } from './lib/brain.mjs';
 import { floorState } from './lib/state.mjs';
-import { derive, stats } from '../apps/facility/src/core/journal.js';
-import { PROTOCOL } from '../apps/facility/src/config/roomdata.js';
 
 import { loadEnv } from '../packages/database/src/index.js';
 import { openDb } from '../packages/database/src/dev.js';
 import { mirrorDrafts, importDrafts } from './lib/content-mirror.mjs';
-import { importOrders, mirrorOrders, mirrorLists, mirrorDecisions, mirrorCounsel, mirrorFocus } from './lib/state-mirror.mjs';
+import { importOrders, mirrorOrders, mirrorLists, mirrorDecisions, mirrorCounsel, mirrorFocus, mirrorLab } from './lib/state-mirror.mjs';
 
 loadEnv();
 let db;
@@ -72,32 +73,17 @@ if (draftsChanged) spawnSync('node', [path.join(REPO, 'tools', 'content-board.mj
     note('lists', await mirrorLists(db, brain, now));
     note('focus', await mirrorFocus(db, brain, now));
   } catch (e) { console.error(`  ~ orders/lists not mirrored: ${e.message}`); note('orders', 'skipped'); }
+  try { note('lab', await mirrorLab(db, brain, now)); } catch (e) { console.error(`  ~ the Lab not mirrored: ${e.message}`); note('lab', 'skipped'); }
 }
 
-/* ---------- protocol ---------- */
-if (state) {
-  const days = Object.keys(state.protocol || {}).sort().slice(-30);
-  const items = PROTOCOL.rows.map((r) => r.item);
-  const rows = days.map((d) => `| ${d} | ${items.map((it) => (state.protocol[d]?.[it] ? 'x' : '·')).join(' | ')} | ${Object.values(state.protocol[d] || {}).filter(Boolean).length} / ${items.length} |`);
-  const streak = (item) => { let n = 0; const d = new Date(now); for (;;) { const k = d.toISOString().slice(0, 10); if (!state.protocol?.[k]?.[item]) break; n++; d.setDate(d.getDate() - 1); } return n; };
-  note('protocol', writeGenerated(path.join(brain, '04-Records', 'Protocol.md'), fm({ type: 'protocol', agent: 'PULSE', tags: ['records', 'protocol'] }) + `# Protocol\n\n${PROTOCOL.source} Ticked in [[SANCTUM]]; the last ${days.length} days.\n\n| Item | Target | Streak |\n| --- | --- | --- |\n${PROTOCOL.rows.map((r) => `| ${r.item} | ${r.target} ${r.unit} | ${streak(r.item)} |`).join('\n')}\n\n| Day | ${items.join(' | ')} | Done |\n| --- | ${items.map(() => '---').join(' | ')} | --- |\n${rows.length ? rows.join('\n') : `| — | ${items.map(() => '·').join(' | ')} | — |`}\n`, W));
-}
-
-/* ---------- journal ---------- */
-if (state) {
-  const trades = state.journal?.trades || [];
-  const dir = path.join(brain, '04-Records', 'Journal');
-  for (const t of trades) {
-    const d = derive(t);
-    const body = fm({ type: 'trade', id: t.id, agent: 'TALLY', instrument: t.instrument || '', direction: t.direction || '', setup: t.setup || '', grade: t.grade || '', outcome: d.outcome, r: d.r === null ? '' : Number(d.r.toFixed(2)), pnl: d.pnl === null ? '' : Number(d.pnl.toFixed(2)), opened: t.opened || '', closed: t.closed || '', tags: ['records', 'journal', ...(t.example ? ['example'] : [])] })
-      + `# ${t.id} — ${t.instrument || '—'} ${t.direction || ''} · ${d.outcome}\n\n`
-      + `| Field | Value |\n| --- | --- |\n${[['Opened', t.opened], ['Closed', t.closed], ['Session', t.session], ['Killzone', t.killzone], ['Setup', t.setup], ['Bias', t.bias], ['Grade', t.grade], ['Conviction', t.conviction], ['Entry', t.entry], ['Stop', t.stop], ['Target', t.target], ['Exit', t.exit], ['Risk', t.risk], ['Size', t.size], ['Planned R', d.plannedR?.toFixed?.(2)], ['R', d.r?.toFixed?.(2)], ['P&L', d.pnl?.toFixed?.(2)], ['Hold (min)', d.hold], ['Plan followed', t.planFollowed ? 'yes' : 'no'], ['Rule breaks', (t.ruleBreaks || []).join(', ')], ['Emotion before', t.emotionBefore], ['Emotion after', t.emotionAfter], ['Energy', t.energy], ['Sleep', t.sleep], ['Process', t.process]].map(([k, v]) => `| ${k} | ${cell(v)} |`).join('\n')}\n\n`
-      + `## Before\n\n${cell(t.thesis || '—')}\n\n## During\n\n${cell(t.execution || '—')}${t.emotionDuring ? ` (${cell(t.emotionDuring)})` : ''}\n\n## After\n\n${cell(t.review || '—')}${t.lesson ? `\n\n**Lesson:** ${cell(t.lesson)}` : ''}${t.chart ? `\n\nChart: ${cell(t.chart)}` : ''}\n`;
-    note('trades', writeGenerated(path.join(dir, `${t.id}.md`), body, W));
-  }
-  const closed = trades.filter((t) => derive(t).r !== null), s = stats(closed);
-  const rows = [...trades].sort((a, b) => (b.opened || '').localeCompare(a.opened || '')).map((t) => { const d = derive(t); return `| [[04-Records/Journal/${t.id}\\|${t.id}]] | ${(t.opened || '').slice(0, 10)} | ${cell(t.instrument)} | ${cell(t.direction)} | ${cell(t.setup)} | ${cell(t.grade)} | ${d.outcome} | ${d.r === null ? '—' : d.r.toFixed(2)} | ${t.planFollowed ? 'yes' : 'no'} |`; });
-  note('journal-log', writeGenerated(path.join(brain, '04-Records', 'Journal-Log.md'), fm({ type: 'log', agent: 'TALLY', tags: ['records', 'journal'] }) + `# Journal Log\n\nOne row per trade from [[THE TRADING FLOOR]]; the full record is in \`Journal/\`. ${closed.length} closed · win rate ${Math.round(s.winRate * 100)}% · ${s.totalR.toFixed(1)}R · max drawdown ${s.maxDD.toFixed(1)}R.\n\n| Trade | Day | Instrument | Dir | Setup | Grade | Outcome | R | Plan |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n${rows.length ? rows.join('\n') : '| — | | | | | | | | |'}\n`, W));
+/* ---------- the protocol and the journal: from the tables (SANCTUM's entries are never mirrored) ---------- */
+{
+  try {
+    const { mirrorProtocol, mirrorJournal, mirrorMoney } = await import('./lib/state-mirror.mjs');
+    note('protocol', await mirrorProtocol(db, brain, now));
+    const j = await mirrorJournal(db, brain, now); note('trades', `${j.written} written, ${j.unchanged} unchanged`);
+    note('money', await mirrorMoney(db, brain, now));
+  } catch (e) { console.error(`  ~ protocol/journal/money not mirrored: ${e.message}`); note('protocol', 'skipped'); }
 }
 
 /* ---------- decisions and counsel: from the tables ---------- */

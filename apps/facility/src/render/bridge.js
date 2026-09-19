@@ -166,7 +166,7 @@ function paint({ keepScroll = false } = {}) {
           return `<div class="venture-card">
             <div class="vc-head"><b>${f.rank ? `${f.rank}. ` : ''}${esc(v.name)}</b> ${chip(f.allocation, ALLOC_TONE[f.allocation])} <span class="spacer"></span><a class="faint" href="#room/${v.room}">${esc(ROOM_BY_ID[v.room]?.name || '')}</a></div>
             ${f.why ? `<p class="ash">${esc(f.why)}</p>` : ''}
-            <p class="faint">${vo.length} open${vo.filter((o) => o.p === 0).length ? ` · <span class="breach">${vo.filter((o) => o.p === 0).length} P0</span>` : ''}${vo.filter((o) => o.state === 'blocked').length ? ` · <span class="flare">${vo.filter((o) => o.state === 'blocked').length} blocked</span>` : ''}${v.id === 'archives' && x?.drafts ? ` · ${num((x.drafts.draft || 0) + (x.drafts.review || 0))} drafts waiting` : ''}</p>
+            <p class="faint">${vo.length} open${vo.filter((o) => o.p === 0).length ? ` · <span class="breach">${vo.filter((o) => o.p === 0).length} P0</span>` : ''}${vo.filter((o) => o.state === 'blocked').length ? ` · <span class="flare">${vo.filter((o) => o.state === 'blocked').length} blocked</span>` : ''}${v.id === 'archives' && x?.drafts ? ` · ${num((x.drafts.draft || 0) + (x.drafts.review || 0))} drafts waiting` : ''}${v.id === 'peptides' ? (() => { const l = store.lab(); return ` · <a href="#lab">${num(l.vials)} vials · COA ${l.coaPct === null ? '—' : `${l.coaPct}%`}${l.noCoa.length ? ` · <span class="breach">${l.noCoa.length} without COA</span>` : ''} · ${l.dispatch.packing + l.dispatch.ready} to dispatch</a>`; })() : ''}</p>
             ${top ? `<p class="ash">${chip(PRIO[top.p], PRIO_TONE[top.p])} ${esc(top.t)}</p>` : ''}
           </div>`; }).join('')}
 

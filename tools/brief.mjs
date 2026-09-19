@@ -71,23 +71,27 @@ const ventures = VENTURES.map((v) => {
   const moved = mentions.length ? mentions[mentions.length - 1].text : (v.id === 'archives' && vault.drafts.length ? `${vault.drafts.length} drafts in the pipeline` : '—');
   const stuck = live.find((o) => o.room === v.room && o.p <= 1);
   const l = s.ledger?.[v.id];
-  const number = l?.calibrated ? (v.price ? `${l.units} ${v.unitLabel} · ${money(ventureRevenue(s, v))} / mo` : `${money(l.mrr)} / mo`) : `— ${v.unitLabel}`;
+  const mv = M?.ventures.find((x) => x.id === v.id);
+  let number = mv && mv.revenue !== null ? `${mv.units !== null ? `${mv.units} ${v.unitLabel} · ` : ''}${money(mv.revenue)} / mo` : l?.calibrated ? (v.price ? `${l.units} ${v.unitLabel} · ${money(ventureRevenue(s, v))} / mo` : `${money(l.mrr)} / mo`) : `— ${v.unitLabel}`;
+  if (v.id === 'peptides' && agg?.lab) number = `${agg.lab.vials} vials in ${agg.lab.live} lines · COA ${agg.lab.coaPct === null ? '—' : `${agg.lab.coaPct}%`} · stock ${money(agg.lab.valueCost)} at cost · ${agg.lab.dispatch.packing + agg.lab.dispatch.ready} to dispatch${l?.calibrated ? ` · ${number}` : ''}`;
   const f = focusOf(v.id);
   return `| ${v.name} | ${f ? `${f.rank || '—'} · ${f.allocation}${f.why ? ` — ${cell(f.why)}` : ''}` : '—'} | ${cell(moved)} | ${stuck ? cell(`${stuck.text}${stuck.ts ? ` (${Math.floor((now - stuck.ts) / DAY)}d)` : ''}`) : '—'} | ${number} |`;
 });
 
-/* ---------- MONEY ---------- */
-const cash = Number(s.budget?.cash) || 0;
-const rev = monthlyRevenue(s, VENTURES), fixed = monthlyFixed(s);
-const split = Object.entries(s.budget?.split || {}).map(([, p]) => p).join(' / ') || '—';
-const runway = runwayMonths(s, VENTURES);
-const moneyRow = `| ${cash ? money(cash) : '—'} | ${rev ? money(rev) : '—'} | ${fixed ? money(fixed) : '—'} | ${split} | ${cash ? (runway === Infinity ? 'covered' : `${runway.toFixed(1)} months`) : '—'} |`;
+/* ---------- MONEY: the Vault's tables when they answer, else the old blob ---------- */
+const M = agg?.money || null;
+const cash = M ? (M.cash?.cash ?? 0) : Number(s.budget?.cash) || 0;
+const rev = M ? (M.revenue ?? 0) : monthlyRevenue(s, VENTURES), fixed = M ? M.fixed : monthlyFixed(s);
+const split = M ? M.pots.map((p) => p.pct).join(' / ') : Object.entries(s.budget?.split || {}).map(([, p]) => p).join(' / ') || '—';
+const runway = M ? (M.runway === null ? Infinity : M.runway) : runwayMonths(s, VENTURES);
+const moneyRow = `| ${cash ? `${money(cash)}${M?.cash ? ` (${M.cash.day})` : ''}` : '—'} | ${rev ? money(rev) : '—'} | ${fixed ? money(fixed) : '—'} | ${split} | ${cash ? (runway === Infinity ? 'covered' : `${runway.toFixed(1)} months`) : '—'} |`;
 
 /* ---------- GOALS ---------- */
 const liveStock = (s.stock || []).filter((r) => r.vials > 0);
-const coaPct = liveStock.length ? Math.round(liveStock.filter((r) => r.coa === 'published').length / liveStock.length * 100) : null;
+const coaPct = agg?.lab ? agg.lab.coaPct : liveStock.length ? Math.round(liveStock.filter((r) => r.coa === 'published').length / liveStock.length * 100) : null;
 const draftStatus = (d) => s.drafts?.[d.id]?.status || d.status;
-const goalValue = (g) => g.id === 'g-coa' ? coaPct : g.id === 'g-mrr' ? rev : g.id === 'g-posts' ? vault.drafts.filter((d) => draftStatus(d) === 'posted').length : (s.goals?.[g.id]?.progress ?? null);
+const typed = Object.fromEntries((agg?.goals || []).map((g) => [g.goal_id, Number(g.value)]));
+const goalValue = (g) => g.id === 'g-coa' ? coaPct : g.id === 'g-mrr' ? rev : g.id === 'g-posts' ? vault.drafts.filter((d) => draftStatus(d) === 'posted').length : g.id === 'g-members' && M ? (M.ventures.find((x) => x.id === 'archives')?.units ?? typed[g.id] ?? null) : g.id === 'g-track' && M ? (M.ventures.find((x) => x.id === 'track')?.units ?? typed[g.id] ?? null) : (typed[g.id] ?? s.goals?.[g.id]?.progress ?? null);
 const goals = vault.goals.map((g) => {
   const v = goalValue(g);
   const shown = v === null || v === undefined ? (g.progress || '—') : g.id === 'g-mrr' ? money(v) : /%/.test(g.target) ? `${v}%` : String(v);

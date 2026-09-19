@@ -6,16 +6,14 @@
  * the vault knows). Controls carry `data-act` attributes; panel.js routes
  * the clicks and inputs back to the store. Nothing here mutates.
  */
-import { VENTURES, AGENTS, CAPS, GRADES, ROOM_BY_ID } from '@arcane/config';
-import { INVENTORY, DISPATCH, COHORTS, BUILD_QUEUE, FUNNEL, MANUSCRIPTS, PROTOCOL, BUDGET, DOCTRINE_FALLBACK } from '../config/roomdata.js';
+import { VENTURES, AGENTS, ROOM_BY_ID } from '@arcane/config';
+import { monthOf, monthLabel } from '../core/money.js';
 import { signals } from '../core/vigil.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const gbp = (n) => (Number.isFinite(n) ? `£${Math.round(n).toLocaleString('en-GB')}` : '—');
 const src = (text) => `<p class="src">${esc(text)}</p>`;
 const chip = (text, tone = '') => `<span class="chip ${tone}">${esc(text)}</span>`;
-const bar = (pct, tone = 'arcane') => `<span class="bar"><span class="bar-fill ${tone}" style="width:${Math.max(0, Math.min(100, pct))}%"></span></span>`;
-const num = (act, id, field, value, w = 60) => `<input class="num" type="number" min="0" data-act="${act}" data-id="${esc(id)}" data-field="${esc(field)}" value="${esc(value)}" style="width:${w}px">`;
 const table = (head, rows) => `<table class="grid"><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
 /** An editable list with optional tags: the smallest useful board. */
 function listBoard(store, key, { placeholder, tags = [], toneOf = () => 'ash', hint = '' } = {}) {
@@ -26,61 +24,34 @@ function listBoard(store, key, { placeholder, tags = [], toneOf = () => 'ash', h
 
 const stageTone = { live: 'vital', shipped: 'vital', building: 'flare', packing: 'flare', ready: 'cyan', proofing: 'cyan', queued: 'arcane', draft: 'flare', drafting: 'flare', idea: 'ash', idle: 'ash' };
 
-/* ---------------- THE LAB ---------------- */
-function lab(store) {
-  const rows = store.stock().map((r) => `<tr>
-    <td><span class="dot" style="background:${r.tint === 'blue' ? '#4f8bff' : r.tint === 'amber' ? '#e8b64c' : '#bfe8ff'}"></span>${esc(r.code)}</td>
-    <td class="ash">${esc(r.size)}</td>
-    <td><button class="tiny" data-act="stock-adj" data-id="${r.id}" data-delta="-1">−</button> <b>${r.vials}</b> <button class="tiny" data-act="stock-adj" data-id="${r.id}" data-delta="1">+</button></td>
-    <td class="ash">${esc(r.batch)}</td>
-    <td><button class="chip ${r.coa === 'published' ? 'vital' : r.coa === 'pending' ? 'flare' : 'deny'}" data-act="coa" data-id="${r.id}">${esc(r.coa)}</button></td>
-  </tr>`);
-  const low = store.lowStock();
-  return `
-    <div class="stat-row"><div class="stat"><b>${store.totalVials()}</b><span>vials</span></div><div class="stat"><b>${store.coaPct()}%</b><span>COA published</span></div><div class="stat"><b>${low.length}</b><span>low lines</span></div></div>
-    ${table(['Compound', 'Size', 'Vials', 'Batch', 'COA'], rows)}
-    <form class="inline" data-act="stock-add"><input name="code" placeholder="Compound" style="width:90px"><input name="size" placeholder="Size" style="width:50px"><input name="vials" type="number" placeholder="Vials" style="width:56px"><button type="submit">Add line</button></form>
-    ${src(INVENTORY.source)}
-    <h3>Dispatch</h3>
-    ${table(['Ref', 'Items', 'Stage'], DISPATCH.rows.map((r) => `<tr><td>${esc(r.ref)}</td><td>${esc(r.items)}</td><td>${chip(r.stage, stageTone[r.stage])}</td></tr>`))}
-    <p class="ash">${esc(DISPATCH.note)}</p>`;
-}
-
-/* ---------------- THE VAULT ---------------- */
-function vault(store) {
-  const rev = store.monthlyRevenue(), fixed = store.monthlyFixed(), runway = store.runwayMonths();
-  const ventures = VENTURES.map((v) => { const l = store.ledger(v.id); return `<tr><td>${esc(v.name)}</td><td>${v.price ? `${num('ledger', v.id, 'units', l.units, 56)} <span class="ash">${esc(v.unitLabel)} × £${v.price}</span>` : `${num('ledger', v.id, 'mrr', l.mrr, 70)} <span class="ash">£ / mo</span>`}</td><td><b>${gbp(store.ventureRevenue(v))}</b></td></tr>`; });
-  const fixedRows = BUDGET.fixed.map((f) => `<tr><td>${esc(f.name)}</td><td>${num('fixed', f.id, 'amount', store.state.budget.fixed[f.id] ?? f.amount, 70)}</td></tr>`);
-  const split = store.allocations().map((a) => `<tr><td><span class="dot" style="background:var(--${a.accent})"></span>${esc(a.name)}</td><td>${num('split', a.id, 'pct', a.pct, 44)}%</td><td><b>${gbp(a.amount)}</b></td><td class="ash">${esc(a.note)}</td></tr>`);
-  return `
-    <div class="stat-row"><div class="stat"><b>${gbp(rev)}</b><span>revenue / mo</span></div><div class="stat"><b>${gbp(fixed)}</b><span>fixed / mo</span></div><div class="stat ${store.monthlyNet() < 0 ? 'breach' : 'vital'}"><b>${gbp(store.monthlyNet())}</b><span>net</span></div><div class="stat"><b>${runway === Infinity ? '∞' : runway.toFixed(1)}</b><span>runway (mo)</span></div></div>
-    <p>Cash on hand ${num('cash', 'cash', 'cash', store.state.budget.cash, 90)}</p>
-    <h3>Revenue by venture</h3>${table(['Venture', 'Figure', 'Month'], ventures)}
-    <h3>Fixed costs</h3>${table(['Line', '£ / mo'], fixedRows)}
-    <h3>The split — ${store.splitTotal()}%${store.splitTotal() !== 100 ? ' <span class="breach">(not 100)</span>' : ''}</h3>${table(['Pot', '%', 'This month', ''], split)}
-    ${src(BUDGET.source)}
-    <h3>Trading Journal</h3><p><button class="primary" data-act="open-journal">Open the Journal</button> <span class="ash">Trades, R-multiples, setups, psychology. Spec in <code>brain/05-Knowledge/Trading-Journal.md</code>.</span></p>`;
-}
-
-/* ---------------- THE MARKET ---------------- */
-function market(store) {
-  const f = store.state.funnel;
-  const pct = (a, b) => (b ? `${Math.round(a / b * 100)}%` : '—');
-  return `
-    <div class="stat-row"><div class="stat"><b>${f.visitors}</b><span>visitors</span></div><div class="stat"><b>${f.leads}</b><span>leads · ${pct(f.leads, f.visitors)}</span></div><div class="stat"><b>${f.orders}</b><span>orders · ${pct(f.orders, f.leads)}</span></div><div class="stat"><b>${gbp(f.orders * f.aov)}</b><span>revenue</span></div></div>
-    <p>Visitors ${num('funnel', 'visitors', 'visitors', f.visitors)} Leads ${num('funnel', 'leads', 'leads', f.leads)} Orders ${num('funnel', 'orders', 'orders', f.orders)} AOV £${num('funnel', 'aov', 'aov', f.aov)}</p>
-    ${src(FUNNEL.source)}
-    <h3>Order board</h3>${table(['Ref', 'Items', 'Stage'], DISPATCH.rows.map((r) => `<tr><td>${esc(r.ref)}</td><td>${esc(r.items)}</td><td>${chip(r.stage, stageTone[r.stage])}</td></tr>`))}`;
-}
-
-/* ---------------- the rest ---------------- */
-const forge = () => `${table(['Item', 'Target', 'Stage'], BUILD_QUEUE.rows.map((r) => `<tr><td>${esc(r.item)}</td><td class="ash">${esc(r.target)}</td><td>${chip(r.stage, stageTone[r.stage])}</td></tr>`))}${src(BUILD_QUEUE.source)}`;
-const vitals = () => `${table(['Cohort', 'Count', ''], COHORTS.rows.map((r) => `<tr><td>${esc(r.label)}</td><td><b>${r.count}</b></td><td class="ash">${esc(r.note)}</td></tr>`))}${src(COHORTS.source)}`;
-const scriptorium = () => `${table(['Title', 'Stage', 'Progress', 'Price'], MANUSCRIPTS.rows.map((r) => `<tr><td>${esc(r.title)}</td><td>${chip(r.stage, stageTone[r.stage])}</td><td>${bar(r.pct, 'breach')}</td><td class="ash">${r.price ? `£${r.price}` : '—'}</td></tr>`))}${src(MANUSCRIPTS.source)}`;
-const records = (store, brain) => `
-  <h3>Trace</h3>${brain?.trace?.length ? brain.trace.slice().reverse().map((t) => `<div class="card"><div class="card-head">${chip(t.agent, 'arcane')} <span class="ash">${esc(t.day)} ${esc(t.time)} · ${esc(t.run)}</span></div><p>${esc(t.action)}</p><p class="ash">${esc(t.inputs)}</p><p class="ash">${esc(t.result)}${t.notes && t.notes !== '—' ? ` · ${esc(t.notes)}` : ''}</p></div>`).join('') : '<p class="empty">No runs traced yet.</p>'}
-  <h3>Trading Journal</h3><p><button data-act="open-journal">Open the Journal</button> <span class="ash">the trade record lives beside the trace</span></p>
-  <h3>Floor log</h3>${store.records(12).map((r) => `<p class="ash"><span class="faint">${new Date(r.ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span> ${esc(r.text)}</p>`).join('') || '<p class="empty">Nothing yet this session.</p>'}`;
+/* ---------------- the rooms that read the tables through a widget ---------------- */
+const ledgerCell = (store, month, venture, field, value, w = 70) => `<input class="num" type="number" min="0" data-act="ledger" data-month="${month}" data-id="${venture}" data-field="${field}" value="${esc(value ?? '')}" placeholder="—" style="width:${w}px" ${store.server.ready ? '' : 'disabled'}>`;
+const market = (store) => {
+  const month = monthOf(); const p = store.money(month).ventures.find((v) => v.id === 'peptides'); const r = store.ledgerRow(month, 'peptides') || {};
+  const pct = (a, b) => (a && b ? `${Math.round(a / b * 100)}%` : '—');
+  return `<h3>${esc(monthLabel(month))} <span class="faint">the funnel, typed monthly — the ledger row for Arcane Peptides</span></h3>
+    <div class="stat-row"><div class="stat"><b>${r.visitors ?? '—'}</b><span>visitors</span></div><div class="stat"><b>${r.leads ?? '—'}</b><span>leads · ${pct(r.leads, r.visitors)}</span></div><div class="stat"><b>${r.orders ?? '—'}</b><span>orders · ${pct(r.orders, r.leads)}</span></div><div class="stat"><b>${p?.revenue === null || p?.revenue === undefined ? '—' : gbp(p.revenue)}</b><span>revenue</span></div></div>
+    <p>Visitors ${ledgerCell(store, month, 'peptides', 'visitors', r.visitors)} Leads ${ledgerCell(store, month, 'peptides', 'leads', r.leads)} Orders ${ledgerCell(store, month, 'peptides', 'orders', r.orders)} Revenue £${ledgerCell(store, month, 'peptides', 'revenue_gbp', r.revenue_gbp, 90)}</p>
+    ${src('The same row THE VAULT shows for this month. Earlier months are in the Vault\'s history.')}
+    <h3>Dispatch <span class="faint">from THE LAB</span></h3>${store.dispatchQueue().length ? table(['Ref', 'Items', 'Stage'], store.dispatchQueue().map((d) => `<tr><td>${esc(d.ref)}</td><td>${esc(d.items)}</td><td>${chip(d.stage, stageTone[d.stage])}</td></tr>`)) : '<p class="empty">Nothing packing or ready.</p>'}
+    <p><a class="button-link" href="#lab/dispatch">Open the queue in THE LAB →</a></p>`;
+};
+const vitals = (store) => {
+  const month = monthOf(); const r = store.ledgerRow(month, 'track') || {}; const prev = store.moneyHistory(6).filter((h) => h.month !== month);
+  const v = VENTURES.find((x) => x.id === 'track');
+  return `<h3>${esc(monthLabel(month))}</h3>
+    <div class="stat-row"><div class="stat"><b>${r.units ?? '—'}</b><span>members</span></div><div class="stat"><b>${r.units === null || r.units === undefined ? '—' : gbp(r.units * v.price)}</b><span>at £${v.price} / mo</span></div><div class="stat"><b>${r.visitors ?? '—'}</b><span>visitors</span></div><div class="stat"><b>${r.leads ?? '—'}</b><span>sign-ups</span></div></div>
+    <p>Members ${ledgerCell(store, month, 'track', 'units', r.units)} Visitors ${ledgerCell(store, month, 'track', 'visitors', r.visitors)} Sign-ups ${ledgerCell(store, month, 'track', 'leads', r.leads)}</p>
+    ${prev.length ? `<h3>Before</h3>${table(['Month', 'Members', 'Revenue'], prev.map((h) => { const row = store.ledgerRow(h.month, 'track'); return `<tr><td>${esc(monthLabel(h.month))}</td><td>${row?.units ?? '—'}</td><td>${h.byVenture.track === null ? '—' : gbp(h.byVenture.track)}</td></tr>`; }))}` : ''}
+    ${src('Arcane Track has no integration yet; the member count is typed monthly here and read by THE VAULT and the goals. Health data from the app never comes here.')}`;
+};
+const forge = (store) => {
+  const open = store.openOrders('forge'); const done = store.orders('forge').filter((o) => o.done).slice(0, 8);
+  const by = (st) => open.filter((o) => (o.state || 'open') === st);
+  return `<div class="stat-row"><div class="stat"><b>${open.length}</b><span>open</span></div><div class="stat ${by('blocked').length ? 'breach' : ''}"><b>${by('blocked').length}</b><span>blocked</span></div><div class="stat"><b>${by('active').length}</b><span>active</span></div><div class="stat"><b>${done.length}</b><span>done lately</span></div></div>
+    ${src('The build queue is this room\'s orders board (right). Migrations, keys, deploys and repairs live there; the Bridge shows every P0 and P1 of them.')}`;
+};
+const scriptorium = (store) => `<h3>Manuscripts</h3>${listBoard(store, 'manuscripts', { placeholder: 'A title — book, masterclass, long piece', tags: ['idea', 'drafting', 'proofing', 'live'], toneOf: (t) => (t === 'live' ? 'vital' : t === 'proofing' ? 'cyan' : t === 'drafting' ? 'flare' : 'ash'), hint: 'The Codex\'s titles and where each one is. Sales are typed monthly in THE VAULT as the Codex\'s units.' })}`;
 const council = (store, brain) => {
   const tone = (v) => (v === 'BUILD' ? 'vital' : v === 'KILL' ? 'deny' : v === 'DELAY' ? 'flare' : 'cyan');
   const cards = store.decisions().map((d) => `<div class="card">
@@ -97,7 +68,6 @@ const council = (store, brain) => {
     ${cards || (brain?.decisions?.length ? '' : '<p class="empty">No decisions recorded yet.</p>')}
     ${brain?.decisions?.length ? `<h3>From the vault</h3>${table(['Date', 'Decision', 'Verdict', 'Via', 'Outcome'], brain.decisions.map((d) => `<tr><td class="ash">${esc(d.date)}</td><td>${esc(d.decision)}</td><td>${chip(d.verdict, tone(d.verdict))}</td><td class="ash">${esc(d.deliberation)}</td><td class="ash">${esc(d.outcome_later)}</td></tr>`))}` : ''}`;
 };
-const control = () => `${table(['Agent', ...CAPS.map((c) => c.name)], AGENTS.map((a) => `<tr><td><span class="dot" style="background:${a.colour}"></span>${esc(a.name)}</td>${CAPS.map((c) => `<td>${chip(a.caps[c.id], a.caps[c.id])}</td>`).join('')}</tr>`))}<p class="ash">Grades: ${GRADES.join(' · ')}. No agent holds allow; spend is deny for everyone. Enforced by npm run check.</p>`;
 const garage = () => AGENTS.map((a) => `<div class="card"><div class="card-head"><span class="dot" style="background:${a.colour}"></span><b>${esc(a.name)}</b> <span class="ash">${esc(a.role)} · ${esc(a.call)} · ${esc(ROOM_BY_ID[a.room].name)}</span>${a.council ? chip('council', 'gold') : ''}</div><p class="ash">${esc(a.brief)}</p></div>`).join('');
 const observatory = (store, brain) => {
   const live = signals(store.state, brain);
@@ -113,14 +83,9 @@ const intel = (store, brain) => `<h3>Watchlist</h3>${listBoard(store, 'watch', {
 const dealroom = (store) => `<h3>Pipeline</h3>${listBoard(store, 'pipeline', { placeholder: 'Company · contact · what for', tags: ['lead', 'contacted', 'meeting', 'proposal', 'won', 'lost'], toneOf: (t) => (t === 'won' ? 'vital' : t === 'lost' ? 'deny' : t === 'meeting' || t === 'proposal' ? 'flare' : 'cyan'), hint: 'The CRM is not wired. ENVOY researches a company, drafts the outreach and prepares the meeting brief. Sends nothing without your word.' })}`;
 const lounge = (store) => { const mins = Math.round((Date.now() - (store.sessionStart || Date.now())) / 60000); return `<div class="stat-row"><div class="stat ${mins > 90 ? 'breach' : ''}"><b>${mins}</b><span>minutes in the building</span></div></div>
   <h3>Stop doing</h3>${listBoard(store, 'stop', { placeholder: 'A thing to stop doing', hint: 'EMBER is the only agent whose job is to tell you to leave. Past ninety minutes the counter turns red.' })}`; };
-const sanctum = (store) => {
-  const today = new Date().toISOString().slice(0, 10); const d = store.protocolDay(today);
-  return `<h3>Today — ${today}</h3>${table(['Protocol', 'Target', 'Done', 'Streak'], PROTOCOL.rows.map((r) => `<tr><td>${esc(r.item)}</td><td class="ash">${r.target} ${esc(r.unit)}</td><td><input type="checkbox" data-act="protocol" data-day="${today}" data-item="${esc(r.item)}" ${d[r.item] ? 'checked' : ''}></td><td class="ash">${store.protocolStreak(r.item)} day${store.protocolStreak(r.item) === 1 ? '' : 's'}</td></tr>`))}${src(PROTOCOL.source)}
-  <p class="ash">Energy and sleep logged here feed the Trading Journal's Energy vs R view.</p>`;
-};
-
-// BRIDGE, THE WAR ROOM, BEACON and THE LIBRARY are full applications (render/bridge.js, warroom.js, beacon.js, library.js); their rooms open those instead of a dashboard.
+// BRIDGE, THE WAR ROOM, THE VAULT, THE LAB, SANCTUM, THE RECORDS, THE CONTROL ROOM, BEACON and THE LIBRARY are full
+// applications (render/*.js); their rooms open those instead of a dashboard. The rest are dashboards with a widget.
 export const WIDGETS = {
-  apothecary: lab, vault, market, forge, vitals, scriptorium, sanctum,
-  records, council, control, garage, observatory, inventor, intel, dealroom, lounge,
+  market, forge, vitals, scriptorium,
+  council, garage, observatory, inventor, intel, dealroom, lounge,
 };

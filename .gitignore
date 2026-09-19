@@ -29,3 +29,6 @@ data/herald-auto.log
 brain/.obsidian/workspace*.json
 brain/.obsidian/cache
 data/dev-db.json
+
+# Arcane Peptides: the catalogue seed with supplier cost prices — local, imported into the database by tools/products-import.mjs
+data/peptides/

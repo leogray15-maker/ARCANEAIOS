@@ -19,19 +19,19 @@
  * the server rows take over once they load.
  */
 import { VENTURES, ROOMS, ROOM_BY_ID, GOALS_FALLBACK } from './seeds.js';
-import { INVENTORY, BUDGET, FUNNEL, COA_STATES } from '../config/roomdata.js';
+import { stockLines, labSummary, settingsOf, stockOf } from './lab.js';
+import { moneySummary, monthOf, ventureRow, history as moneyHistory } from './money.js';
 import { cloud } from './cloud.js';
 import { sync } from './sync.js';
 import { api } from './api.js';
 import { operator } from './operator.js';
-import { SEED_SETUPS } from './journal.js';
 
 const LS_KEY = 'arcane.v3';
 const LOG_MAX = 80;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
 /** The parts of the state that live on the server; never written into the blob. */
-const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days'];
+const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal'];
 const OPEN_STATES = ['open', 'active', 'blocked', 'review'];
 const ts = (iso) => (iso ? new Date(iso).getTime() : 0);
 
@@ -49,15 +49,9 @@ function seedState(brain) {
     const blocked = waiting.length ? `#${waiting.join(', #')}` : deps.length ? '' : o.blocked || '';
     orders[room].push({ id: `brain-${o.n}`, brain_n: o.n, t: o.order, p: PRIORITY[o.priority] ?? 2, done: isDone, state: isDone ? 'done' : blocked ? 'blocked' : 'open', holder: o.holder, actor: o.actor, blocked, ts: 0, fromBrain: true });
   }
-  const ledger = {};
-  for (const v of VENTURES) ledger[v.id] = { mrr: 0, units: 0, calibrated: false };
   const goals = {};
   for (const g of brain?.goals?.length ? brain.goals : GOALS_FALLBACK) goals[g.id] = { progress: Number(String(g.progress).replace(/[^\d.]/g, '')) || 0 };
-  const budget = { cash: 0, fixed: {}, split: {} };
-  for (const f of BUDGET.fixed) budget.fixed[f.id] = f.amount;
-  for (const sp of BUDGET.split) budget.split[sp.id] = sp.pct;
-  const stock = INVENTORY.rows.map((r) => ({ id: uid(), ...r }));
-  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, ledger, goals, budget, stock, funnel: { ...FUNNEL.seed }, drafts: {}, positions: {}, log: [], lists: {}, protocol: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, journal: { trades: [], setups: SEED_SETUPS.map((x) => ({ ...x })), checkins: [] } };
+  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] } };
 }
 
 export class Store {
@@ -125,21 +119,20 @@ export class Store {
     }
     for (const r of ROOMS) if (!s.orders[r.id]) s.orders[r.id] = [];
     s.goals = { ...fresh.goals, ...(saved.goals || {}) };
-    s.ledger = { ...fresh.ledger, ...(saved.ledger || {}) };
-    s.budget = { cash: saved.budget?.cash ?? 0, fixed: { ...fresh.budget.fixed, ...(saved.budget?.fixed || {}) }, split: { ...fresh.budget.split, ...(saved.budget?.split || {}) } };
-    s.stock = saved.stock?.length ? saved.stock : fresh.stock;
-    s.funnel = { ...fresh.funnel, ...(saved.funnel || {}) };
+    // The blob's old shapes — stock, ledger, budget, funnel, protocol — are on tables now and are left behind.
+    for (const k of ['stock', 'budget', 'funnel', 'protocol']) delete s[k];
     s.drafts = saved.drafts || {};
     s.positions = saved.positions || {};
     s.log = (saved.log || []).slice(-LOG_MAX);
-    s.lists = saved.lists || {};
-    s.protocol = saved.protocol || {};
-    s.counsel = (saved.counsel || []).slice(-40);
-    s.decisions = saved.decisions || [];
+    // The cache of the server's tables, in the shapes the floor draws.
+    s.lists = saved.lists || {}; s.counsel = (saved.counsel || []).slice(-40); s.decisions = saved.decisions || [];
     s.focus = saved.focus || {}; s.goalProgress = saved.goalProgress || {}; s.days = saved.days || {};
+    s.products = saved.products || []; s.lots = saved.lots || []; s.dispatch = saved.dispatch || []; s.settings = saved.settings || [];
+    s.ledger = Array.isArray(saved.ledger) ? saved.ledger : []; s.fixedCosts = saved.fixedCosts || []; s.cash = saved.cash || []; s.pots = saved.pots || [];
+    s.protocolItems = saved.protocolItems || []; s.protocolTicks = saved.protocolTicks || []; s.entries = saved.entries || [];
+    s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups || [], checkins: saved.journal?.checkins || [] };
     // Once the server has answered, its rows are the truth for its keys; a blob or cache never overwrites them.
     if (this.server?.ready) for (const k of SERVER_KEYS) s[k] = fresh[k];
-    s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups?.length ? saved.journal.setups : fresh.journal.setups, checkins: saved.journal?.checkins || [] };
     this.state = s;
   }
   save() {
@@ -197,6 +190,10 @@ export class Store {
     s.focus = Object.fromEntries((t.venture_focus || []).map((f) => [f.venture, { rank: f.rank, allocation: f.allocation, why: f.why, ts: ts(f.updated_at) }]));
     s.goalProgress = Object.fromEntries((t.goal_progress || []).map((g) => [g.goal_id, { value: Number(g.value), note: g.note, ts: ts(g.updated_at) }]));
     s.days = Object.fromEntries((t.days || []).map((d) => [d.day, { focus: d.focus, note: d.note, energy: d.energy, sleep: d.sleep }]));
+    s.products = t.products || []; s.lots = t.stock_lots || []; s.dispatch = t.dispatch || []; s.settings = t.settings || [];
+    s.ledger = t.ledger_months || []; s.fixedCosts = t.fixed_costs || []; s.cash = t.cash_snapshots || []; s.pots = t.pots || [];
+    s.protocolItems = t.protocol_items || []; s.protocolTicks = t.protocol_ticks || []; s.entries = t.entries || [];
+    s.journal = { trades: (t.trades || []).map(fromTradeRow), setups: t.setups || [], checkins: (t.checkins || []).map((c) => ({ ...c, ts: ts(c.created_at) })) };
     this.save();
   }
   /** The first time the server answers empty, what this device kept in its blob goes up once, so nothing typed before the tables existed is lost. */
@@ -211,6 +208,7 @@ export class Store {
     if (!(t.list_items || []).length) for (const [list, items] of Object.entries(local.lists || {})) for (const i of items) if (['moves', 'stop', 'watch', 'pipeline', 'ideas'].includes(list)) jobs.push(api.state.insert('list_items', { list, text: i.text, tag: i.tag || '' }));
     if (!(t.decisions || []).length) for (const d of local.decisions || []) jobs.push(api.state.insert('decisions', { question: d.question, verdict: d.verdict || 'WATCH', summary: d.summary || '', conditions: d.conditions || [], dissent: d.dissent || '', positions: d.positions || [], outcome: d.outcome || '' }));
     if (!(t.counsel_turns || []).length) for (const c of local.counsel || []) jobs.push(api.state.insert('counsel_turns', { who: c.who, text: c.text, specialist: c.specialist || '', proposal: c.order || null }));
+    if (!(t.trades || []).length) for (const tr of local.journal?.trades || []) if (/^T-\d{8}-\d{2,3}$/.test(tr.id)) jobs.push(api.state.insert('trades', toTradeRow(tr)));
     try { await Promise.all(jobs); if (jobs.length) { this.log(`Imported ${jobs.length} items from this device into the server`, 'system'); this.applyServer(await api.state.all()); } localStorage.setItem(flag, '1'); }
     catch (e) { this.server.error = `import of this device's state failed: ${e.message}`; }
   }
@@ -271,28 +269,87 @@ export class Store {
   /** Orders are never deleted; this is `killed`. Kept under the old name for the boards. */
   removeOrder(roomId, id) { return this.setOrderState(roomId, id, 'killed'); }
 
-  /* ---------- stock ---------- */
-  stock() { return this.state.stock; }
-  lowStock() { return this.stock().filter((r) => r.vials > 0 && r.vials < 12); }
-  totalVials() { return this.stock().reduce((n, r) => n + (Number(r.vials) || 0), 0); }
-  setStock(id, field, value) { const r = this.stock().find((x) => x.id === id); if (!r) return; r[field] = field === 'vials' ? Math.max(0, Number(value) || 0) : value; this.touch(); }
-  adjustStock(id, delta) { const r = this.stock().find((x) => x.id === id); if (!r) return; r.vials = Math.max(0, (Number(r.vials) || 0) + delta); this.touch(); }
-  cycleCoa(id) { const r = this.stock().find((x) => x.id === id); if (!r) return; r.coa = COA_STATES[(COA_STATES.indexOf(r.coa) + 1) % COA_STATES.length]; this.log(`COA ${r.code}: ${r.coa}`, 'lab'); this.touch(); }
-  addStockLine(code, size, vials) { const c = String(code).trim(); if (!c) return; this.state.stock.push({ id: uid(), code: c, size: size || '—', vials: Number(vials) || 0, batch: '—', coa: 'none', tint: /ghk/i.test(c) ? 'blue' : /ss-31|nad|cerebro/i.test(c) ? 'amber' : 'clear' }); this.touch(); }
-  removeStockLine(id) { this.state.stock = this.stock().filter((x) => x.id !== id); this.touch(); }
-  coaPct() { const s = this.stock().filter((r) => r.vials > 0); return s.length ? Math.round(s.filter((r) => r.coa === 'published').length / s.length * 100) : 0; }
+  /* ---------- THE LAB: products, lots, dispatch, settings ---------- */
+  labSettings() { return settingsOf(this.state.settings); }
+  setting(key) { return this.labSettings()[key]; }
+  setSetting(key, value) {
+    const v = String(value).trim();
+    return this.commit(() => { const cur = this.state.settings.find((r) => r.key === key); if (cur) cur.value = v; else this.state.settings.push({ key, value: v }); }, () => api.state.insert('settings', { key, value: v }), 'setting');
+  }
+  products() { return this.state.products; }
+  product(id) { return this.state.products.find((p) => p.id === id); }
+  /** One line per active product: vials, COA, cost, price, margin. What the Lab lists and VIGIL reads. */
+  stock() { return stockLines(this.state.products, this.state.lots, this.labSettings()); }
+  lab() { return labSummary(this.state.products, this.state.lots, this.state.settings, this.state.dispatch); }
+  lowStock() { return this.stock().filter((l) => l.low); }
+  totalVials() { return this.stock().reduce((n, l) => n + l.vials, 0); }
+  coaPct() { return this.lab().coaPct ?? 0; }
+  lots(productId) { return stockOf(productId, this.state.lots).lots; }
+  setProduct(id, patch) {
+    const cur = this.product(id);
+    const next = { ...(cur || { id, name: patch.name || id, size: '', category: '', listed: true, sell_gbp: null, supplier_id: 'jx', supplier_code: '', supplier_section: '', kit_cost_usd: null, kit_vials: 10, active: true, note: '' }), ...patch };
+    return this.commit(
+      () => { const i = this.state.products.findIndex((p) => p.id === id); if (i >= 0) this.state.products[i] = next; else this.state.products.push(next); this.log(`${cur ? 'Product' : 'New product'}: ${next.name} ${next.size}`, 'lab'); },
+      () => api.state.insert('products', next),
+      'product');
+  }
+  addLot(productId, { batch = '', vials = 0, coa = 'none', coa_url = '', cost_usd = null, received = null, note = '' } = {}) {
+    const local = { id: `tmp-${uid()}`, product_id: productId, batch, vials: Number(vials) || 0, coa, coa_url, cost_usd, received, note, created_at: new Date().toISOString() };
+    return this.commit(
+      () => { this.state.lots.unshift(local); this.log(`Stock in: ${this.product(productId)?.name || productId} × ${local.vials}`, 'lab'); },
+      async () => { const { row } = await api.state.insert('stock_lots', { product_id: productId, batch, vials: local.vials, coa, coa_url, cost_usd, received, note }); Object.assign(local, row); return local; },
+      'stock');
+  }
+  adjustLot(id, delta) {
+    const l = this.state.lots.find((x) => x.id === id); if (!l) return null;
+    const vials = Math.max(0, (Number(l.vials) || 0) + delta);
+    return this.commit(() => { l.vials = vials; }, () => api.state.update('stock_lots', id, { vials }), 'stock');
+  }
+  setLot(id, patch) {
+    const l = this.state.lots.find((x) => x.id === id); if (!l) return null;
+    return this.commit(() => { Object.assign(l, patch); if (patch.coa) this.log(`COA ${this.product(l.product_id)?.name || l.product_id}${l.batch ? ` ${l.batch}` : ''}: ${patch.coa}`, 'lab'); }, () => api.state.update('stock_lots', id, patch), 'stock');
+  }
+  removeLot(id) { return this.commit(() => { this.state.lots = this.state.lots.filter((x) => x.id !== id); }, () => api.state.remove('stock_lots', id), 'stock'); }
+  dispatchQueue() { return this.state.dispatch.filter((d) => ['packing', 'ready'].includes(d.stage)); }
+  addDispatch(ref, items = '', note = '') {
+    const local = { id: `tmp-${uid()}`, ref, items, stage: 'packing', tracking: '', note, created_at: new Date().toISOString() };
+    return this.commit(
+      () => { this.state.dispatch.unshift(local); this.log(`Dispatch: ${ref} packing`, 'lab'); },
+      async () => { const { row } = await api.state.insert('dispatch', { ref, items, note }); Object.assign(local, row); return local; },
+      'dispatch');
+  }
+  setDispatch(id, patch) {
+    const d = this.state.dispatch.find((x) => x.id === id); if (!d) return null;
+    return this.commit(() => { Object.assign(d, patch); if (patch.stage) { if (patch.stage === 'shipped') d.shipped_at = new Date().toISOString(); this.log(`Dispatch: ${d.ref} ${patch.stage}`, 'lab'); } }, () => api.state.update('dispatch', id, patch), 'dispatch');
+  }
 
-  /* ---------- money ---------- */
-  ledger(ventureId) { return this.state.ledger[ventureId] || { mrr: 0, units: 0 }; }
-  setLedger(ventureId, field, value) { const l = this.state.ledger[ventureId] || (this.state.ledger[ventureId] = { mrr: 0, units: 0 }); l[field] = Math.max(0, Number(value) || 0); l.calibrated = true; this.touch(); }
-  ventureRevenue(v) { const l = this.ledger(v.id); return v.price ? l.units * v.price : l.mrr; }
-  monthlyRevenue() { return VENTURES.reduce((n, v) => n + this.ventureRevenue(v), 0); }
-  monthlyFixed() { return Object.values(this.state.budget.fixed).reduce((n, a) => n + (Number(a) || 0), 0); }
-  monthlyNet() { return this.monthlyRevenue() - this.monthlyFixed(); }
-  runwayMonths() { const burn = this.monthlyFixed() - this.monthlyRevenue(); const cash = Number(this.state.budget.cash) || 0; return burn <= 0 ? Infinity : cash / burn; }
-  setBudget(field, id, value) { if (field === 'cash') this.state.budget.cash = Math.max(0, Number(value) || 0); else this.state.budget[field][id] = Math.max(0, Number(value) || 0); this.touch(); }
-  allocations() { const rev = this.monthlyRevenue(); return BUDGET.split.map((sp) => ({ ...sp, pct: this.state.budget.split[sp.id] ?? sp.pct, amount: rev * ((this.state.budget.split[sp.id] ?? sp.pct) / 100) })); }
-  splitTotal() { return Object.values(this.state.budget.split).reduce((n, p) => n + (Number(p) || 0), 0); }
+  /* ---------- THE VAULT: the ledger by month, fixed costs, cash, the pots ---------- */
+  money(month = monthOf()) { return moneySummary({ ledger: this.state.ledger, fixed: this.state.fixedCosts, cash: this.state.cash, pots: this.state.pots }, month); }
+  moneyHistory(n = 12) { return moneyHistory(this.state.ledger, this.state.fixedCosts, n); }
+  ledgerRow(month, venture) { return ventureRow(this.state.ledger, month, venture); }
+  setLedger(month, venture, patch) {
+    const id = `${month}:${venture}`;
+    const cur = this.ledgerRow(month, venture);
+    const next = { ...(cur || { id, month, venture, revenue_gbp: null, units: null, visitors: null, leads: null, orders: null, note: '' }), ...patch };
+    return this.commit(() => { const i = this.state.ledger.findIndex((r) => r.id === id); if (i >= 0) this.state.ledger[i] = next; else this.state.ledger.push(next); }, () => api.state.insert('ledger_months', next), 'ledger');
+  }
+  monthlyRevenue() { return this.money().revenue || 0; }
+  monthlyFixed() { return this.money().fixed; }
+  ventureRevenue(v) { return this.money().ventures.find((x) => x.id === v.id)?.revenue || 0; }
+  setFixed(id, patch) {
+    const cur = this.state.fixedCosts.find((f) => f.id === id);
+    const next = { ...(cur || { id, name: patch.name || id, amount_gbp: 0, room: '', active: true, note: '' }), ...patch };
+    return this.commit(() => { const i = this.state.fixedCosts.findIndex((f) => f.id === id); if (i >= 0) this.state.fixedCosts[i] = next; else this.state.fixedCosts.push(next); }, () => api.state.insert('fixed_costs', next), 'cost');
+  }
+  setCash(day, cash, note = '') {
+    const row = { day, cash_gbp: Math.max(0, Number(cash) || 0), note };
+    return this.commit(() => { const i = this.state.cash.findIndex((c) => c.day === day); if (i >= 0) this.state.cash[i] = row; else this.state.cash.push(row); }, () => api.state.insert('cash_snapshots', row), 'cash');
+  }
+  setPot(id, patch) {
+    const cur = this.state.pots.find((p) => p.id === id); if (!cur) return null;
+    const next = { ...cur, ...patch };
+    return this.commit(() => { const i = this.state.pots.findIndex((p) => p.id === id); this.state.pots[i] = next; }, () => api.state.insert('pots', next), 'pot');
+  }
 
   /* ---------- goals ---------- */
   goalList() { return this.brain?.goals?.length ? this.brain.goals : GOALS_FALLBACK; }
@@ -310,9 +367,6 @@ export class Store {
   drafts() { return (this.brain?.drafts || []).map((d) => ({ ...d, status: this.state.drafts[d.id]?.status || d.status })); }
   draftsBy(status) { return this.drafts().filter((d) => d.status === status); }
   markDraft(id, status) { this.state.drafts[id] = { status, ts: Date.now() }; this.log(`Draft ${id} → ${status}`, 'content'); this.touch(); }
-
-  /* ---------- funnel ---------- */
-  setFunnel(field, value) { this.state.funnel[field] = Math.max(0, Number(value) || 0); this.touch(); }
 
   /* ---------- crew positions ---------- */
   setPosition(agentId, room) { if (this.state.positions[agentId]?.room === room) return; this.state.positions[agentId] = { room, ts: Date.now() }; this.save(); }
@@ -366,10 +420,32 @@ export class Store {
     return this.commit(() => { this.state.days[day] = next; }, () => api.state.insert('days', { day, ...next }), 'day');
   }
 
-  /* ---------- the operator's daily protocol ---------- */
-  protocolDay(day) { return this.state.protocol[day] || (this.state.protocol[day] = {}); }
-  toggleProtocol(day, item) { const d = this.protocolDay(day); d[item] = !d[item]; this.touch(); }
-  protocolStreak(item) { let n = 0; const d = new Date(); for (;;) { const k = d.toISOString().slice(0, 10); if (!this.state.protocol[k]?.[item]) break; n++; d.setDate(d.getDate() - 1); } return n; }
+  /* ---------- SANCTUM: the protocol, the entries ---------- */
+  protocolItems() { return this.state.protocolItems.filter((i) => i.active !== false).slice().sort((a, b) => a.position - b.position); }
+  /** { item_id: tick } for a day. */
+  protocolDay(day) { const out = {}; for (const t of this.state.protocolTicks) if (t.day === day && t.done) out[t.item_id] = t; return out; }
+  protocolDone(day) { return Object.keys(this.protocolDay(day)).length; }
+  toggleProtocol(day, itemId, value = null) {
+    const id = `${day}:${itemId}`;
+    const cur = this.state.protocolTicks.find((t) => t.id === id);
+    const done = cur ? !cur.done : true;
+    const row = { id, day, item_id: itemId, done, value: value ?? cur?.value ?? null };
+    return this.commit(() => { const i = this.state.protocolTicks.findIndex((t) => t.id === id); if (i >= 0) this.state.protocolTicks[i] = row; else this.state.protocolTicks.push(row); }, () => api.state.insert('protocol_ticks', row), 'protocol');
+  }
+  protocolStreak(itemId) { let n = 0; const d = new Date(); for (;;) { const k = localDay(d); if (!this.protocolDay(k)[itemId]) break; n++; d.setDate(d.getDate() - 1); if (n > 400) break; } return n; }
+  /** Ticks of an item in the last seven days — for weekly items like training. */
+  protocolWeek(itemId) { const days = []; const d = new Date(); for (let i = 0; i < 7; i++) { days.push(localDay(d)); d.setDate(d.getDate() - 1); } return days.filter((k) => this.protocolDay(k)[itemId]).length; }
+  setProtocolItem(id, patch) {
+    const cur = this.state.protocolItems.find((i) => i.id === id);
+    const next = { ...(cur || { id, name: patch.name || id, target: 0, unit: '', cadence: 'day', active: true, position: this.state.protocolItems.length }), ...patch };
+    return this.commit(() => { const i = this.state.protocolItems.findIndex((x) => x.id === id); if (i >= 0) this.state.protocolItems[i] = next; else this.state.protocolItems.push(next); }, () => api.state.insert('protocol_items', next), 'protocol');
+  }
+  entries(kind = '') { return this.state.entries.filter((e) => !kind || e.kind === kind).slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))); }
+  addEntry(kind, title, body) {
+    const local = { id: `tmp-${uid()}`, kind, title, body, status: 'open', private: true, created_at: new Date().toISOString() };
+    return this.commit(() => { this.state.entries.unshift(local); }, async () => { const { row } = await api.state.insert('entries', { kind, title, body }); Object.assign(local, row); return local; }, 'entry');
+  }
+  setEntry(id, patch) { const e = this.state.entries.find((x) => x.id === id); if (!e) return null; return this.commit(() => { Object.assign(e, patch); }, () => api.state.update('entries', id, patch), 'entry'); }
 
   /* ---------- counsel and the council ---------- */
   counsel() { return this.state.counsel; }
@@ -394,32 +470,60 @@ export class Store {
   }
   setDecisionOutcome(id, outcome) { const d = this.state.decisions.find((x) => x.id === id); if (!d) return null; return this.commit(() => { d.outcome = outcome; d.reviewed = Date.now(); }, () => api.state.update('decisions', id, { outcome }), 'decision'); }
 
-  /* ---------- the trading journal ---------- */
+  /* ---------- THE TRADING FLOOR: the journal on tables ---------- */
   journal() { return this.state.journal; }
   trades() { return this.state.journal.trades; }
   trade(id) { return this.trades().find((t) => t.id === id); }
   saveTrade(t) {
     const cur = t.id ? this.trade(t.id) : null;
-    if (cur) Object.assign(cur, t, { updated: Date.now() });
-    else if (t.id) this.trades().unshift({ ...t, created: Date.now(), updated: Date.now() });
-    else { const id = `T-${(t.opened || new Date().toISOString()).slice(0, 10).replace(/-/g, '')}-${String(this.trades().length + 1).padStart(2, '0')}`; this.trades().unshift({ ...t, id, created: Date.now(), updated: Date.now() }); t.id = id; }
-    this.log(`Journal: ${cur ? 'updated' : 'logged'} ${t.id}`, 'journal'); this.touch();
+    if (!t.id) t.id = `T-${(t.opened || new Date().toISOString()).slice(0, 10).replace(/-/g, '')}-${String(this.trades().length + 1).padStart(2, '0')}`;
+    while (!cur && this.trade(t.id)) t.id = t.id.replace(/-(\d+)$/, (m, n) => `-${String(Number(n) + 1).padStart(2, '0')}`);
+    const next = { ...(cur || {}), ...t, updated: Date.now(), created: cur?.created || Date.now() };
+    this.commit(
+      () => { if (cur) Object.assign(cur, next); else this.trades().unshift(next); this.log(`Journal: ${cur ? 'updated' : 'logged'} ${t.id}`, 'journal'); },
+      () => api.state.insert('trades', toTradeRow(next)),
+      'trade');
     return t.id;
   }
-  removeTrade(id) { this.state.journal.trades = this.trades().filter((t) => t.id !== id); this.touch(); }
+  removeTrade(id) { return this.commit(() => { this.state.journal.trades = this.trades().filter((t) => t.id !== id); }, () => api.state.remove('trades', id), 'trade'); }
   setups() { return this.state.journal.setups; }
   saveSetup(s) {
-    const cur = s.id ? this.setups().find((x) => x.id === s.id) : null;
-    if (cur) Object.assign(cur, s); else this.setups().push({ ...s, id: s.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || uid() });
-    this.touch();
+    const id = s.id || s.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || uid();
+    const cur = this.setups().find((x) => x.id === id);
+    const next = { ...(cur || {}), ...s, id };
+    return this.commit(() => { if (cur) Object.assign(cur, next); else this.setups().push(next); }, () => api.state.insert('setups', next), 'setup');
   }
-  removeSetup(id) { if (id === 'unplanned') return; this.state.journal.setups = this.setups().filter((x) => x.id !== id); this.touch(); }
+  removeSetup(id) { if (id === 'unplanned') return null; return this.commit(() => { this.state.journal.setups = this.setups().filter((x) => x.id !== id); }, () => api.state.remove('setups', id), 'setup'); }
   checkins() { return this.state.journal.checkins; }
-  addCheckin(c) { this.checkins().unshift({ ...c, id: uid(), ts: Date.now() }); this.touch(); }
-  removeCheckin(id) { this.state.journal.checkins = this.checkins().filter((x) => x.id !== id); this.touch(); }
-  importJournal(json) { if (!json || !Array.isArray(json.trades)) throw new Error('not a journal export'); this.state.journal = { trades: json.trades, setups: json.setups?.length ? json.setups : this.setups(), checkins: json.checkins || [] }; this.touch(); }
+  addCheckin(c) {
+    const local = { ...c, id: `tmp-${uid()}`, ts: Date.now() };
+    return this.commit(() => { this.checkins().unshift(local); }, async () => { const { row } = await api.state.insert('checkins', { type: c.type || 'Pre-market', mood: c.mood || '', stress: c.stress || null, energy: c.energy || null, sleep: c.sleep || null, streamed: !!c.streamed, acted: !!c.acted, trigger: c.trigger || '', note: c.note || '' }); Object.assign(local, row, { ts: ts(row.created_at) }); return local; }, 'checkin');
+  }
+  removeCheckin(id) { return this.commit(() => { this.state.journal.checkins = this.checkins().filter((x) => x.id !== id); }, () => api.state.remove('checkins', id), 'checkin'); }
+  async importJournal(json) {
+    if (!json || !Array.isArray(json.trades)) throw new Error('not a journal export');
+    for (const t of json.trades) if (/^T-\d{8}-\d{2,3}$/.test(t.id)) await this.saveTrade({ ...t });
+    for (const s of json.setups || []) await this.saveSetup(s);
+    for (const c of json.checkins || []) await this.addCheckin(c);
+  }
 
   /* ---------- log ---------- */
   log(text, kind = 'event') { this.state.log.push({ ts: Date.now(), text, kind }); if (this.state.log.length > LOG_MAX) this.state.log.shift(); }
   records(limit = 30) { return this.state.log.slice(-limit).reverse(); }
+}
+
+/* ---------- shapes ---------- */
+
+const localDay = (d) => { const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+const numOr = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
+const isoOr = (v) => (v ? new Date(v).toISOString() : null);
+
+/** The journal form's trade → a `trades` row. Field names differ only in case. */
+export function toTradeRow(t) {
+  return { id: t.id, instrument: t.instrument || 'XAUUSD', direction: t.direction === 'Short' ? 'Short' : 'Long', session: t.session || '', killzone: t.killzone || '', setup: t.setup || 'unplanned', bias: t.bias || '', grade: t.grade || '', conviction: numOr(t.conviction), entry: numOr(t.entry), stop: numOr(t.stop), target: numOr(t.target), exit: numOr(t.exit), risk: numOr(t.risk), size: numOr(t.size), opened: isoOr(t.opened), closed: isoOr(t.closed), plan_followed: !!t.planFollowed, rule_breaks: Array.isArray(t.ruleBreaks) ? t.ruleBreaks : [], emotion_before: t.emotionBefore || '', emotion_during: t.emotionDuring || '', emotion_after: t.emotionAfter || '', energy: numOr(t.energy), sleep: numOr(t.sleep), stress: numOr(t.stress), streamed: !!t.streamed, process: t.process || '', thesis: t.thesis || '', execution: t.execution || '', review: t.review || '', lesson: t.lesson || '', chart: t.chart || '', example: !!t.example };
+}
+/** A `trades` row → the shape journal.js computes over. Times come back as the local ISO the form uses. */
+export function fromTradeRow(r) {
+  const local = (iso) => { if (!iso) return ''; const d = new Date(iso); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+  return { id: r.id, instrument: r.instrument, direction: r.direction, session: r.session, killzone: r.killzone, setup: r.setup, bias: r.bias, grade: r.grade, conviction: r.conviction ?? '', entry: r.entry ?? '', stop: r.stop ?? '', target: r.target ?? '', exit: r.exit ?? '', risk: r.risk ?? '', size: r.size ?? '', opened: local(r.opened), closed: local(r.closed), planFollowed: !!r.plan_followed, ruleBreaks: r.rule_breaks || [], emotionBefore: r.emotion_before, emotionDuring: r.emotion_during, emotionAfter: r.emotion_after, energy: r.energy ?? '', sleep: r.sleep ?? '', stress: r.stress ?? '', streamed: !!r.streamed, process: r.process, thesis: r.thesis, execution: r.execution, review: r.review, lesson: r.lesson, chart: r.chart, example: !!r.example, created: ts(r.created_at), updated: ts(r.updated_at) };
 }

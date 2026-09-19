@@ -18,7 +18,7 @@ const VIEWS = {
   },
 };
 const SERIAL = new Set(['content_revisions', 'system_events']);
-const TOUCH = new Set(['archive_modules', 'content_drafts', 'knowledge_sources', 'orders', 'list_items', 'decisions', 'venture_focus', 'goal_progress', 'days']);
+const TOUCH = new Set(['archive_modules', 'content_drafts', 'knowledge_sources', 'orders', 'list_items', 'decisions', 'venture_focus', 'goal_progress', 'days', 'settings', 'products', 'stock_lots', 'dispatch', 'ledger_months', 'fixed_costs', 'pots', 'protocol_items', 'protocol_ticks', 'entries', 'trades', 'setups']);
 
 const unq = (s) => String(s).replace(/^"|"$/g, '');
 const like = (v, pat, ci) => { const re = new RegExp('^' + String(pat).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/[*%]/g, '.*') + '$', ci ? 'i' : ''); return re.test(String(v ?? '')); };

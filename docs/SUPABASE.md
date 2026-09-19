@@ -23,8 +23,15 @@ Open the project → SQL Editor → paste each migration → Run, in order:
 | `0002_sync_codes.sql` | `arcane_sync` — one row per sync code | the floor's store (orders, lists, journal…) |
 | `0003_content_machine.sql` | `archive_modules`, `knowledge_sources`, `content_drafts`, `content_revisions`, `agent_runs`, `system_events` | the Library, BEACON, HERALD, `archives:sync`, `vault:sync` |
 | `0004_operating_state.sql` | `orders`, `list_items`, `decisions`, `counsel_turns`, `venture_focus`, `goal_progress`, `days` | the Bridge, THE WAR ROOM, every room's orders board, Counsel and the Council, the brief |
+| `0005_lab.sql` | `products`, `stock_lots`, `dispatch`, `settings` | THE LAB, VIGIL's stock signals, the brief's Peptides line |
+| `0006_vault.sql` | `ledger_months`, `fixed_costs`, `cash_snapshots`, `pots` | THE VAULT, THE MARKET, VITALS, the brief's MONEY block, the goals |
+| `0007_sanctum.sql` | `protocol_items`, `protocol_ticks`, `entries` | SANCTUM, the strip's protocol count, VIGIL |
+| `0008_trading.sql` | `trades`, `setups`, `checkins` | THE TRADING FLOOR, VIGIL's drawdown and rule-break signals |
 
-All three are idempotent. (`0001_arcane_state.sql` was the earlier sign-in
+All seven are idempotent. The dashboard's "Last migration" card only counts
+migrations pushed by the Supabase CLI, so it says "No migrations" even
+after these have run; the Table Editor and `npm run db:check` are the
+truth. (`0001_arcane_state.sql` was the earlier sign-in
 model; it is not needed.) `npm run db:check` (with the service key in
 `.env`) prints which tables answer and names the migration for each gap.
 
@@ -35,7 +42,8 @@ the migration.
 
 Then put the Archives in: `npm run herald:index && npm run archives:sync`
 (the service key in `.env`). Incremental after the first time — only
-modules whose text changed are written.
+modules whose text changed are written. And the catalogue:
+`npm run products:import` (from `data/peptides/catalog.json`, local).
 
 ### 2. Environment (already done by the integration)
 

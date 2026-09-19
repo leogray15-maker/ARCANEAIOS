@@ -98,89 +98,39 @@ tables, and the first two command rooms were built on them.
 - [x] `tools/operating-state.test.mjs` (43 checks) in `npm test`; the Bridge and the War Room walked in headless Chromium on the dev database
 - Still for Leo: run `0004` (order #17), then set the ranking and the day's focus (#18) — plus everything from the morning (#11–#16)
 
-## Next — the rooms in order
+## Also done 2026-09-19 — THE LAB on the real catalogue
 
-1. THE VAULT: money as a monthly ledger (revenue per venture per month, fixed costs, cash snapshots, the split) — tables, not one mutable number; runway from history; the journal link. `vigil.js` reads it.
-2. THE RECORDS: runs, events, decisions with outcomes, the trace from the vault, lessons — one timeline with filters.
-3. SANCTUM: `days` grows (energy, sleep, note), the protocol moves to a table, private entries (journal, principles, objectives) with the strongest boundary.
-4. THE LAB: stock lines, COA state and dispatch on tables; VIGIL's stock signals read them.
-5. THE TRADING FLOOR: `trades` (+ setups, check-ins) on tables; the journal's stats and VIGIL's drawdown signal read them.
-6. THE CONTROL ROOM: `knowledge_sources`, `agent_runs`, `system_events`, `db-check` on the floor.
-7. Agents beyond HERALD only where a workflow needs one: VECTOR proposing the ranking from the numbers is the first candidate.
+Leo brought the supplier sheet (per 10-vial kit, USD) and his store prices (per vial, GBP), then his own margin sheet at 0.746 £/$. THE LAB was next in his list, so it went ahead of the Vault.
 
-## Day 1 · Thu 17 — Brain in Obsidian, HERALD in the hand
+- [x] `supabase/migrations/0005_lab.sql`: `products`, `stock_lots`, `dispatch`, `settings`; the registry entries, defaults and refusals (products retire, dispatch cancels, nothing deletes)
+- [x] `data/peptides/catalog.json` (local, gitignored): 138 lines — 64 on the store (51 costed, 13 with no supplier match), 74 supplier-only — matched by size to the store's "from" price, with the margin sheet's doubts carried as notes; `tools/products-import.mjs` lands it once and keeps what Leo has since typed
+- [x] `apps/facility/src/core/lab.js`: landed cost per vial, margin, markup, stock and COA from lots, the summary — one module for the floor, the Bridge aggregate, the brief and the vault mirror
+- [x] THE LAB as an application: the catalogue with cost, price, margin, stock and COA; the rate, landed overhead and low-stock line typed at the top; a product's figures and lots (stock in, count, COA state and link); the dispatch queue packing → ready → shipped
+- [x] VIGIL's stock and COA signals read the lots; the Bridge's Peptides card and the brief's Peptides line read the summary; the Market shows the queue; `05-Knowledge/Lab.md` mirrored by `vault:sync`
+- [x] The placeholder inventory and dispatch rows are gone from `roomdata.js`; the blob's `stock` key is left behind
+- [x] 14 more checks in `tools/operating-state.test.mjs`; the Lab walked in headless Chromium: rate change recomputes margins, a lot in, COA published, counted down, price changed, dispatch through to shipped, VIGIL and the Bridge picked it up
+- Still for Leo: run `0005` (order #19) and `npm run products:import` (#20); 0002 is confirmed applied (it is the only table in the dashboard), 0003 and 0004 are not
 
-- Open `brain/` as a vault in Obsidian; confirm templates, daily notes, graph.
-- Read the five drafts. Move one to `review`, kill one. Confirm status is the truth.
-- `/herald` from Claude Code three times: a random set, `--lane sales` shorts, a named health subject (expect the gate to bite at least once).
-- Tune `references/voice.md` against what Leo actually changes in the drafts.
-- **Ship:** `git init`, first commit, private GitHub repo `the-arcane`.
+## Also done 2026-09-19 (later) — every room on tables
 
-## Day 2 · Fri 18 — The brief and the trace as daily habit
+"Let's get the whole ARCANE OS working." The last of the blob went, and the rooms that were shells or widgets over it became applications on tables.
 
-- `tools/brief.mjs`: assembles `03-Memory/Brief.md` from Shared-Memory, Signals, Orders, Doctrine (ARCANE's first script). Run it each morning.
-- `tools/status-sweep.mjs`: moves draft files between `Drafts/Approved/Posted/Killed` to match their `status`; rolls counts into Shared-Memory.
-- HERALD eval pass: run `evals/evals.json` prompts, review outputs, tighten SKILL.md.
-- **Ship:** a morning: brief → `/herald` → review in Obsidian → sweep, without touching code.
+- [x] `0006_vault.sql` (`ledger_months`, `fixed_costs`, `cash_snapshots`, `pots`), `0007_sanctum.sql` (`protocol_items`, `protocol_ticks`, `entries`), `0008_trading.sql` (`trades`, `setups`, `checkins`); registry entries with their validators and defaults; the dev database seeds what the migrations seed
+- [x] `core/money.js`: revenue by venture per month (units × price or typed £), fixed, the latest cash snapshot, runway, the split, history — one module for the Vault, the aggregate, the brief and the mirror
+- [x] THE VAULT as an application: a month at a time, revenue by venture, fixed costs (add, edit, retire), cash snapshots, the split with amounts and the not-100 flag, history, the Lab's stock value, the Journal link
+- [x] SANCTUM as an application: energy, sleep, focus (shared with the Bridge), a note on the day; the protocol as editable items with ticks, streaks, weekly counts and the last seven days; journal, reflections, principles, objectives, life decisions — private, never mirrored
+- [x] THE RECORDS as an application: the timeline of every system event (search, filter by kind, links), runs with tokens and durations, decisions with outcomes, lessons (a list, tagged to a venture), the vault's trace and the floor log
+- [x] THE CONTROL ROOM as an application on `api/health`: which keys the server holds, whether the database answers and which it is, every table with its migration and whether it exists, the sources' sync state, the last runs, the permission matrix
+- [x] THE TRADING FLOOR's journal on `trades`, `setups`, `checkins` (the UI unchanged; `saveTrade` and friends write through the store); THE MARKET and VITALS write the ledger rows the Vault reads; FORGE's widget is its orders board; SCRIPTORIUM's manuscripts are a list; the placeholder rows in `roomdata.js` are gone
+- [x] VIGIL reads the pots, the ledger, the cash snapshots, the ticks and the trades; Counsel is told this month's money, the Peptides funnel and the protocol; the brief's MONEY block and the goals read the aggregate
+- [x] `vault:sync` mirrors the protocol (`04-Records/Protocol.md`), the journal (`04-Records/Journal/`), money (`05-Knowledge/Money.md`) from the tables; Sanctum's entries are never written to the brain
+- [x] 14 more checks in `tools/operating-state.test.mjs` (71); the Vault, Sanctum, the Journal, the Records and the Control Room walked in headless Chromium with no page errors
+- Still for Leo: run `0005`–`0008` (orders #19, #21), `npm run products:import` (#20), then type this month's figures in THE VAULT (#22) and tick the protocol
 
-## Day 3 · Sat 19 — Split the brain, wire sync
+## Next
 
-- `git subtree split` → private repo `arcane-brain`; `ARCANE_BRAIN` points at the clone.
-- Obsidian Git plugin on desktop; `npm run brain:pull` / `brain:push` scripts for skill runs.
-- `firebase/firestore.rules`: operator-only auth; collections `state`, `orders`, `presence`.
-- `tools/memory-sync.mjs`: pushes Shared-Memory counts + open orders to Firestore (one-way, vault → cloud, for now).
-- **Ship:** the brain lives on its own; a run on the laptop shows up in Firestore.
-
-## Day 4 · Sun 20 — Facility shell
-
-- `apps/facility`: Vite, vanilla ESM, 960×640 buffer, integer blit, FIT/2x/3x, drag-pan.
-- `floorplan.js`: 20 room rects at v3 scale, doors, corridors, hall; BFS graph with a reachability test.
-- Rooms render as wall/floor/door with the services layer and signs, from `@arcane/config` names.
-- Deploy to Vercel (empty rooms, correct building).
-- **Ship:** the building on a URL.
-
-## Day 5 · Mon 21 — Sprites
-
-- Author the 12×20 crew base (front/back/side × stand/A/B/work×2/talk) and ARCANE 14×24.
-- Sprite baker: palette per agent from config; `tools/sprite-sheet.mjs` renders a review PNG.
-- Crew placed at home stations, idle bob, ARCANE on the Bridge.
-- **Ship:** nineteen distinct figures standing in the right rooms.
-
-## Day 6 · Tue 22 — Movement and attention
-
-- Attention score per room from orders (Firestore mirror, vault fallback). Sampling with home prior and cooldown.
-- Walk cycles along the corridor graph; arrival → face anchor → `work` frames.
-- Click a room → ARCANE walks there; door ping when a room's score rises.
-- **Ship:** a floor that reflects `06-Orders`. Add an order, watch someone walk.
-
-## Day 7 · Wed 23 — Props, light, wear
-
-- 14–24 props per room from the anchor table in `docs/SPRITES.md`, three-tone with shadows.
-- Light emitters (screens, cold store, Beacon lamp, Sanctum window). Seeded wear per room.
-- Three ambient motions: Beacon lamp, Observatory stars, Lab frost.
-- **Ship:** screenshots that beat v2's best.
-
-## Day 8 · Thu 24 — Dashboards
-
-- The four-section frame (State · Orders · Crew · Files) for all 20 rooms.
-- Files section reads the room's brain folder (via a small JSON export of the vault, `tools/vault-export.mjs`, run on push).
-- BEACON: draft queue with status chips reading real frontmatter. THE RECORDS: today's Trace. BRIDGE: the brief. THE CONTROL ROOM: the matrix from config.
-- **Ship:** click BEACON, see today's drafts.
-
-## Day 9 · Fri 25 — Counsel
-
-- Vercel function `api/counsel`: Leo ↔ ARCANE over the brief, Claude behind `ANTHROPIC_API_KEY`, no tools, no writes. Answers or proposes an order.
-- Counsel panel in the Bridge dashboard; proposed orders land in `06-Orders` as `review`.
-- **Ship:** ask the network a question from the floor.
-
-## Day 10 · Sat 26 — Council + hardening
-
-- `api/council`: one structured call, nine positions, one verdict; writes a Decision record via the vault export path (or queues it for the next pull).
-- CI: `npm test` + `vault-gen` dry-run diff on every push; refuse merge if the vault would change without a config change.
-- Review the week: what HERALD produced, what posted, what the floor showed. Write the first Sunday review into `04-Records/Decisions`.
-- **Ship:** v3.0 tagged.
-
-## After
-
-Second skill (ORACLE: PDF products from modules, or VIGIL: signals from
-the ventures' data). Two-way Firestore ↔ vault. Mobile view. Sound.
+1. THE LAB, second pass: sales recorded against lots (stock counts down from a dispatched order), gross margin realised in the Vault from those sales, a reorder point from the sell-through.
+2. Realtime instead of the store's 60-second refresh, once two devices are actually in use at once.
+3. Agents beyond HERALD only where a workflow needs one: VECTOR proposing the ranking from the numbers is the first candidate; MERIDIAN watching the Lab's reorder points the second; TALLY reading the Vault into the brief's MONEY prose the third.
+4. A Notion API source for `archives:sync` (rows through the same `moduleRows → upsert` path, incremental by `last_edited_time`), on an Edge Function schedule.
+5. Command palette (Cmd/Ctrl-K): rooms, modules, drafts, orders.

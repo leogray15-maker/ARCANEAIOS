@@ -38,16 +38,18 @@ ARCANEAIOSMAIN/                    the monorepo (GitHub: the-arcane)
 │   ├── herald.js                  POST generate (module → drafts)
 │   ├── drafts.js                  GET/PATCH drafts (move, edit — linted)
 │   ├── runs.js                    GET runs, events, schema state
+│   ├── health.js                  GET the machine's state for THE CONTROL ROOM
 │   ├── state.js                   GET/POST/PATCH/DELETE the operating state through the registry
 │   ├── bridge.js                  GET the Bridge aggregate
 │   ├── counsel.js · council.js    the reasoning layer
 │
-├── supabase/migrations/           0001 (unused) · 0002 arcane_sync · 0003 the Content Machine · 0004 the operating state
+├── supabase/migrations/           0001 (unused) · 0002 arcane_sync · 0003 the Content Machine · 0004 the operating state · 0005 the Lab · 0006 the Vault · 0007 Sanctum · 0008 the Journal
 │
 ├── tools/
 │   ├── validate-config.mjs        refuses a roster that breaks a standing rule
 │   ├── vault-gen.mjs              generates 01-System + knowledge cards into the brain
 │   ├── archives-sync.mjs          index → archive_modules, incremental
+│   ├── products-import.mjs        data/peptides/catalog.json → products, once
 │   ├── db-check.mjs               which migrations the database has had
 │   ├── dev-api.mjs                api/*.js on a port, for npm run dev
 │   ├── vault-sync.mjs             the floor → the vault (drafts mirrored from the database)
@@ -90,8 +92,8 @@ ARCANEAIOSMAIN/                    the monorepo (GitHub: the-arcane)
 │       └── src/
 │           ├── main.js               routes: #  #room/<id>  #bridge  #warroom  #library[/<module>]  #beacon[/<view>|/draft/<id>]  #journal  #graph
 │           ├── config/floorplan.js   geometry only; meaning imported from @arcane/config
-│           ├── core/                 store (server tables + the blob) · cloud + sync (the sync row) · operator (the key) · api (the client) · reason · sim · vigil
-│           └── render/               factory · props · sprites (the world) · panel · widgets · bridge · warroom · library · beacon · journal · graph (the work)
+│           ├── core/                 store (the tables' cache) · lab · money · journal (the arithmetic) · cloud + sync · operator · api · reason · sim · vigil
+│           └── render/               factory · props · sprites (the world) · panel · widgets · bridge · warroom · lab · vault · sanctum · records · control · library · beacon · journal · graph (the work)
 │
 └── docs/
     ├── ARCHITECTURE.md            the diagrams

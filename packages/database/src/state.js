@@ -17,13 +17,20 @@ import { DatabaseError } from './index.js';
 import { nextId } from './content.js';
 import { events } from './content.js';
 
-export const LISTS = ['moves', 'stop', 'watch', 'pipeline', 'ideas'];
+export const LISTS = ['moves', 'stop', 'watch', 'pipeline', 'ideas', 'lessons', 'manuscripts'];
 export const ALLOCATIONS = ['push', 'maintain', 'starve'];
+export const COA_STATES = ['none', 'pending', 'published'];
+export const DISPATCH_STAGES = ['packing', 'ready', 'shipped', 'delivered', 'cancelled'];
+export const SETTING_KEYS = ['fx_gbp_per_usd', 'landed_overhead_pct', 'low_stock_vials'];
 
 const str = (max = 2000) => (v) => { const s = String(v ?? '').trim(); if (s.length > max) throw bad(`too long (max ${max})`); return s; };
 const oneOf = (list) => (v) => { const s = String(v ?? ''); if (!list.includes(s)) throw bad(`must be one of ${list.join(', ')}`); return s; };
 const int = (lo, hi) => (v) => { const n = Number(v); if (!Number.isInteger(n) || n < lo || n > hi) throw bad(`must be an integer ${lo}–${hi}`); return n; };
 const num = () => (v) => { const n = Number(v); if (!Number.isFinite(n)) throw bad('must be a number'); return n; };
+const numOrNull = (lo = -Infinity) => (v) => { if (v === null || v === '' || v === undefined) return null; const n = Number(v); if (!Number.isFinite(n) || n < lo) throw bad(`must be a number${lo > -Infinity ? ` ≥ ${lo}` : ''}`); return n; };
+const intOrNull = (lo = -Infinity, hi = Infinity) => (v) => { if (v === null || v === '' || v === undefined) return null; const n = Number(v); if (!Number.isInteger(n) || n < lo || n > hi) throw bad(`must be an integer${lo > -Infinity ? ` ${lo}–${hi === Infinity ? '' : hi}` : ''}`); return n; };
+const dayReq = () => (v) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v))) throw bad('day must be YYYY-MM-DD'); return String(v); };
+const slug = () => (v) => { const s = String(v ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); if (!s) throw bad('needs an id'); return s; };
 const bool = () => (v) => v === true || v === 'true' || v === 1;
 const dateOrNull = () => (v) => { if (v === null || v === '' || v === undefined) return null; const d = new Date(v); if (Number.isNaN(d.getTime())) throw bad('must be a date'); return d.toISOString(); };
 const dayOrNull = () => (v) => { if (v === null || v === '' || v === undefined) return null; if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v))) throw bad('must be YYYY-MM-DD'); return String(v); };
@@ -82,6 +89,94 @@ export const TABLES = {
     defaults: { focus: '', note: '', energy: null, sleep: null },
     fields: { day: (v) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v))) throw bad('day must be YYYY-MM-DD'); return String(v); }, focus: str(300), note: str(4000), energy: (v) => (v === null || v === '' || v === undefined ? null : int(1, 10)(v)), sleep: (v) => (v === null || v === '' || v === undefined ? null : num()(v)) },
   },
+  /* ---- THE LAB (0005) ---- */
+  settings: {
+    key: 'key', natural: true, order: 'key.asc', event: 'setting',
+    required: ['key'],
+    defaults: { value: '', note: '' },
+    fields: { key: oneOf(SETTING_KEYS), value: str(200), note: str(300) },
+  },
+  products: {
+    key: 'id', natural: true, order: 'category.asc,name.asc,size.asc', event: 'product',
+    required: ['id', 'name'],
+    defaults: { size: '', category: '', listed: true, sell_gbp: null, supplier_id: 'jx', supplier_code: '', supplier_section: '', kit_cost_usd: null, kit_vials: 10, active: true, note: '' },
+    fields: { id: slug(), name: str(120), size: str(40), category: str(80), listed: bool(), sell_gbp: numOrNull(0), supplier_id: str(20), supplier_code: str(20), supplier_section: str(80), kit_cost_usd: numOrNull(0), kit_vials: int(1, 1000), active: bool(), note: str(1000) },
+  },
+  stock_lots: {
+    key: 'id', mint: (db, now) => nextId(db, 'stock_lots', 'LOT', now), order: 'created_at.desc', event: 'lot',
+    required: ['product_id'],
+    defaults: { batch: '', vials: 0, coa: 'none', coa_url: '', cost_usd: null, received: null, note: '' },
+    fields: { product_id: str(120), batch: str(60), vials: int(0, 100000), coa: oneOf(COA_STATES), coa_url: str(500), cost_usd: numOrNull(0), received: dayOrNull(), note: str(1000) },
+  },
+  dispatch: {
+    key: 'id', mint: (db, now) => nextId(db, 'dispatch', 'DSP', now), order: 'created_at.desc', event: 'dispatch',
+    required: ['ref'],
+    defaults: { items: '', stage: 'packing', tracking: '', note: '', shipped_at: null },
+    fields: { ref: str(60), items: str(1000), stage: oneOf(DISPATCH_STAGES), tracking: str(120), note: str(1000), shipped_at: dateOrNull() },
+  },
+  /* ---- THE VAULT (0006) ---- */
+  ledger_months: {
+    key: 'id', natural: true, order: 'month.desc,venture.asc', event: 'ledger',
+    required: ['id', 'month', 'venture'],
+    defaults: { revenue_gbp: null, units: null, visitors: null, leads: null, orders: null, note: '' },
+    fields: { id: (v) => { const s = String(v ?? ''); if (!/^\d{4}-\d{2}:[a-z]+$/.test(s)) throw bad('id must be YYYY-MM:venture'); return s; }, month: (v) => { if (!/^\d{4}-\d{2}$/.test(String(v))) throw bad('month must be YYYY-MM'); return String(v); }, venture: (v) => { const s = String(v ?? ''); if (!VENTURE_BY_ID[s]) throw bad(`unknown venture "${s}"`); return s; }, revenue_gbp: numOrNull(0), units: intOrNull(0), visitors: intOrNull(0), leads: intOrNull(0), orders: intOrNull(0), note: str(500) },
+  },
+  fixed_costs: {
+    key: 'id', natural: true, order: 'name.asc', event: 'cost',
+    required: ['id', 'name'],
+    defaults: { amount_gbp: 0, room: '', active: true, note: '' },
+    fields: { id: slug(), name: str(80), amount_gbp: (v) => Math.max(0, num()(v ?? 0)), room: str(30), active: bool(), note: str(300) },
+  },
+  cash_snapshots: {
+    key: 'day', natural: true, order: 'day.desc', event: 'cash',
+    required: ['day'],
+    defaults: { cash_gbp: 0, note: '' },
+    fields: { day: dayReq(), cash_gbp: (v) => Math.max(0, num()(v ?? 0)), note: str(300) },
+  },
+  pots: {
+    key: 'id', natural: true, order: 'position.asc', event: 'pot',
+    required: ['id', 'name'],
+    defaults: { pct: 0, note: '', accent: 'ash', position: 0 },
+    fields: { id: slug(), name: str(60), pct: (v) => { const n = num()(v); if (n < 0 || n > 100) throw bad('pct must be 0–100'); return n; }, note: str(300), accent: str(20), position: int(0, 100) },
+  },
+  /* ---- SANCTUM (0007) ---- */
+  protocol_items: {
+    key: 'id', natural: true, order: 'position.asc', event: 'protocol-item',
+    required: ['id', 'name'],
+    defaults: { target: 0, unit: '', cadence: 'day', active: true, position: 0 },
+    fields: { id: slug(), name: str(60), target: num(), unit: str(30), cadence: oneOf(['day', 'week']), active: bool(), position: int(0, 100) },
+  },
+  protocol_ticks: {
+    key: 'id', natural: true, order: 'day.desc', event: 'tick',
+    required: ['id', 'day', 'item_id'],
+    defaults: { done: true, value: null },
+    fields: { id: (v) => { const s = String(v ?? ''); if (!/^\d{4}-\d{2}-\d{2}:[a-z0-9-]+$/.test(s)) throw bad('id must be YYYY-MM-DD:item'); return s; }, day: dayReq(), item_id: str(40), done: bool(), value: numOrNull() },
+  },
+  entries: {
+    key: 'id', mint: (db, now) => nextId(db, 'entries', 'ENT', now), order: 'created_at.desc', event: 'entry',
+    required: ['kind'],
+    defaults: { title: '', body: '', status: 'open', private: true },
+    fields: { kind: oneOf(['journal', 'reflection', 'principle', 'objective', 'decision']), title: str(200), body: str(20000), status: oneOf(['open', 'kept', 'done', 'dropped']), private: bool() },
+  },
+  /* ---- THE TRADING FLOOR (0008) ---- */
+  trades: {
+    key: 'id', natural: true, order: 'opened.desc', event: 'trade',
+    required: ['id'],
+    defaults: { instrument: 'XAUUSD', direction: 'Long', session: '', killzone: '', setup: 'unplanned', bias: '', grade: '', conviction: null, entry: null, stop: null, target: null, exit: null, risk: null, size: null, opened: null, closed: null, plan_followed: false, rule_breaks: [], emotion_before: '', emotion_during: '', emotion_after: '', energy: null, sleep: null, stress: null, streamed: false, process: '', thesis: '', execution: '', review: '', lesson: '', chart: '', example: false },
+    fields: { id: (v) => { const s = String(v ?? '').trim(); if (!/^T-\d{8}-\d{2,3}$/.test(s)) throw bad('id must be T-YYYYMMDD-NN'); return s; }, instrument: str(20), direction: oneOf(['Long', 'Short']), session: str(30), killzone: str(40), setup: str(60), bias: str(20), grade: str(5), conviction: intOrNull(1, 5), entry: numOrNull(), stop: numOrNull(), target: numOrNull(), exit: numOrNull(), risk: numOrNull(0), size: numOrNull(0), opened: dateOrNull(), closed: dateOrNull(), plan_followed: bool(), rule_breaks: (v) => (Array.isArray(v) ? v.map(String) : []), emotion_before: str(30), emotion_during: str(30), emotion_after: str(30), energy: intOrNull(1, 5), sleep: numOrNull(0), stress: intOrNull(1, 5), streamed: bool(), process: str(5), thesis: str(4000), execution: str(4000), review: str(4000), lesson: str(1000), chart: str(500), example: bool() },
+  },
+  setups: {
+    key: 'id', natural: true, order: 'name.asc', event: 'setup',
+    required: ['id', 'name'],
+    defaults: { status: 'Active', session: '', tf: '', conditions: '', trigger: '', stop: '', target: '', aplus: '', invalidation: '' },
+    fields: { id: slug(), name: str(60), status: str(20), session: str(30), tf: str(40), conditions: str(2000), trigger: str(2000), stop: str(500), target: str(500), aplus: str(500), invalidation: str(500) },
+  },
+  checkins: {
+    key: 'id', mint: () => randomUUID(), order: 'created_at.desc', event: 'checkin',
+    required: [],
+    defaults: { type: 'Pre-market', mood: '', stress: null, energy: null, sleep: null, streamed: false, acted: false, trigger: '', note: '' },
+    fields: { type: str(30), mood: str(30), stress: intOrNull(1, 5), energy: intOrNull(1, 5), sleep: numOrNull(0), streamed: bool(), acted: bool(), trigger: str(300), note: str(2000) },
+  },
 };
 export const TABLE_IDS = Object.keys(TABLES);
 
@@ -138,6 +233,7 @@ export const state = {
     if (table === 'orders' && patch.state && patch.state !== cur.state) patch.done_at = ['done', 'killed'].includes(patch.state) ? now.toISOString() : null;
     if (table === 'list_items' && patch.done !== undefined && patch.done !== cur.done) patch.done_at = patch.done ? now.toISOString() : null;
     if (table === 'decisions' && patch.outcome !== undefined && patch.outcome !== cur.outcome) patch.reviewed_at = patch.outcome ? now.toISOString() : null;
+    if (table === 'dispatch' && patch.stage === 'shipped' && cur.stage !== 'shipped') patch.shipped_at = now.toISOString();
     const [saved] = await db.patch(table, { [t.key]: `eq.${id}` }, patch);
     const change = table === 'orders' && patch.state ? `${cur.state} → ${patch.state}` : table === 'list_items' && patch.done !== undefined ? (patch.done ? 'done' : 'reopened') : table === 'decisions' && patch.outcome ? 'outcome recorded' : Object.keys(patch).join(', ');
     await events.add(db, { kind: `${t.event}.changed`, actor, subject_type: t.event, subject_id: String(id), summary: `${summarise(table, saved)} — ${change}`, data: { fields: Object.keys(patch) } });
@@ -146,6 +242,9 @@ export const state = {
   async remove(db, table, id, { actor = 'leo' } = {}) {
     const t = spec(table);
     if (table === 'decisions' || table === 'orders') throw bad(`${table} are never deleted — set state to killed`);
+    if (table === 'products') throw bad('products are never deleted — set active to false');
+    if (table === 'entries') throw bad('entries are never deleted — set status to dropped');
+    if (table === 'dispatch') throw bad('dispatch rows are never deleted — set the stage to cancelled');
     const cur = await db.get(table, { select: '*', [t.key]: `eq.${id}` }, { single: true });
     if (!cur) throw new DatabaseError(`no ${table} ${id}`, { status: 404 });
     await db.delete(table, { [t.key]: `eq.${id}` });
@@ -163,6 +262,20 @@ function summarise(table, r) {
     case 'venture_focus': return `${VENTURE_BY_ID[r.venture]?.name || r.venture}: rank ${r.rank}, ${r.allocation}`;
     case 'goal_progress': return `${r.goal_id}: ${r.value}`;
     case 'days': return `${r.day}: ${r.focus || '(no focus)'}`;
+    case 'settings': return `${r.key} = ${r.value}`;
+    case 'products': return `${r.name} ${r.size}${r.sell_gbp ? ` £${r.sell_gbp}` : ''}${r.kit_cost_usd ? ` · kit $${r.kit_cost_usd}` : ''}`;
+    case 'stock_lots': return `${r.product_id} · ${r.vials} vials · COA ${r.coa}${r.batch ? ` · batch ${r.batch}` : ''}`;
+    case 'dispatch': return `${r.ref}: ${r.stage}${r.items ? ` — ${String(r.items).slice(0, 60)}` : ''}`;
+    case 'ledger_months': return `${r.month} ${VENTURE_BY_ID[r.venture]?.name || r.venture}: ${r.revenue_gbp !== null && r.revenue_gbp !== undefined ? `£${r.revenue_gbp}` : ''}${r.units !== null && r.units !== undefined ? ` · ${r.units} units` : ''}`;
+    case 'fixed_costs': return `${r.name}: £${r.amount_gbp}/mo${r.active === false ? ' (retired)' : ''}`;
+    case 'cash_snapshots': return `cash ${r.day}: £${r.cash_gbp}`;
+    case 'pots': return `${r.name}: ${r.pct}%`;
+    case 'protocol_items': return `${r.name}: ${r.target} ${r.unit}`;
+    case 'protocol_ticks': return `${r.day} ${r.item_id}: ${r.done ? 'done' : 'undone'}${r.value !== null && r.value !== undefined ? ` (${r.value})` : ''}`;
+    case 'entries': return `${r.kind}: ${r.title || String(r.body).slice(0, 60)}`;
+    case 'trades': return `${r.id} ${r.instrument} ${r.direction}${r.exit !== null && r.exit !== undefined ? ' closed' : ' open'}`;
+    case 'setups': return `setup ${r.name} (${r.status})`;
+    case 'checkins': return `check-in: ${r.type}${r.mood ? ` · ${r.mood}` : ''}`;
     default: return table;
   }
 }

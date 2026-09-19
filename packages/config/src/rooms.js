@@ -23,6 +23,7 @@ export const ROOMS = [
     domain: 'Cold storage, vial racks, batch records, lab reports, the dispatch cutoff.',
     brain: null,
     widgets: ['stock-by-compound', 'coa-state', 'dispatch-queue'],
+    opens: '#lab',
   },
   {
     id: 'vitals', name: 'VITALS', sub: 'Arcane Track · Members',
@@ -84,6 +85,7 @@ export const ROOMS = [
     domain: 'Cash, burn, runway, the tax reserve, the split. Nobody in here moves a penny.',
     brain: null,
     widgets: ['month-summary', 'allocations'],
+    opens: '#vault',
   },
   {
     id: 'scriptorium', name: 'SCRIPTORIUM', sub: 'The Codex · Writing',
@@ -155,6 +157,7 @@ export const ROOMS = [
     domain: 'The permission matrix, the approval queue, the audit trail. The room that says no.',
     brain: '01-System',
     widgets: ['permission-matrix', 'approval-queue'],
+    opens: '#control',
   },
   {
     id: 'inventor', name: "THE INVENTOR'S ROOM", sub: 'Ideas · Verdicts',
@@ -169,6 +172,7 @@ export const ROOMS = [
     domain: 'The institutional memory. The Trace, the daily log, every decision and why it was made.',
     brain: '04-Records',
     widgets: ['trace', 'decision-log'],
+    opens: '#records',
   },
   {
     id: 'sanctum', name: 'SANCTUM', sub: 'Leo · Body · Sleep · Focus',
@@ -176,6 +180,7 @@ export const ROOMS = [
     domain: 'The operator. Sleep, training, focus, and whether the life is actually moving where it was pointed.',
     brain: null,
     widgets: ['daily-protocol'],
+    opens: '#sanctum',
   },
 ];
 

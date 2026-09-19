@@ -22,6 +22,9 @@ This file routes Claude Code. The brain has its own router at
 | The database (tables, verbs, migrations) | `packages/database/`, `supabase/migrations/`, `docs/DATA-MODEL.md` — `npm run db:check` |
 | The floor's operating state (orders, moves, decisions, focus, the day) | `packages/database/src/state.js` (the registry) · `api/state.js` · the store's server rung in `apps/facility/src/core/store.js` |
 | The Bridge's picture | `packages/database/src/bridge.js` — one aggregate for `api/bridge.js` and `tools/brief.mjs` |
+| THE LAB's arithmetic (cost per vial, margin, stock, COA) | `apps/facility/src/core/lab.js` — pure; the floor, the aggregate and the mirror all import it |
+| THE VAULT's arithmetic (revenue by month, runway, the split) | `apps/facility/src/core/money.js` — the same pattern; `journal.js` for trades |
+| What each room does, and which are real | `docs/ROOMS.md` |
 | The API (the only thing that touches the database) | `api/*.js` — operator key on every call (`api/_auth.js`) |
 | The Content Machine, end to end | `docs/CONTENT-MACHINE.md` |
 | Architecture, sprites, structure, plan | `docs/` |
@@ -59,6 +62,7 @@ npm run vault:write    regenerate the brain's generated cards
 npm run brief          ARCANE writes 03-Memory/Brief.md + VIGIL's live signals (from the vault, and the floor if the service key is in .env)
 npm run vault:sync     bring the floor's state into the vault (drafts from the database, orders, lists, protocol, journal, decisions, counsel), then the brief
 npm run archives:sync  put the Archives index into the database (incremental; needs the service key)
+npm run products:import  put the Peptides catalogue (data/peptides/catalog.json, local) into the database; keeps what Leo has typed
 npm run db:check       which migrations the database has had
 npm run dev            the facility with the API (tools/dev-api.mjs) — the production loop on a laptop
 npm run dev:local      the same with the dev database and mock HERALD — no keys needed

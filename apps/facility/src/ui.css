@@ -248,3 +248,24 @@ a.wait:hover { border-color: var(--arcane); }
 .signal { margin: 6px 0; }
 .small { font-size: var(--t-1); }
 .principles { color: var(--ash); padding-left: 18px; } .principles li { margin: 2px 0; }
+
+/* THE LAB */
+table.grid.lab-table td, table.grid.lab-table th { padding: 5px 12px 5px 0; }
+table.grid tr.faint-row td { color: var(--ash); }
+table.grid tr.faint-row td a { color: var(--ash); }
+.lab .toolbar .num { text-align: right; padding: 3px 6px; }
+.lab .acts { display: flex; gap: 8px; align-items: center; margin: 8px 0 0; }
+.lab button.on { border-color: currentColor; }
+.lab button.vital { color: var(--vital); } .lab button.flare { color: var(--flare); } .lab button.deny { color: var(--breach); }
+
+/* SANCTUM · THE RECORDS · THE CONTROL ROOM · THE VAULT */
+.week { white-space: nowrap; }
+.cellday { display: inline-block; width: 10px; height: 10px; margin-right: 3px; background: var(--line-2); vertical-align: middle; }
+.cellday.on { background: var(--vital); }
+.entry-form { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 16px; }
+.entry-form input, .entry-form textarea { width: 100%; }
+.card.entry.dropped { opacity: .5; }
+table.grid.kv-table td:first-child { color: var(--ash); white-space: nowrap; }
+table.grid.matrix td, table.grid.matrix th { padding: 3px 6px 3px 0; font-size: var(--t-1); }
+table.grid.matrix .chip { margin: 0; }
+.vault .stat-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }

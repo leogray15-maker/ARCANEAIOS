@@ -20,7 +20,7 @@ const db = memoryDb();
 const now = new Date('2026-09-18T12:00:00');
 
 /* ---- the registry ---- */
-ok(TABLE_IDS.length === 7, 'seven tables');
+ok(TABLE_IDS.length === 21, 'twenty-one tables');
 await refuses(() => state.insert(db, 'orders', { text: 'no room' }), /room is required/, 'order without a room');
 await refuses(() => state.insert(db, 'orders', { room: 'nowhere', text: 'x' }), /unknown room/, 'order in an unknown room');
 await refuses(() => state.insert(db, 'orders', { room: 'forge', text: 'x', priority: 7 }), /0–3/, 'priority out of range');
@@ -105,5 +105,69 @@ ok((await mirrorLists(db2, scratch, now)) !== 'kept' && (await mirrorFocus(db2, 
 ok(/Ship it `now`/.test(fs.readFileSync(path.join(scratch, '05-Knowledge', 'Lists.md'), 'utf8')), 'the move is in Lists.md');
 fs.rmSync(scratch, { recursive: true, force: true });
 
+/* ---- THE LAB: the arithmetic, the registry, the aggregate ---- */
+const { economics, stockOf, labSummary, settingsOf } = await import('../apps/facility/src/core/lab.js');
+const s746 = settingsOf([{ key: 'fx_gbp_per_usd', value: '0.746' }, { key: 'landed_overhead_pct', value: '0' }, { key: 'low_stock_vials', value: '12' }]);
+const ghk = { id: 'ghk-cu-50mg', name: 'GHK-Cu', size: '50mg', kit_cost_usd: 35, kit_vials: 10, sell_gbp: 24.45, listed: true };
+const eco = economics(ghk, s746);
+ok(Math.abs(eco.cost - 2.611) < 0.001 && Math.abs(eco.margin - 0.893) < 0.001 && Math.abs(eco.markup - 9.36) < 0.01, `GHK-Cu economics as the margin sheet (${eco.cost.toFixed(3)}, ${(eco.margin * 100).toFixed(1)}%)`);
+ok(economics({ ...ghk, kit_cost_usd: null }, s746).margin === null, 'no cost → no margin, not zero');
+ok(Math.abs(economics(ghk, { ...s746, landed_overhead_pct: 20 }).cost - 3.133) < 0.001, 'landed overhead lifts the cost');
+const db3 = memoryDb();
+await state.insert(db3, 'products', ghk);
+await state.insert(db3, 'products', { id: 'bpc-157-5mg', name: 'BPC-157', size: '5mg', kit_cost_usd: 48, sell_gbp: 15.95 });
+await refuses(() => state.insert(db3, 'products', { name: 'no id' }), /id is required|needs an id/, 'a product needs an id');
+await refuses(() => state.insert(db3, 'stock_lots', { product_id: 'ghk-cu-50mg', coa: 'maybe' }), /must be one of/, 'unknown COA state');
+await refuses(() => state.insert(db3, 'stock_lots', { product_id: 'ghk-cu-50mg', vials: -1 }), /0–100000/, 'negative vials');
+const lot1 = await state.insert(db3, 'stock_lots', { product_id: 'ghk-cu-50mg', batch: 'B1', vials: 20, coa: 'pending' }, { now });
+const lot2 = await state.insert(db3, 'stock_lots', { product_id: 'ghk-cu-50mg', batch: 'B2', vials: 5, coa: 'published' }, { now });
+await state.insert(db3, 'stock_lots', { product_id: 'bpc-157-5mg', batch: 'B3', vials: 4, coa: 'none' }, { now });
+ok(lot1.id === 'LOT-20260918-001' && lot2.id === 'LOT-20260918-002', 'lots mint by day');
+const st1 = stockOf('ghk-cu-50mg', await state.list(db3, 'stock_lots'));
+ok(st1.vials === 25 && st1.coa === 'pending', 'stock sums the lots; COA is the worst live lot');
+await state.update(db3, 'stock_lots', lot1.id, { coa: 'published' });
+ok(stockOf('ghk-cu-50mg', await state.list(db3, 'stock_lots')).coa === 'published', 'all lots published → published');
+const dsp = await state.insert(db3, 'dispatch', { ref: '#1042', items: '2× GHK-Cu' }, { now });
+const shipped = await state.update(db3, 'dispatch', dsp.id, { stage: 'shipped' }, { now });
+ok(dsp.id === 'DSP-20260918-001' && shipped.shipped_at === now.toISOString(), 'dispatch mints and stamps shipped_at');
+await refuses(() => state.remove(db3, 'products', 'ghk-cu-50mg'), /never deleted/, 'products are retired, not deleted');
+await state.insert(db3, 'settings', { key: 'fx_gbp_per_usd', value: '0.746' });
+await refuses(() => state.insert(db3, 'settings', { key: 'anything', value: '1' }), /must be one of/, 'only known settings');
+const sum = labSummary(await state.list(db3, 'products'), await state.list(db3, 'stock_lots'), await state.list(db3, 'settings'), await state.list(db3, 'dispatch'));
+ok(sum.vials === 29 && sum.live === 2 && sum.coaPct === 50 && sum.low.length === 1 && sum.low[0].name === 'BPC-157' && sum.noCoa.length === 1, `the Lab summary: vials, COA %, low, no-COA (${sum.vials}, ${sum.coaPct}%, ${sum.low.length}, ${sum.noCoa.length})`);
+ok(sum.dispatch.packing === 0 && sum.dispatch.ready === 0, 'a shipped order leaves the queue');
+const a3 = await aggregate(db3, { now });
+ok(a3.lab && a3.lab.vials === 29 && a3.lab.thinnest[0].name === 'BPC-157', 'the Bridge aggregate carries the Lab');
+
+/* ---- THE VAULT, SANCTUM, THE TRADING FLOOR ---- */
+const { moneySummary, history: moneyHistory } = await import('../apps/facility/src/core/money.js');
+const db4 = memoryDb({ pots: [{ id: 'tax', pct: 25, position: 0 }, { id: 'pay', pct: 75, position: 1 }], protocol_items: [{ id: 'train', name: 'Train', target: 4, unit: 'per week', cadence: 'week', active: true, position: 0 }] });
+await state.insert(db4, 'ledger_months', { id: '2026-09:archives', month: '2026-09', venture: 'archives', units: 12 });
+await state.insert(db4, 'ledger_months', { id: '2026-09:peptides', month: '2026-09', venture: 'peptides', revenue_gbp: 900, visitors: 400, leads: 30, orders: 11 });
+await state.insert(db4, 'ledger_months', { id: '2026-08:archives', month: '2026-08', venture: 'archives', units: 10 });
+await refuses(() => state.insert(db4, 'ledger_months', { id: 'sept:archives', month: '2026-09', venture: 'archives' }), /YYYY-MM:venture/, 'ledger ids are month:venture');
+await refuses(() => state.insert(db4, 'ledger_months', { id: '2026-09:moon', month: '2026-09', venture: 'moon' }), /unknown venture/, 'ledger needs a real venture');
+await state.insert(db4, 'fixed_costs', { id: 'software', name: 'Software', amount_gbp: 120 });
+await state.insert(db4, 'cash_snapshots', { day: '2026-09-01', cash_gbp: 3000 });
+await state.insert(db4, 'cash_snapshots', { day: '2026-09-19', cash_gbp: 2500 });
+await refuses(() => state.insert(db4, 'pots', { id: 'tax', name: 'Tax', pct: 130 }), /0–100/, 'a pot is a percentage');
+const M = moneySummary({ ledger: await state.list(db4, 'ledger_months'), fixed: await state.list(db4, 'fixed_costs'), cash: await state.list(db4, 'cash_snapshots'), pots: await state.list(db4, 'pots') }, '2026-09');
+ok(M.revenue === 12 * 128 + 900 && M.previous === 1280 && M.fixed === 120 && M.net === M.revenue - 120, `revenue from units × price and typed £ (${M.revenue})`);
+ok(M.cash.cash === 2500 && M.cash.day === '2026-09-19' && M.runway === Infinity, 'the latest cash snapshot wins; covered when revenue beats fixed');
+ok(moneySummary({ ledger: [], fixed: [{ amount_gbp: 500 }], cash: [{ day: '2026-09-19', cash_gbp: 1000 }], pots: [] }, '2026-09').runway === 2, 'runway = cash / shortfall');
+ok(M.split === 100 && M.pots[0].amount === M.revenue * 0.25, 'the split over this month\'s revenue');
+ok(moneyHistory(await state.list(db4, 'ledger_months'), await state.list(db4, 'fixed_costs')).map((h) => h.month).join() === '2026-09,2026-08', 'history newest first');
+await state.insert(db4, 'protocol_ticks', { id: '2026-09-19:train', day: '2026-09-19', item_id: 'train' });
+await refuses(() => state.insert(db4, 'protocol_ticks', { id: 'today:train', day: '2026-09-19', item_id: 'train' }), /YYYY-MM-DD:item/, 'tick ids are day:item');
+const ent = await state.insert(db4, 'entries', { kind: 'principle', title: 'Revenue before vanity', body: 'x' }, { now });
+ok(ent.id === 'ENT-20260918-001' && ent.private === true && ent.status === 'open', 'entries mint by day and are private by default');
+await refuses(() => state.remove(db4, 'entries', ent.id), /never deleted/, 'entries are dropped, not deleted');
+const tr = await state.insert(db4, 'trades', { id: 'T-20260919-01', direction: 'Long', entry: 2400, stop: 2390, target: 2430, exit: 2425, risk: 100, opened: '2026-09-19T08:05:00Z', closed: '2026-09-19T09:10:00Z', plan_followed: true });
+ok(tr.instrument === 'XAUUSD' && tr.setup === 'unplanned' && tr.rule_breaks.length === 0, 'a trade takes the schema\'s defaults');
+await refuses(() => state.insert(db4, 'trades', { id: 'T-20260919-01', direction: 'Sideways' }), /must be one of/, 'direction is Long or Short');
+await refuses(() => state.insert(db4, 'trades', { id: 'trade-1' }), /T-YYYYMMDD-NN/, 'trade ids keep the journal\'s shape');
+const a4 = await aggregate(db4, { now: new Date('2026-09-19T12:00:00') });
+ok(a4.money.revenue === M.revenue && a4.protocol.done === 1 && a4.protocol.items === 1, 'the Bridge aggregate carries money and the protocol');
+
 if (fails.length) { console.error(`✗ operating state — ${fails.length} failed:\n  ${fails.join('\n  ')}`); process.exit(1); }
-console.log(`✓ operating state — registry, orders, lists, focus, decisions, the Bridge aggregate and the vault mirror behave (${9 + 6 + 9 + 10 + 9} checks)`);
+console.log(`✓ operating state — registry, orders, lists, focus, decisions, the Lab, the Vault, Sanctum, the Journal, the Bridge aggregate and the vault mirror behave (${9 + 6 + 9 + 10 + 9 + 14 + 14} checks)`);

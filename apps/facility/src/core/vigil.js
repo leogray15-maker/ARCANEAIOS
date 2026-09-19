@@ -7,6 +7,7 @@
  * Every signal names the room it belongs to and what would clear it.
  */
 import { stats, derive } from './journal.js';
+import { stockLines, settingsOf } from './lab.js';
 
 const DAY = 86400000;
 
@@ -18,9 +19,10 @@ export function signals(state, brain, now = Date.now()) {
   if (brain?.brief?.date) { const age = (now - new Date(brain.brief.date).getTime()) / DAY; if (age > 2) add('warn', 'bridge', `The brief is ${Math.floor(age)} days old`, 'npm run brief, or a HERALD run'); }
   else add('warn', 'bridge', 'No brief in the export', 'write 03-Memory/Brief.md');
 
-  // Stock and COA.
-  const live = (state.stock || []).filter((r) => r.vials > 0);
-  for (const r of live.filter((r) => r.vials < 12)) add('warn', 'apothecary', `Low stock: ${r.code} ${r.size} — ${r.vials} vials`, 'restock or retire the line');
+  // Stock and COA — from THE LAB's products and lots (the old blob's `stock` still works for a state that has only that).
+  const lines = state.products ? stockLines(state.products, state.lots, settingsOf(state.settings)).map((l) => ({ code: `${l.name} ${l.size}`.trim(), vials: l.vials, coa: l.coa, low: l.low })) : (state.stock || []).map((r) => ({ code: `${r.code} ${r.size}`, vials: r.vials, coa: r.coa, low: r.vials > 0 && r.vials < 12 }));
+  const live = lines.filter((r) => r.vials > 0);
+  for (const r of live.filter((r) => r.low)) add('warn', 'apothecary', `Low stock: ${r.code} — ${r.vials} vials`, 'restock or retire the line');
   const noCoa = live.filter((r) => r.coa !== 'published');
   if (noCoa.length) add('breach', 'apothecary', `${noCoa.length} live line${noCoa.length === 1 ? '' : 's'} without a published COA: ${noCoa.map((r) => r.code).join(', ')}`, 'publish the COA or take the line off sale');
 
@@ -40,9 +42,15 @@ export function signals(state, brain, now = Date.now()) {
     if (age !== null && age > 2) add('warn', room, `P0 open for ${Math.floor(age)} days: ${o.t}`, 'do it, downgrade it, or kill it');
   }
 
-  // Money.
-  const split = Object.values(state.budget?.split || {}).reduce((n, p) => n + (Number(p) || 0), 0);
+  // Money — from the pots and the ledger (the old blob's `budget` for a state that has only that).
+  const split = state.pots ? state.pots.reduce((n, p) => n + (Number(p.pct) || 0), 0) : Object.values(state.budget?.split || {}).reduce((n, p) => n + (Number(p) || 0), 0);
   if (split && split !== 100) add('warn', 'vault', `The split adds to ${split}%, not 100`, 'fix the pots in THE VAULT');
+  if (state.ledger && Array.isArray(state.ledger)) {
+    const m = new Date(now); const month = `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}`;
+    if (m.getDate() >= 7 && !state.ledger.some((r) => r.month === month)) add('info', 'vault', `No figures typed for ${month} yet`, 'type this month\'s revenue in THE VAULT');
+    const cash = (state.cash || []).slice().sort((a, b) => String(b.day).localeCompare(String(a.day)))[0];
+    if (cash && (now - new Date(cash.day).getTime()) / DAY > 14) add('info', 'vault', `Cash was last typed on ${cash.day}`, 'a fresh cash snapshot in THE VAULT');
+  }
 
   // The journal.
   const trades = (state.journal?.trades || []).filter((t) => derive(t).r !== null).sort((a, b) => (a.opened || '').localeCompare(b.opened || ''));
@@ -59,7 +67,7 @@ export function signals(state, brain, now = Date.now()) {
 
   // The operator.
   const today = new Date(now).toISOString().slice(0, 10); const hour = new Date(now).getHours();
-  const done = Object.values(state.protocol?.[today] || {}).filter(Boolean).length;
+  const done = state.protocolTicks ? state.protocolTicks.filter((t) => t.day === today && t.done).length : Object.values(state.protocol?.[today] || {}).filter(Boolean).length;
   if (hour >= 20 && done === 0) add('info', 'sanctum', 'Nothing ticked on the protocol today', 'tick what was done in SANCTUM');
   return out;
 }

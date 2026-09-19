@@ -10,6 +10,8 @@
 import { ROOMS, ROOM_BY_ID, VENTURES, AGENT_BY_ID } from '../../config/src/index.js';
 import { drafts, runs, events } from './content.js';
 import { state } from './state.js';
+import { labSummary } from '../../../apps/facility/src/core/lab.js';
+import { moneySummary, monthOf } from '../../../apps/facility/src/core/money.js';
 
 const DAY = 86400000;
 const OPEN = ['open', 'active', 'blocked', 'review'];
@@ -21,6 +23,11 @@ export async function aggregate(db, { now = new Date() } = {}) {
     state.list(db, 'orders'), state.list(db, 'list_items'), state.list(db, 'decisions', { limit: 50 }), state.list(db, 'counsel_turns', { limit: 40 }),
     state.list(db, 'venture_focus'), state.list(db, 'goal_progress'), state.list(db, 'days', { limit: 14 }),
   ]);
+  let lab = null;
+  try { const [products, lots, settings, dispatch] = await Promise.all([state.list(db, 'products'), state.list(db, 'stock_lots'), state.list(db, 'settings'), state.list(db, 'dispatch')]); lab = labSummary(products, lots, settings, dispatch); } catch {}
+  let money = null, protocol = null;
+  try { const [ledger, fixed, cash, pots] = await Promise.all([state.list(db, 'ledger_months'), state.list(db, 'fixed_costs'), state.list(db, 'cash_snapshots'), state.list(db, 'pots')]); money = moneySummary({ ledger, fixed, cash, pots }, monthOf(now)); } catch {}
+  try { const [items, ticks] = await Promise.all([state.list(db, 'protocol_items'), state.list(db, 'protocol_ticks', { limit: 400 })]); const active = items.filter((i) => i.active !== false); protocol = { items: active.length, done: ticks.filter((k) => k.day === day && k.done).length, week: ticks.filter((k) => k.done && (t - new Date(k.day).getTime()) < 7 * DAY).length }; } catch {}
   let draftCounts = null, recentRuns = [], recentEvents = [];
   try { draftCounts = await drafts.counts(db); } catch {}
   try { recentRuns = await runs.list(db, { limit: 20 }); } catch {}
@@ -74,6 +81,7 @@ export async function aggregate(db, { now = new Date() } = {}) {
     goals: goals,
     counsel: counsel.slice(-16),
     drafts: draftCounts,
+    lab, money, protocol,
     events: recentEvents,
   };
 }
