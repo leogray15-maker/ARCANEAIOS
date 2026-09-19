@@ -1,7 +1,7 @@
 ---
 type: knowledge
-created: 2026-09-17 03:15
-updated: 2026-09-17 03:15
+created: 2026-09-19 01:25
+updated: 2026-09-19 01:25
 status: active
 agent: HERALD
 generated: true
@@ -13,7 +13,7 @@ tags: [knowledge, archives]
 
 198 subjects · 1139 modules (1342 pages incl. indexes) · 1,095,777 words · 287 modules gated as sensitive.
 
-Built 2026-09-17 03:15 by `npm run herald:index` from the Obsidian vault (read only). Regenerate after the Archives change. Full index at `data/archives/index.json` (not committed).
+Built 2026-09-19 01:25 by `npm run herald:index` from the Obsidian vault (read only). Regenerate after the Archives change. Full index at `data/archives/index.json` (not committed).
 
 ## Lanes
 
