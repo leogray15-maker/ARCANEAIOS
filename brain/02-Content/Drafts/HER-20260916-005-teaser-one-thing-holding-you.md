@@ -20,11 +20,16 @@ word_count: 38
 compliance: pass
 compliance_notes: ""
 created: 2026-09-16 22:20
-updated: 2026-09-16 22:20
+updated: 2026-09-19 01:48
 approved_by: ""
 scheduled_for: ""
 posted_at: ""
 posted_url: ""
+revision: 1
+model: vault
+parent: ""
+generated: true
+source: supabase
 ---
 There is exactly one thing holding you where you are.
 

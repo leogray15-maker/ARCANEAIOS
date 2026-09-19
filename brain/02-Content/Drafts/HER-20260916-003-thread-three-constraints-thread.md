@@ -20,11 +20,16 @@ word_count: 214
 compliance: pass
 compliance_notes: ""
 created: 2026-09-16 22:20
-updated: 2026-09-16 22:20
+updated: 2026-09-19 01:48
 approved_by: ""
 scheduled_for: ""
 posted_at: ""
 posted_url: ""
+revision: 1
+model: vault
+parent: ""
+generated: true
+source: supabase
 ---
 1/ You are being held in place by exactly one thing. Not five. One.
 

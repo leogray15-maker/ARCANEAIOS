@@ -20,11 +20,16 @@ word_count: 191
 compliance: pass
 compliance_notes: "health-noun: health-adjacent — keep to principle, not physiology — line 11: \"pain\""
 created: 2026-09-16 22:20
-updated: 2026-09-16 22:20
+updated: 2026-09-19 01:48
 approved_by: ""
 scheduled_for: ""
 posted_at: ""
 posted_url: ""
+revision: 1
+model: vault
+parent: ""
+generated: true
+source: supabase
 ---
 Skills are the clickbait constraint.
 

@@ -98,14 +98,11 @@ export function bindDash(el, { store, getRoom, go, brain }) {
     else if (act === 'draft') store.markDraft(id, b.dataset.status);
     else if (act === 'draft-open') { const pre = el.querySelector(`#draft-${CSS.escape(id)}`); if (pre) pre.classList.toggle('hidden'); }
     else if (act === 'open-journal') go('#journal');
-<<<<<<< HEAD
-=======
     else if (act === 'open-content') go('#content');
     else if (act === 'counsel-order') { store.addOrder(b.dataset.room, b.dataset.text, Number(b.dataset.p)); }
     else if (act === 'counsel-clear') store.clearCounsel();
     else if (act === 'intel-order') { store.addOrder(b.dataset.room, b.dataset.text, Number(b.dataset.p)); }
     else if (act === 'intel-clear') store.clearIntel();
->>>>>>> 76fa0ba54f36debeacc6b8669ca3ea880c702848
     else if (act === 'list-remove') store.removeItem(b.dataset.key, id);
     else if (act === 'list-tag') store.tagItem(b.dataset.key, id, b.dataset.tag);
   });

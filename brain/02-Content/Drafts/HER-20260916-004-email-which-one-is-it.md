@@ -20,11 +20,16 @@ word_count: 244
 compliance: pass
 compliance_notes: "health-noun: health-adjacent — keep to principle, not physiology — line 14: \"pain\""
 created: 2026-09-16 22:20
-updated: 2026-09-16 22:20
+updated: 2026-09-19 01:48
 approved_by: ""
 scheduled_for: ""
 posted_at: ""
 posted_url: ""
+revision: 1
+model: vault
+parent: ""
+generated: true
+source: supabase
 ---
 Subject: Which one is it
 Preview: You already know how to do the work. So what is actually stopping you.
