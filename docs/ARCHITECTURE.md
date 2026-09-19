@@ -107,6 +107,8 @@ sequenceDiagram
   participant O as Orders (06-Orders)
   participant H as Agent skill (e.g. HERALD)
   participant R as THE RECORDS (04-Records)
+  participant I as CIPHER (Intelligence)
+  participant W as The open web
 
   M->>A: state, signals
   A->>M: writes the four-block brief<br/>STATE · SIGNALS · ORDERS · DOCTRINE
@@ -118,6 +120,11 @@ sequenceDiagram
     C-->>A: nine positions
     A-->>L: one verdict: BUILD / DELAY / WATCH / KILL + conditions
     A->>R: Decision record
+  else The watch
+    L->>I: run the watchlist
+    I->>W: search, per entry
+    W-->>I: sources
+    I-->>L: opportunity / threat / signal / action, each with a source
   end
   A->>O: order routed to a room (crew walk toward it)
   alt Human action
@@ -176,8 +183,44 @@ result back in the brain as the record.
 
 ## Deployment
 
+<<<<<<< HEAD
 - `apps/facility` → Vercel (static build; only the Supabase URL and anon key are injected, by name).
 - `api/*.js` → Vercel functions on the same project, with `ANTHROPIC_API_KEY`, `ARCANE_OPERATOR_KEY` and the service-role key in the project environment. `vercel.json` includes `.claude/skills/herald/**` so the references ship with the functions, and allows 300 s for HERALD.
 - Supabase: `supabase/migrations/*.sql` run in order in the SQL editor; `npm run db:check` reports the state.
 - `brain/` → its own private GitHub repo (`arcane-brain`), synced by Obsidian Git on desktop and read by skills via `ARCANE_BRAIN`. Kept as a folder in this monorepo until the split (`git subtree split`).
 - `packages/*` → published to nowhere; imported by path and by workspace symlink.
+=======
+- `apps/facility` → Vercel (static build, `VITE_*` public Firebase config).
+- `brain/` → its own private GitHub repo (`arcane-brain`), synced by
+  Obsidian Git on desktop and read by skills via `ARCANE_BRAIN`. Kept as a
+  folder in this monorepo until day 3, then split (`git subtree split`).
+- `packages/config` → published to nowhere; imported by path. Vercel builds
+  the facility with it; skills import it relative to the repo.
+- Firestore rules: authenticated operator only; agents never hold a service
+  account in the browser. Server-side reasoning lives in three Vercel
+  functions that need `ANTHROPIC_API_KEY`: `/api/counsel` (Leo ↔ ARCANE),
+  `/api/council` (nine seats, one verdict) and `/api/intel` (CIPHER, the
+  only one that reads outside the building).
+
+## The reasoning layer
+
+Three functions under `api/`. All three share `_lib.js`: the roster and
+doctrine from `packages/config`, the system context built from the brief
+and shared memory, and `knownDevice()` — a request must carry a sync code
+that exists as a row, so the public site cannot be made to spend Leo's
+tokens by anyone who finds the URL. `tools/api.test.mjs` asserts that gate
+on every endpoint without calling the model.
+
+| Endpoint | Who | Reads | Returns |
+| --- | --- | --- | --- |
+| `/api/counsel` | ARCANE | brief, memory, orders | an answer, the specialist it concerns, at most one proposed order |
+| `/api/council` | nine seats | the same | nine positions, one verdict, the conditions, the dissent |
+| `/api/intel` | CIPHER | the operator's watchlist **and the open web** | up to eight items — opportunity, threat, signal, action — each with a source and a confidence |
+
+`/api/intel` is the only outward-facing reasoning in the system, and it is
+deliberately narrow: it researches the watchlist Leo keeps in the
+Intelligence room and nothing it chooses for itself. It holds `analyse`
+and `recommend` — every item it returns is something to read, and every
+proposal waits for Leo to press *take it* before it becomes an order.
+Nothing it finds is written anywhere on its own.
+>>>>>>> 76fa0ba54f36debeacc6b8669ca3ea880c702848

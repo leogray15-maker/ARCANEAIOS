@@ -4,32 +4,48 @@
  *
  *   npm run herald:index                 # from the Obsidian vault (the brain) when it is present
  *   npm run herald:index -- --from export # from the Notion HTML export instead
+ *   npm run herald:index -- --from notion # from Notion itself, over the API (needs NOTION_TOKEN)
  *   npm run herald:index -- --stats      # print the subject table only
  *
  * The vault is the source of truth: every Archives note in
  * `<vault>/Arcane ARCHIVES` is read, never written. Course pages are the
  * notes that link out to many others; a module's subject is the most
- * specific course that links to it. The HTML export remains as a fallback
- * for a machine without the vault. Either way this writes:
+ * specific course that links to it. The HTML export is the fallback for a
+ * machine without the vault, and `--from notion` is the one source that
+ * needs no folder at all — it is what lets HERALD run somewhere other
+ * than Leo's Mac. All three write:
  *   data/archives/index.json        — metadata for every module (gitignored)
  *   data/archives/modules/<id>.txt  — clean text per module (gitignored)
  *   brain/05-Knowledge/Archives-Map.md — the subject map (generated, committed)
  *
- * Notion is never touched. This reads a folder on disk. The Notion
- * connector is the way to *refresh* the export; it is not called here.
+ * The Archives are never written to. The vault and export readers touch
+ * only the filesystem; the Notion reader is read-only by construction
+ * (see notion.mjs) and calls no write endpoint.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { exportDir, vaultDir, INDEX_FILE, MODULES_DIR, DATA_DIR, REPO, laneFor, countWords, slugify, scan } from './lib.mjs';
+import { fetchArchives } from './notion.mjs';
 import { brainDir, writeGenerated, serializeFrontmatter, stamp } from '../../../../tools/lib/brain.mjs';
 
 const statsOnly = process.argv.includes('--stats');
-const fromExport = process.argv.includes('--from') && process.argv[process.argv.indexOf('--from') + 1] === 'export';
+const from = process.argv.includes('--from') ? process.argv[process.argv.indexOf('--from') + 1] : '';
+if (from && !['vault', 'export', 'notion'].includes(from)) {
+  console.error(`✗ Unknown source "${from}". Use --from vault, --from export or --from notion.`);
+  process.exit(1);
+}
 const vaultArchives = path.join(vaultDir(), 'Arcane ARCHIVES');
-const useVault = !fromExport && fs.existsSync(vaultArchives);
-const src = useVault ? vaultArchives : exportDir();
-if (!fs.existsSync(src)) {
-  console.error(`✗ Archives not found.\n  vault:  ${vaultArchives}\n  export: ${exportDir()}\nSet ARCANE_VAULT (Obsidian vault) or ARCANE_ARCHIVES_EXPORT.`);
+const useVault = from === 'vault' || (!from && fs.existsSync(vaultArchives));
+const useNotion = from === 'notion';
+const sourceKind = useNotion ? 'notion' : useVault ? 'vault' : 'export';
+const SOURCE_NAME = { notion: 'Notion, over the API (read only)', vault: 'the Obsidian vault (read only)', export: 'the local Notion export' };
+
+// `.env` at the repo root carries NOTION_TOKEN on an unattended run.
+if (useNotion) { try { for (const line of fs.readFileSync(path.join(REPO, '.env'), 'utf8').split('\n')) { const m = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line.trim()); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); } } catch {} }
+
+const src = useNotion ? 'notion' : useVault ? vaultArchives : exportDir();
+if (!useNotion && !fs.existsSync(src)) {
+  console.error(`✗ Archives not found.\n  vault:  ${vaultArchives}\n  export: ${exportDir()}\nSet ARCANE_VAULT (Obsidian vault) or ARCANE_ARCHIVES_EXPORT, or read Notion directly with --from notion.`);
   process.exit(1);
 }
 
@@ -76,17 +92,17 @@ function extractMd(md) {
 const modules = [];
 const subjectRows = [];
 
-if (useVault) {
-  // One flat folder of notes. Read them all, then work out which are courses.
-  const files = fs.readdirSync(src).filter((f) => f.endsWith('.md'));
-  const notes = files.map((f) => {
-    const md = fs.readFileSync(path.join(src, f), 'utf8');
-    const { title, text, links } = extractMd(md);
-    const notionId = NOTION_ID.exec(f)?.[1] || '';
-    return { file: f, base: f.replace(/\.md$/, ''), title: title || f.replace(NOTION_ID, '').replace(/\.md$/, ''), text, links, notionId, wc: countWords(text) };
-  });
+/**
+ * The vault and Notion both arrive as a flat list of notes. Everything
+ * after this point — which notes are courses, what subject a module
+ * belongs to, its lane, whether it is sensitive — is the same work on the
+ * same shape, so it is done once here rather than per source.
+ */
+function fromNotes(notes) {
   const byBase = new Map(notes.map((n) => [n.base, n]));
-  const resolve = (l) => byBase.get(path.basename(l).replace(/\.md$/, ''));
+  const byId = new Map(notes.filter((n) => n.notionId).map((n) => [n.notionId, n]));
+  // A link is either a note id (Notion) or a filename (the vault).
+  const resolve = (l) => byId.get(String(l).replace(/-/g, '').toLowerCase()) || byBase.get(path.basename(String(l)).replace(/\.md$/, ''));
   for (const n of notes) n.out = [...new Set(n.links.map(resolve).filter((x) => x && x !== n))];
   const hubs = notes.filter((n) => n.out.length >= 4);
   const hubOf = new Map();
@@ -109,6 +125,22 @@ if (useVault) {
     (bySubject[subject] || (bySubject[subject] = { subject, lane: lane.id, sensitive: lane.sensitive, modules: 0, pages: 0, words: 0, flagged: 0 })).pages++;
   }
   subjectRows.push(...Object.values(bySubject));
+}
+
+if (useNotion) {
+  const say = (m) => process.stderr.write(`  notion: ${m}\n`);
+  const { notes } = await fetchArchives({ onProgress: statsOnly ? () => {} : say });
+  if (!notes.length) { console.error('✗ Notion returned no pages. Is the Archives page shared with the integration?'); process.exit(1); }
+  fromNotes(notes);
+} else if (useVault) {
+  // One flat folder of notes. Read them all, then work out which are courses.
+  const files = fs.readdirSync(src).filter((f) => f.endsWith('.md'));
+  fromNotes(files.map((f) => {
+    const md = fs.readFileSync(path.join(src, f), 'utf8');
+    const { title, text, links } = extractMd(md);
+    const notionId = NOTION_ID.exec(f)?.[1] || '';
+    return { file: f, base: f.replace(/\.md$/, ''), title: title || f.replace(NOTION_ID, '').replace(/\.md$/, ''), text, links, notionId, wc: countWords(text) };
+  }));
 } else {
   const subjects = fs.readdirSync(src, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
   const NOTION_HTML = /\s([0-9a-f]{32})\.html$/i;
@@ -146,7 +178,7 @@ if (useVault) {
 
 const usable = modules.filter((m) => m.kind === 'module');
 const index = {
-  built: stamp(), source: src, sourceKind: useVault ? 'vault' : 'export', subjects: subjectRows,
+  built: stamp(), source: src, sourceKind, subjects: subjectRows,
   totals: { subjects: subjectRows.length, pages: modules.length, modules: usable.length, words: usable.reduce((a, m) => a + m.words, 0), sensitive: usable.filter((m) => m.sensitive).length },
   modules,
 };
@@ -166,7 +198,7 @@ const map = [
   '',
   `${index.totals.subjects} subjects · ${index.totals.modules} modules (${index.totals.pages} pages incl. indexes) · ${index.totals.words.toLocaleString('en-GB')} words · ${index.totals.sensitive} modules gated as sensitive.`,
   '',
-  `Built ${index.built} by \`npm run herald:index\` from ${useVault ? 'the Obsidian vault (read only)' : 'the local Notion export'}. Regenerate after the Archives change. Full index at \`data/archives/index.json\` (not committed).`,
+  `Built ${index.built} by \`npm run herald:index\` from ${SOURCE_NAME[sourceKind]}. Regenerate after the Archives change. Full index at \`data/archives/index.json\` (not committed).`,
   '',
   '## Lanes',
   '',
@@ -182,7 +214,7 @@ const map = [
 const status = writeGenerated(path.join(brain, '05-Knowledge', 'Archives-Map.md'), map, { write: !statsOnly });
 
 /* ---------- report ---------- */
-console.log(`Archives index ${statsOnly ? '(stats only)' : 'built'} from ${useVault ? 'the vault' : 'the export'}: ${src}`);
+console.log(`Archives index ${statsOnly ? '(stats only)' : 'built'} from ${SOURCE_NAME[sourceKind]}: ${src}`);
 console.log(`  ${index.totals.subjects} subjects · ${index.totals.modules} modules · ${index.totals.pages} pages · ${index.totals.words.toLocaleString('en-GB')} words · ${index.totals.sensitive} sensitive`);
 console.log(`  lanes: ${Object.entries(laneCounts).map(([l, n]) => `${l} ${n}`).join(' · ')}`);
 if (!statsOnly) console.log(`  → ${path.relative(REPO, INDEX_FILE)}\n  → ${path.relative(REPO, MODULES_DIR)}/*.txt\n  → brain/05-Knowledge/Archives-Map.md (${status})`);

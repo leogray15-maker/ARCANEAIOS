@@ -51,7 +51,15 @@ function seedState(brain) {
   }
   const goals = {};
   for (const g of brain?.goals?.length ? brain.goals : GOALS_FALLBACK) goals[g.id] = { progress: Number(String(g.progress).replace(/[^\d.]/g, '')) || 0 };
+<<<<<<< HEAD
   return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] } };
+=======
+  const budget = { cash: 0, fixed: {}, split: {} };
+  for (const f of BUDGET.fixed) budget.fixed[f.id] = f.amount;
+  for (const sp of BUDGET.split) budget.split[sp.id] = sp.pct;
+  const stock = INVENTORY.rows.map((r) => ({ id: uid(), ...r }));
+  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, ledger, goals, budget, stock, funnel: { ...FUNNEL.seed }, drafts: {}, positions: {}, log: [], lists: {}, protocol: {}, counsel: [], decisions: [], intel: null, journal: { trades: [], setups: SEED_SETUPS.map((x) => ({ ...x })), checkins: [] } };
+>>>>>>> 76fa0ba54f36debeacc6b8669ca3ea880c702848
 }
 
 export class Store {
@@ -124,6 +132,7 @@ export class Store {
     s.drafts = saved.drafts || {};
     s.positions = saved.positions || {};
     s.log = (saved.log || []).slice(-LOG_MAX);
+<<<<<<< HEAD
     // The cache of the server's tables, in the shapes the floor draws.
     s.lists = saved.lists || {}; s.counsel = (saved.counsel || []).slice(-40); s.decisions = saved.decisions || [];
     s.focus = saved.focus || {}; s.goalProgress = saved.goalProgress || {}; s.days = saved.days || {};
@@ -133,6 +142,14 @@ export class Store {
     s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups || [], checkins: saved.journal?.checkins || [] };
     // Once the server has answered, its rows are the truth for its keys; a blob or cache never overwrites them.
     if (this.server?.ready) for (const k of SERVER_KEYS) s[k] = fresh[k];
+=======
+    s.lists = saved.lists || {};
+    s.protocol = saved.protocol || {};
+    s.counsel = (saved.counsel || []).slice(-40);
+    s.decisions = saved.decisions || [];
+    s.intel = saved.intel || null;
+    s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups?.length ? saved.journal.setups : fresh.journal.setups, checkins: saved.journal?.checkins || [] };
+>>>>>>> 76fa0ba54f36debeacc6b8669ca3ea880c702848
     this.state = s;
   }
   save() {
@@ -461,6 +478,7 @@ export class Store {
     return this.commit(() => { this.state.counsel = []; }, () => Promise.all(ids.map((id) => api.state.remove('counsel_turns', id))), 'counsel');
   }
   decisions() { return this.state.decisions; }
+<<<<<<< HEAD
   addDecision(d) {
     const local = { id: `tmp-${uid()}`, ts: Date.now(), outcome: '', reviewed: 0, source: d.source || 'council', ...d };
     return this.commit(
@@ -469,6 +487,18 @@ export class Store {
       'decision');
   }
   setDecisionOutcome(id, outcome) { const d = this.state.decisions.find((x) => x.id === id); if (!d) return null; return this.commit(() => { d.outcome = outcome; d.reviewed = Date.now(); }, () => api.state.update('decisions', id, { outcome }), 'decision'); }
+=======
+  addDecision(d) { const id = `DEC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(this.state.decisions.length + 1).padStart(3, '0')}`; this.state.decisions.unshift({ id, ts: Date.now(), outcome: '', ...d }); this.log(`Council: ${d.verdict} — ${d.question}`, 'council'); this.touch(); return id; }
+  /* ---------- the watch (CIPHER, reading outside) ---------- */
+  // One run is kept, not a history: intelligence goes stale, and a stale
+  // item read as current is worse than no item. The run carries its own
+  // timestamp so the room can say how old it is.
+  intel() { return this.state.intel; }
+  setIntel(run) { this.state.intel = { ...run, ts: Date.now() }; this.log(`Watch: ${run.quiet ? 'quiet' : `${(run.items || []).length} item(s)`}`, 'intel'); this.touch(); }
+  clearIntel() { this.state.intel = null; this.touch(); }
+
+  setDecisionOutcome(id, outcome) { const d = this.state.decisions.find((x) => x.id === id); if (d) { d.outcome = outcome; d.reviewed = Date.now(); this.touch(); } }
+>>>>>>> 76fa0ba54f36debeacc6b8669ca3ea880c702848
 
   /* ---------- THE TRADING FLOOR: the journal on tables ---------- */
   journal() { return this.state.journal; }

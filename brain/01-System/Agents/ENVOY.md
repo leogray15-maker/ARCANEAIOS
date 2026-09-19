@@ -1,7 +1,7 @@
 ---
 type: system-card
-created: 2026-09-16 22:11
-updated: 2026-09-16 22:11
+created: 2026-09-17 10:49
+updated: 2026-09-17 10:49
 status: active
 agent: ENVOY
 generated: true
@@ -27,7 +27,7 @@ Not seated on the Council.
 
 - Shared memory — `live`
 - CRM — `not wired`
-- Web research — `not wired`
+- Web research — `live`
 
 ## Permissions
 

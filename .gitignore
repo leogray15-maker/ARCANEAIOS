@@ -28,7 +28,13 @@ data/herald-auto.log
 # Obsidian workspace state (per-device); keep app/core-plugins config
 brain/.obsidian/workspace*.json
 brain/.obsidian/cache
+<<<<<<< HEAD
 data/dev-db.json
 
 # Arcane Peptides: the catalogue seed with supplier cost prices — local, imported into the database by tools/products-import.mjs
 data/peptides/
+=======
+
+# HERALD Notion cache (rebuilt from Notion; never a source of truth)
+data/archives/notion-cache/
+>>>>>>> 76fa0ba54f36debeacc6b8669ca3ea880c702848
