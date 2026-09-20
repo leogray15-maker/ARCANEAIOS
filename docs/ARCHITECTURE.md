@@ -206,9 +206,11 @@ model failure into a sentence that says what to do.
 | `/api/council` | nine seats | the same | nine positions, one verdict, the conditions, the dissent |
 | `/api/herald` | HERALD | one Archives module | up to five linted drafts, landed in `content_drafts` |
 | `/api/intel` | CIPHER | the operator's watchlist **and the open web** | up to eight items — opportunity, threat, signal, action — each with a source and a confidence; proposals written as `proposed` orders |
-| `/api/tally` | TALLY | the ledger, fixed costs, cash, the split, what shipped and what it made, stock and margins, the journal, the money events of the fortnight | what changed, why, what it means, what to check; proposals |
-| `/api/meridian` | MERIDIAN | lots, stock, cover, the dispatch queue, what shipped and what it cost | where the chain binds, what to reorder; proposals |
-| `/api/vector` | VECTOR | the Bridge aggregate — ranking, money, moves, blockers, verdicts, signals, proposals waiting | the position, risks, opportunities, one Council question or none; proposals |
+| `/api/agent` (`agent: 'tally'`) | TALLY | the ledger, fixed costs, cash, the split, what shipped and what it made, stock and margins, the journal, the money events of the fortnight | what changed, why, what it means, what to check; proposals |
+| `/api/agent` (`agent: 'meridian'`) | MERIDIAN | lots, stock, cover, the dispatch queue, what shipped and what it cost | where the chain binds, what to reorder; proposals |
+| `/api/agent` (`agent: 'vector'`) | VECTOR | the Bridge aggregate — ranking, money, moves, blockers, verdicts, signals, proposals waiting | the position, risks, opportunities, one Council question or none; proposals |
+
+TALLY, MERIDIAN and VECTOR are one function, not three (`api/agent.js`, dispatching on the `agent` field): Vercel's Hobby plan caps a deployment at 12 serverless functions, and this repo sits exactly at that ceiling — a 13th route file needs another merge or a plan upgrade before it can deploy, not just a push.
 
 ### The agent contract
 

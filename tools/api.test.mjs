@@ -52,18 +52,16 @@ const drafts = (await import('../api/drafts.js')).default;
 const modules = (await import('../api/modules.js')).default;
 const runsApi = (await import('../api/runs.js')).default;
 const health = (await import('../api/health.js')).default;
-const tally = (await import('../api/tally.js')).default;
-const meridian = (await import('../api/meridian.js')).default;
-const vector = (await import('../api/vector.js')).default;
+const agentApi = (await import('../api/agent.js')).default;
 
 const POST = [
   ['counsel', counsel, { question: 'what should I do today?' }],
   ['council', council, { question: 'should I raise the price?' }],
   ['intel', intel, { question: '' }],
   ['herald', herald, { module_id: 'x' }],
-  ['tally', tally, {}],
-  ['meridian', meridian, {}],
-  ['vector', vector, {}],
+  ['tally', agentApi, { agent: 'tally' }],
+  ['meridian', agentApi, { agent: 'meridian' }],
+  ['vector', agentApi, { agent: 'vector' }],
   ['state', stateApi, { table: 'orders', row: { room: 'forge', text: 'x' } }],
 ];
 const GET = [['bridge', bridge], ['drafts', drafts], ['modules', modules], ['runs', runsApi], ['health', health], ['state', stateApi]];

@@ -30,12 +30,17 @@ import { AGENTS, AGENT_BY_ID, ROOM_BY_ID, CAPS, MODE_OF_GRADE, STALE_RUN_MS } fr
 
 /** The agents with code behind them, and where. Everyone else is a card. */
 export const AGENT_ENDPOINTS = {
-  arcane:   { path: '/api/counsel',  kind: 'counsel',  label: 'Counsel and the Council' },
-  herald:   { path: '/api/herald',   kind: 'herald',   label: 'Generate content from a module' },
-  intel:    { path: '/api/intel',    kind: 'intel',    label: 'The watch, on the open web' },
-  tally:    { path: '/api/tally',    kind: 'reader',   label: 'The reading of the books' },
-  meridian: { path: '/api/meridian', kind: 'reader',   label: 'The reading of the chain' },
-  vector:   { path: '/api/vector',   kind: 'reader',   label: 'The reading of the position' },
+  arcane:   { path: '/api/counsel', kind: 'counsel', label: 'Counsel and the Council' },
+  herald:   { path: '/api/herald',  kind: 'herald',  label: 'Generate content from a module' },
+  intel:    { path: '/api/intel',   kind: 'intel',   label: 'The watch, on the open web' },
+  // All three readers share one function (/api/agent, chosen by an `agent`
+  // field in the body) — a deliberate merge, not three routes that happen
+  // to look alike: Vercel's Hobby plan caps a deployment at 12 serverless
+  // functions (docs/OPENJARVIS_PORT.md), and these three were the cheapest
+  // three to fold into one without losing anything.
+  tally:    { path: '/api/agent', kind: 'reader', label: 'The reading of the books' },
+  meridian: { path: '/api/agent', kind: 'reader', label: 'The reading of the chain' },
+  vector:   { path: '/api/agent', kind: 'reader', label: 'The reading of the position' },
 };
 
 const isOpen = (o) => !['done', 'killed', 'proposed'].includes(o.state);

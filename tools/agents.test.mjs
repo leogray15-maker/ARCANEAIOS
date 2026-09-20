@@ -107,8 +107,8 @@ ok(r.code === 200 && r.body.status === 'refused', 'a refusal answers 200 refused
 ok((await runById(r.body.run)).status === 'refused', 'and is recorded as refused');
 
 /* ---- VECTOR's Council question becomes a proposal in THE COUNCIL ---- */
-const vec = (await import('../api/vector.js')).default;
-ok(typeof vec === 'function', 'vector handler loads');
+const agentApi = (await import('../api/agent.js')).default;
+ok(typeof agentApi === 'function', 'the shared /api/agent handler loads (tally, meridian and vector all route through it — the Hobby plan\'s 12-function ceiling)');
 const vbody = { position: 'thin', risks: [], opportunities: [], council: { question: 'Starve the Codex until Track has 50 members?', case: 'The Codex has no revenue.' }, proposals: [], summary: 'read' };
 r = res();
 await agentRun({ body: {}, query: {} }, r, auth, { agent: 'vector', holder: 'VECTOR', prefix: 'VEC', skill: 'position', objective: 'x', evidence: vectorEvidence, instructions: 'read', schema: { type: 'object' }, proposals: (out) => [...(out.proposals || []), ...(out.council?.question ? [{ room: 'council', text: `Convene the Council: ${out.council.question}`, priority: 'P1', why: out.council.case }] : [])] }, { d: db, c: fake(vbody), now });
