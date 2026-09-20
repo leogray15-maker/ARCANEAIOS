@@ -158,6 +158,53 @@ Then, in order, each committed on its own:
 
 `ARCANE_IMPLEMENTATION_REPORT.md` is the account.
 
+## The operating-system pass (2026-09-20, evening) — plan
+
+The brief: turn the facility into one interconnected operating system —
+goals → targets → ventures → projects → tasks → agents → outputs → money →
+decisions → reviews → lessons → new goals. The audit before this pass found
+the seams already present (the registry, the agent contract, `proposed`
+orders, signals with evidence, the Bridge aggregate) and the objects missing
+(goals with a hierarchy, projects, reviews, capital rules, bottlenecks,
+richer decisions). Built in this order, each step tested and committed:
+
+1. **Foundation** — migration `0011_command.sql` (goals, projects, reviews,
+   bottlenecks, capital_rules, capital_allocations; `orders` gain
+   project_id, goal_id, estimate_h, actual_h, depends_on, recurrence;
+   `decisions` gain options, evidence, assumptions, risks, impact, owner,
+   review_on, retro; `list_items` gain value_gbp, due, note). Registry
+   entries, config vocabulary, the pure modules (`core/goals.js`,
+   `core/projects.js`, `core/capital.js`), store methods, the aggregate.
+2. **Command** — NORTH STAR (`#goals`, the hierarchy 10y → day, click
+   through), TARGETS (`#targets`, target / actual / variance / % / time
+   left / trend, actuals bound to the tables), MISSION CONTROL
+   (`#projects`, health computed), THE TASK ENGINE (`#tasks`, every order
+   with project, goal, estimate, dependency, recurrence, orphan flag).
+3. **Ops and reviews** — DAILY OPS (`#ops`: the three, P0/P1, habits,
+   deep work, waiting, agent work, shutdown → daily review), THE REVIEW
+   ROOM (`#review`: day / week / month / quarter, prefilled from the
+   state, kept in `reviews`, shown in THE RECORDS).
+4. **Money** — CAPITAL PLAN (`#capital`: the waterfall, rules, this
+   month's proposed allocation, confirm → history, cumulative); the Vault
+   gains COGS, gross, tax reserve, deployable capital, a forecast and a
+   history chart.
+5. **Agents** — AGENT HQ (`#agents`, `#agents/<id>`: status derived from
+   runs and orders, queue, permissions, outputs, tokens, approval rate,
+   audit); THE ORCHESTRATOR (`/api/orchestrate`: a question → the readers
+   that apply → evidence → a Council question, proposed, never run).
+6. **Intelligence** — THE DECISION ROOM (`#decisions`), BOTTLENECKS,
+   venture pages (`#venture/<id>`), quick capture (parse → confirm), the
+   palette's actions, global search (`/api/search`).
+7. Docs, the navigator's groups, the report.
+
+Decisions taken in this pass (revisit only if Leo objects): the floor stays
+the home screen and the Bridge is the Scoreboard (`#scoreboard` is an
+alias); new rooms are applications reachable from the navigator and from
+their parent room, not new floor geometry; orders remain the task engine
+in the config's vocabulary; an orphan task is flagged, never refused; the
+`goals` table is the truth and `05-Knowledge/Goals.md` becomes a generated
+mirror, as Orders.md did; nothing here moves money or executes a trade.
+
 ## Next
 
 1. Run 0009 and 0010 against the live database, then deploy — in that order (the deployed code writes the new columns).

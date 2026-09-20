@@ -12,7 +12,9 @@
  * maps them to what the floor draws.
  */
 import { randomUUID } from 'node:crypto';
-import { ROOM_BY_ID, VENTURE_BY_ID, AGENT_BY_ID, ORDER_STATES, ORDER_PRIORITY, ORDER_SOURCES, ORDER_FROM_PROPOSED, VERDICTS } from '../../config/src/index.js';
+import { ROOM_BY_ID, VENTURE_BY_ID, AGENT_BY_ID, ORDER_STATES, ORDER_PRIORITY, ORDER_SOURCES, ORDER_FROM_PROPOSED, VERDICTS, HORIZON_IDS, GOAL_STATES, PROJECT_STATES, REVIEW_KINDS, BOTTLENECK_STATES, RECURRENCES } from '../../config/src/index.js';
+import { METRIC_IDS } from '../../../apps/facility/src/core/goals.js';
+import { pctsValid } from '../../../apps/facility/src/core/capital.js';
 import { DatabaseError } from './index.js';
 import { nextId } from './content.js';
 import { events } from './content.js';
@@ -52,8 +54,14 @@ export const TABLES = {
   orders: {
     key: 'id', mint: (db, now) => nextId(db, 'orders', 'ORD', now), order: 'priority.asc,created_at.desc', event: 'order',
     required: ['room', 'text'],
-    defaults: { priority: 2, state: 'open', holder: 'Leo', actor: 'human', venture: '', blocked_on: '', due: null, note: '', source: 'floor', source_id: '', agent: '', brain_n: null, done_at: null },
-    fields: { room: room(), text: str(500), priority: int(0, 3), state: oneOf(ORDER_STATES), holder: str(60), actor: oneOf(['human', 'agent']), venture: ventureOrEmpty(), blocked_on: str(300), due: dayOrNull(), note: str(2000), source: oneOf(ORDER_SOURCES), source_id: str(80), agent: agentOrEmpty(), brain_n: (v) => (v === null || v === undefined || v === '' ? null : int(0, 100000)(v)), done_at: dateOrNull() },
+    defaults: { priority: 2, state: 'open', holder: 'Leo', actor: 'human', venture: '', blocked_on: '', due: null, note: '', source: 'floor', source_id: '', agent: '', brain_n: null, done_at: null, project_id: '', goal_id: '', estimate_h: null, actual_h: null, depends_on: '', recurrence: '' },
+    fields: { room: room(), text: str(500), priority: int(0, 3), state: oneOf(ORDER_STATES), holder: str(60), actor: oneOf(['human', 'agent']), venture: ventureOrEmpty(), blocked_on: str(300), due: dayOrNull(), note: str(2000), source: oneOf(ORDER_SOURCES), source_id: str(80), agent: agentOrEmpty(), brain_n: (v) => (v === null || v === undefined || v === '' ? null : int(0, 100000)(v)), done_at: dateOrNull(), project_id: str(40), goal_id: str(40), estimate_h: numOrNull(0), actual_h: numOrNull(0), depends_on: str(40), recurrence: oneOf(RECURRENCES) },
+    // A project or goal an order names must exist, and an order cannot wait on itself.
+    async verify(db, row, { current } = {}) {
+      if (row.project_id) { const p = await db.get('projects', { select: 'id', id: `eq.${row.project_id}` }, { single: true }); if (!p) throw bad(`no project ${row.project_id}`); }
+      if (row.goal_id) { const g = await db.get('goals', { select: 'id', id: `eq.${row.goal_id}` }, { single: true }); if (!g) throw bad(`no goal ${row.goal_id}`); }
+      if (row.depends_on) { if (current && row.depends_on === current.id) throw bad('an order cannot wait on itself'); const d = await db.get('orders', { select: 'id', id: `eq.${row.depends_on}` }, { single: true }); if (!d) throw bad(`no order ${row.depends_on} to wait on`); }
+    },
     // A proposal must say who made it and what it came from, or it cannot
     // be answered for later; and it may only be approved or killed, never
     // marked done, because nobody did it.
@@ -74,14 +82,14 @@ export const TABLES = {
   list_items: {
     key: 'id', mint: () => randomUUID(), order: 'position.asc,created_at.desc', event: 'item',
     required: ['list', 'text'],
-    defaults: { tag: '', venture: '', position: 0, done: false, outcome: '', done_at: null },
-    fields: { list: oneOf(LISTS), text: str(500), tag: str(40), venture: ventureOrEmpty(), position: int(-100000, 100000), done: bool(), outcome: str(1000), done_at: dateOrNull() },
+    defaults: { tag: '', venture: '', position: 0, done: false, outcome: '', done_at: null, value_gbp: null, due: null, note: '' },
+    fields: { list: oneOf(LISTS), text: str(500), tag: str(40), venture: ventureOrEmpty(), position: int(-100000, 100000), done: bool(), outcome: str(1000), done_at: dateOrNull(), value_gbp: numOrNull(0), due: dayOrNull(), note: str(2000) },
   },
   decisions: {
     key: 'id', mint: (db, now) => nextId(db, 'decisions', 'DEC', now), order: 'created_at.desc', event: 'decision',
     required: ['question'],
-    defaults: { verdict: 'WATCH', summary: '', conditions: [], dissent: '', positions: [], outcome: '', source: 'council', device: '', usage: {}, reviewed_at: null },
-    fields: { question: str(500), verdict: oneOf(VERDICTS), summary: str(4000), conditions: jsonArr(), dissent: str(2000), positions: jsonArr(), outcome: str(2000), source: oneOf(['council', 'leo']), device: str(60), usage: (v) => (v && typeof v === 'object' ? v : {}), reviewed_at: dateOrNull() },
+    defaults: { verdict: 'WATCH', summary: '', conditions: [], dissent: '', positions: [], outcome: '', source: 'council', device: '', usage: {}, reviewed_at: null, context: '', options: [], evidence: '', assumptions: '', risks: '', impact_gbp: null, impact: '', owner: 'Leo', review_on: null, retro: '', venture: '', goal_id: '' },
+    fields: { question: str(500), verdict: oneOf(VERDICTS), summary: str(4000), conditions: jsonArr(), dissent: str(2000), positions: jsonArr(), outcome: str(2000), source: oneOf(['council', 'leo', 'orchestrator']), device: str(60), usage: (v) => (v && typeof v === 'object' ? v : {}), reviewed_at: dateOrNull(), context: str(4000), options: jsonArr(), evidence: str(4000), assumptions: str(4000), risks: str(4000), impact_gbp: numOrNull(), impact: str(2000), owner: str(60), review_on: dayOrNull(), retro: str(4000), venture: ventureOrEmpty(), goal_id: str(40) },
   },
   counsel_turns: {
     key: 'id', mint: () => randomUUID(), order: 'created_at.asc', event: 'counsel',
@@ -201,6 +209,56 @@ export const TABLES = {
     defaults: { type: 'Pre-market', mood: '', stress: null, energy: null, sleep: null, streamed: false, acted: false, trigger: '', note: '' },
     fields: { type: str(30), mood: str(30), stress: intOrNull(1, 5), energy: intOrNull(1, 5), sleep: numOrNull(0), streamed: bool(), acted: bool(), trigger: str(300), note: str(2000) },
   },
+  /* ---- THE OPERATING SYSTEM (0011): goals, projects, reviews, bottlenecks, the capital plan ---- */
+  goals: {
+    key: 'id', mint: (db, now) => nextId(db, 'goals', 'GL', now), order: 'position.asc,created_at.asc', event: 'goal',
+    required: ['title'],
+    defaults: { description: '', horizon: 'year', parent_id: null, category: '', venture: '', owner: 'Leo', metric: '', unit: '', currency: 'GBP', target: null, current: null, status: 'active', starts: null, ends: null, note: '', position: 0, done_at: null },
+    fields: { title: str(200), description: str(4000), horizon: oneOf(HORIZON_IDS), parent_id: (v) => (v === null || v === '' || v === undefined ? null : str(40)(v)), category: str(40), venture: ventureOrEmpty(), owner: str(60), metric: (v) => { const s = String(v ?? ''); if (s && !METRIC_IDS.includes(s)) throw bad(`unknown metric "${s}" — one of ${METRIC_IDS.join(', ')}`); return s; }, unit: str(20), currency: str(3), target: numOrNull(), current: numOrNull(), status: oneOf(GOAL_STATES), starts: dayOrNull(), ends: dayOrNull(), note: str(4000), position: int(-100000, 100000), done_at: dateOrNull() },
+    // A goal serves one at a longer horizon; never itself, never a shorter one.
+    async verify(db, row, { current } = {}) {
+      const parentId = row.parent_id === undefined ? current?.parent_id : row.parent_id;
+      if (!parentId) return;
+      if (current && parentId === current.id) throw bad('a goal cannot be its own parent');
+      const p = await db.get('goals', { select: 'id,horizon', id: `eq.${parentId}` }, { single: true });
+      if (!p) throw bad(`no goal ${parentId} to serve`);
+      const h = row.horizon ?? current?.horizon ?? 'year';
+      if (HORIZON_IDS.indexOf(p.horizon) >= HORIZON_IDS.indexOf(h)) throw bad(`a ${h} goal must serve a longer horizon than ${p.horizon}`);
+    },
+  },
+  projects: {
+    key: 'id', mint: (db, now) => nextId(db, 'projects', 'PRJ', now), order: 'position.asc,created_at.desc', event: 'project',
+    required: ['name'],
+    defaults: { objective: '', venture: '', goal_id: null, owner: 'Leo', agent: '', status: 'ready', budget_gbp: null, spent_gbp: null, starts: null, due: null, note: '', position: 0, done_at: null },
+    fields: { name: str(200), objective: str(2000), venture: ventureOrEmpty(), goal_id: (v) => (v === null || v === '' || v === undefined ? null : str(40)(v)), owner: str(60), agent: agentOrEmpty(), status: oneOf(PROJECT_STATES), budget_gbp: numOrNull(0), spent_gbp: numOrNull(0), starts: dayOrNull(), due: dayOrNull(), note: str(4000), position: int(-100000, 100000), done_at: dateOrNull() },
+    async verify(db, row) { if (row.goal_id) { const g = await db.get('goals', { select: 'id', id: `eq.${row.goal_id}` }, { single: true }); if (!g) throw bad(`no goal ${row.goal_id}`); } },
+  },
+  reviews: {
+    key: 'id', mint: (db, now) => nextId(db, 'reviews', 'REV', now), order: 'created_at.desc', event: 'review',
+    required: ['kind', 'period'],
+    defaults: { answers: {}, facts: {}, summary: '', status: 'draft', kept_at: null },
+    fields: { kind: oneOf(REVIEW_KINDS.map((k) => k.id)), period: str(12), answers: (v) => (v && typeof v === 'object' ? v : {}), facts: (v) => (v && typeof v === 'object' ? v : {}), summary: str(4000), status: oneOf(['draft', 'kept']), kept_at: dateOrNull() },
+    check(row, { current } = {}) { if (current?.status === 'kept' && (row.answers !== undefined || row.kind !== undefined || row.period !== undefined)) throw bad('a kept review is part of the record — write the next one instead'); },
+  },
+  bottlenecks: {
+    key: 'id', mint: (db, now) => nextId(db, 'bottlenecks', 'BTL', now), order: 'created_at.desc', event: 'bottleneck',
+    required: ['text'],
+    defaults: { area: 'attention', severity: 'warn', venture: '', evidence: '', owner: 'Leo', proposed: '', status: 'open', source: 'floor', source_id: '', cleared_at: null },
+    fields: { text: str(500), area: str(40), severity: oneOf(['info', 'warn', 'breach']), venture: ventureOrEmpty(), evidence: str(4000), owner: str(60), proposed: str(4000), status: oneOf(BOTTLENECK_STATES), source: str(20), source_id: str(80), cleared_at: dateOrNull() },
+  },
+  capital_rules: {
+    key: 'id', natural: true, order: 'position.asc', event: 'capital-rule',
+    required: ['id', 'name'],
+    defaults: { min_available: 0, pcts: {}, active: true, position: 0, note: '' },
+    fields: { id: slug(), name: str(80), min_available: (v) => Math.max(0, num()(v ?? 0)), pcts: (v) => { const o = v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [String(k), Number(x) || 0])) : {}; if (Object.keys(o).length && !pctsValid(o)) throw bad(`the percentages must add to 100 (they add to ${Object.values(o).reduce((n, p) => n + p, 0)})`); return o; }, active: bool(), position: int(0, 100), note: str(300) },
+  },
+  capital_allocations: {
+    key: 'id', natural: true, order: 'month.desc', event: 'allocation',
+    required: ['id', 'month'],
+    defaults: { available: null, rule_id: '', proposed: {}, confirmed: {}, note: '', confirmed_at: null },
+    fields: { id: (v) => { const s = String(v ?? ''); if (!/^\d{4}-\d{2}$/.test(s)) throw bad('id must be YYYY-MM'); return s; }, month: (v) => { if (!/^\d{4}-\d{2}$/.test(String(v))) throw bad('month must be YYYY-MM'); return String(v); }, available: numOrNull(), rule_id: str(40), proposed: (v) => (v && typeof v === 'object' ? v : {}), confirmed: (v) => (v && typeof v === 'object' ? v : {}), note: str(500), confirmed_at: dateOrNull() },
+    check(row, { current } = {}) { if (current?.confirmed_at && row.confirmed !== undefined) throw bad(`${current.month} is confirmed — it is a record now; note a correction instead`); },
+  },
 };
 export const TABLE_IDS = Object.keys(TABLES);
 
@@ -239,6 +297,7 @@ export const state = {
   async insert(db, table, input, { actor = 'leo', now = new Date() } = {}) {
     const t = spec(table);
     const row = clean(table, input, { insert: true });
+    if (t.verify) await t.verify(db, row, { insert: true });
     if (!t.natural) row[t.key] = await t.mint(db, now);
     row.created_at = now.toISOString();
     if (t.natural) {
@@ -258,7 +317,13 @@ export const state = {
     delete patch[t.key];
     if (!Object.keys(patch).length) throw bad('nothing to change');
     const cur = cur0;
+    if (t.verify) await t.verify(db, patch, { current: cur });
     if (table === 'orders' && patch.state && patch.state !== cur.state) patch.done_at = ['done', 'killed'].includes(patch.state) ? now.toISOString() : null;
+    if (table === 'goals' && patch.status && patch.status !== cur.status) patch.done_at = ['done', 'dropped'].includes(patch.status) ? now.toISOString() : null;
+    if (table === 'projects' && patch.status && patch.status !== cur.status) patch.done_at = ['done', 'dropped'].includes(patch.status) ? now.toISOString() : null;
+    if (table === 'bottlenecks' && patch.status && patch.status !== cur.status) patch.cleared_at = patch.status === 'cleared' ? now.toISOString() : null;
+    if (table === 'reviews' && patch.status === 'kept' && cur.status !== 'kept') patch.kept_at = now.toISOString();
+    if (table === 'capital_allocations' && patch.confirmed !== undefined && !cur.confirmed_at) patch.confirmed_at = now.toISOString();
     if (table === 'list_items' && patch.done !== undefined && patch.done !== cur.done) patch.done_at = patch.done ? now.toISOString() : null;
     if (table === 'decisions' && patch.outcome !== undefined && patch.outcome !== cur.outcome) patch.reviewed_at = patch.outcome ? now.toISOString() : null;
     if (table === 'dispatch' && patch.stage === 'shipped' && cur.stage !== 'shipped') patch.shipped_at = now.toISOString();
@@ -273,7 +338,15 @@ export const state = {
     // lots and what they cost and sold for is written down as it was.
     if (table === 'dispatch' && patch.stage === 'shipped' && cur.stage !== 'shipped') await draw(db, id, now);
     const [saved] = await db.patch(table, { [t.key]: `eq.${id}` }, patch);
-    const change = table === 'orders' && patch.state ? `${cur.state} → ${patch.state}` : table === 'list_items' && patch.done !== undefined ? (patch.done ? 'done' : 'reopened') : table === 'decisions' && patch.outcome ? 'outcome recorded' : Object.keys(patch).join(', ');
+    // A recurring order comes back: marking it done writes the next one,
+    // due one period on from the last due date (or from today), so the
+    // habit of the work survives the ticking of the box.
+    let next = null;
+    if (table === 'orders' && patch.state === 'done' && cur.state !== 'done' && cur.recurrence) {
+      const due = nextDue(cur.due || now.toISOString().slice(0, 10), cur.recurrence);
+      next = await state.insert(db, 'orders', { room: cur.room, text: cur.text, priority: cur.priority, holder: cur.holder, actor: cur.actor, venture: cur.venture, note: cur.note, source: cur.source === 'floor' ? 'floor' : cur.source, source_id: cur.source === 'floor' ? '' : cur.source_id, agent: cur.agent, project_id: cur.project_id || '', goal_id: cur.goal_id || '', estimate_h: cur.estimate_h ?? null, recurrence: cur.recurrence, due }, { actor, now });
+    }
+    const change = table === 'orders' && patch.state ? `${cur.state} → ${patch.state}${next ? ` (recurs as ${next.id}, due ${next.due})` : ''}` : table === 'list_items' && patch.done !== undefined ? (patch.done ? 'done' : 'reopened') : table === 'decisions' && patch.outcome ? 'outcome recorded' : Object.keys(patch).join(', ');
     await events.add(db, { kind: `${t.event}.changed`, actor, subject_type: t.event, subject_id: String(id), summary: `${summarise(table, saved)} — ${change}`, data: { fields: Object.keys(patch) } });
     return saved;
   },
@@ -283,6 +356,10 @@ export const state = {
     if (table === 'products') throw bad('products are never deleted — set active to false');
     if (table === 'entries') throw bad('entries are never deleted — set status to dropped');
     if (table === 'dispatch') throw bad('dispatch rows are never deleted — set the stage to cancelled');
+    if (table === 'goals' || table === 'projects') throw bad(`${table} are never deleted — set status to dropped`);
+    if (table === 'bottlenecks') throw bad('bottlenecks are never deleted — set status to cleared');
+    if (table === 'reviews') { const r = await db.get(table, { select: 'status', id: `eq.${id}` }, { single: true }); if (r?.status === 'kept') throw bad('a kept review is part of the record'); }
+    if (table === 'capital_allocations') { const r = await db.get(table, { select: 'confirmed_at', id: `eq.${id}` }, { single: true }); if (r?.confirmed_at) throw bad('a confirmed allocation is part of the record'); }
     const cur = await db.get(table, { select: '*', [t.key]: `eq.${id}` }, { single: true });
     if (!cur) throw new DatabaseError(`no ${table} ${id}`, { status: 404 });
     await db.delete(table, { [t.key]: `eq.${id}` });
@@ -334,6 +411,16 @@ async function draw(db, dispatchId, now) {
   await events.add(db, { kind: 'dispatch.drawn', actor: 'leo', subject_type: 'dispatch', subject_id: dispatchId, summary: `${dispatchId}: ${lines.reduce((n, l) => n + l.vials, 0)} vials drawn from ${lotIds.length} lot${lotIds.length === 1 ? '' : 's'}`, data: { lots: want, at: now.toISOString() } });
 }
 
+/** The next due date for a recurrence, from a YYYY-MM-DD. */
+export function nextDue(day, recurrence) {
+  const d = new Date(`${day}T12:00:00`);
+  if (recurrence === 'day') d.setDate(d.getDate() + 1);
+  else if (recurrence === 'week') d.setDate(d.getDate() + 7);
+  else if (recurrence === 'month') d.setMonth(d.getMonth() + 1);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 function summarise(table, r) {
   switch (table) {
     case 'orders': return `[P${r.priority}] ${ROOM_BY_ID[r.room]?.name || r.room}: ${r.text}`;
@@ -358,6 +445,12 @@ function summarise(table, r) {
     case 'trades': return `${r.id} ${r.instrument} ${r.direction}${r.exit !== null && r.exit !== undefined ? ' closed' : ' open'}`;
     case 'setups': return `setup ${r.name} (${r.status})`;
     case 'checkins': return `check-in: ${r.type}${r.mood ? ` · ${r.mood}` : ''}`;
+    case 'goals': return `[${r.horizon}] ${r.title}${r.target !== null && r.target !== undefined ? ` → ${r.target}${r.unit ? ` ${r.unit}` : ''}` : ''}${r.status !== 'active' ? ` (${r.status})` : ''}`;
+    case 'projects': return `${r.name}${r.venture ? ` · ${VENTURE_BY_ID[r.venture]?.name || r.venture}` : ''} (${r.status})`;
+    case 'reviews': return `${r.kind} review ${r.period}${r.status === 'kept' ? ' kept' : ''}`;
+    case 'bottlenecks': return `[${r.severity}] ${r.area}: ${r.text}${r.status !== 'open' ? ` (${r.status})` : ''}`;
+    case 'capital_rules': return `rule ${r.name}: from £${r.min_available}${r.active === false ? ' (off)' : ''}`;
+    case 'capital_allocations': return `allocation ${r.month}${r.confirmed_at ? ' confirmed' : ' proposed'}`;
     default: return table;
   }
 }

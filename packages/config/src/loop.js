@@ -87,3 +87,81 @@ export const ACTORS = ['human', 'agent'];
 
 /** What every Trace entry must carry. */
 export const TRACE_FIELDS = ['ts', 'agent', 'skill', 'run', 'action', 'inputs', 'outputs', 'result', 'notes'];
+
+/* ============================================================
+   THE OPERATING SYSTEM — goals, projects, reviews, bottlenecks
+   ============================================================ */
+
+/**
+ * The goal hierarchy, longest first. Every goal sits at one horizon and
+ * may name a parent one horizon up (a quarter's objective serves a year's
+ * goal). `days` is the span a horizon covers, for time-remaining arithmetic
+ * when a goal has no explicit end.
+ */
+export const GOAL_HORIZONS = [
+  { id: 'decade',  name: '10 YEAR',   note: 'Long-term direction', days: 3650 },
+  { id: 'three',   name: '3 YEAR',    note: 'Major outcomes',      days: 1095 },
+  { id: 'year',    name: '1 YEAR',    note: 'Annual outcomes',     days: 365 },
+  { id: 'quarter', name: 'QUARTER',   note: '90-day objectives',   days: 91 },
+  { id: 'month',   name: 'MONTH',     note: 'Monthly targets',     days: 30 },
+  { id: 'week',    name: 'WEEK',      note: 'Weekly targets',      days: 7 },
+  { id: 'day',     name: 'DAY',       note: 'What must happen today', days: 1 },
+];
+export const HORIZON_IDS = GOAL_HORIZONS.map((h) => h.id);
+export const HORIZON_BY_ID = Object.fromEntries(GOAL_HORIZONS.map((h) => [h.id, h]));
+export const GOAL_STATES = ['active', 'done', 'dropped', 'paused'];
+export const GOAL_CATEGORIES = ['money', 'work', 'venture', 'life', 'trading', 'knowledge'];
+
+/** A project's life. `blocked` and `done` are also what its health says; the status is what Leo says. */
+export const PROJECT_STATES = ['idea', 'ready', 'active', 'blocked', 'done', 'dropped'];
+/** Health is computed from the project's orders, never typed. */
+export const PROJECT_HEALTH = ['on_track', 'at_risk', 'blocked', 'complete'];
+
+/**
+ * The spec's task vocabulary, mapped onto the order states the whole floor
+ * already speaks. One vocabulary in the tables; this is the translation
+ * a task view shows beside it.
+ */
+export const TASK_STATE_NAMES = { proposed: 'BACKLOG', open: 'READY', active: 'IN PROGRESS', review: 'WAITING', blocked: 'BLOCKED', done: 'DONE', killed: 'CANCELLED' };
+export const RECURRENCES = ['', 'day', 'week', 'month'];
+
+/**
+ * The review cycles. Each asks its own questions; the facts beside them are
+ * computed from the state for the period, so the review is written over
+ * what actually happened rather than from memory.
+ */
+export const REVIEW_KINDS = [
+  { id: 'day', name: 'DAILY', questions: [
+    ['completed', 'What was completed?'], ['missed', 'What was not?'], ['why', 'Why?'], ['changed', 'What changed?'], ['tomorrow', 'What matters tomorrow?'], ['escalate', 'What needs escalation?'], ['lessons', 'Lessons'],
+  ] },
+  { id: 'week', name: 'WEEKLY', questions: [
+    ['goals', 'Goals — what moved, what did not'], ['money', 'Money'], ['ventures', 'Ventures'], ['projects', 'Projects'], ['habits', 'Habits'], ['agents', 'Agents'], ['bottlenecks', 'Bottlenecks'], ['decisions', 'Decisions'], ['lessons', 'Lessons'],
+  ] },
+  { id: 'month', name: 'MONTHLY', questions: [
+    ['pnl', 'P&L'], ['cash', 'Cash'], ['targets', 'Target performance'], ['ventures', 'Venture performance'], ['capital', 'Capital allocation'], ['strategy', 'Strategic changes'], ['lessons', 'Lessons'],
+  ] },
+  { id: 'quarter', name: 'QUARTERLY', questions: [
+    ['objectives', 'Objectives'], ['outcomes', 'Outcomes'], ['strategy', 'Strategy'], ['portfolio', 'Venture portfolio'], ['capital', 'Capital allocation'], ['decisions', 'Major decisions'], ['next', 'Next quarter'],
+  ] },
+];
+export const REVIEW_BY_ID = Object.fromEntries(REVIEW_KINDS.map((r) => [r.id, r]));
+
+/** Where a constraint can bind. */
+export const BOTTLENECK_AREAS = ['cash', 'time', 'sales', 'production', 'supply', 'people', 'technology', 'marketing', 'decision latency', 'attention', 'agent capacity'];
+export const BOTTLENECK_STATES = ['open', 'easing', 'cleared'];
+
+/**
+ * An agent's status, derived — never typed — from its runs and its orders:
+ * a running run is WORKING; a failed last run is ERROR; a proposed order
+ * is NEEDS APPROVAL; a blocked or review order in its hands is WAITING;
+ * an agent with no endpoint is OFFLINE; otherwise IDLE.
+ */
+export const AGENT_STATUSES = ['idle', 'working', 'waiting', 'blocked', 'needs_approval', 'error', 'offline'];
+
+/**
+ * The three modes every sensitive capability declares. Read against the
+ * grades: deny/read/analyse are OBSERVE, draft/recommend are PROPOSE,
+ * approval is EXECUTE (after the operator says yes). `allow` would be
+ * unattended execution and nobody holds it.
+ */
+export const MODE_OF_GRADE = { deny: 'observe', read: 'observe', analyse: 'observe', draft: 'propose', recommend: 'propose', approval: 'execute', allow: 'execute' };

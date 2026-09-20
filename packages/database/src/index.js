@@ -57,9 +57,10 @@ const MIGRATION_OF = {
   protocol_items: '0007_sanctum.sql', protocol_ticks: '0007_sanctum.sql', entries: '0007_sanctum.sql',
   trades: '0008_trading.sql', setups: '0008_trading.sql', checkins: '0008_trading.sql',
   dispatch_items: '0010_dispatch_items.sql',
+  goals: '0011_command.sql', projects: '0011_command.sql', reviews: '0011_command.sql', bottlenecks: '0011_command.sql', capital_rules: '0011_command.sql', capital_allocations: '0011_command.sql',
 };
 /** Columns a later migration added to an existing table, so a half-applied schema is named rather than mistaken for a working one. */
-const COLUMN_OF = { 'orders.source_id': '0009_proposals.sql', 'orders.agent': '0009_proposals.sql' };
+const COLUMN_OF = { 'orders.source_id': '0009_proposals.sql', 'orders.agent': '0009_proposals.sql', 'orders.project_id': '0011_command.sql', 'orders.recurrence': '0011_command.sql', 'decisions.options': '0011_command.sql', 'decisions.review_on': '0011_command.sql', 'list_items.value_gbp': '0011_command.sql' };
 
 function translate(status, body, table) {
   const code = body?.code || '';
