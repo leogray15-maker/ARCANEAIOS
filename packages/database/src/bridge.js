@@ -13,6 +13,11 @@ import { state } from './state.js';
 import { labSummary } from '../../../apps/facility/src/core/lab.js';
 import { moneySummary, monthOf } from '../../../apps/facility/src/core/money.js';
 import { signalsFromTables } from '../../../apps/facility/src/core/vigil.js';
+import { targets as goalTargets, behind, goalTree } from '../../../apps/facility/src/core/goals.js';
+import { projectsSummary } from '../../../apps/facility/src/core/projects.js';
+import { rosterStatus } from '../../../apps/facility/src/core/agents.js';
+import { waterfall } from '../../../apps/facility/src/core/capital.js';
+import { periodOf } from '../../../apps/facility/src/core/goals.js';
 
 const DAY = 86400000;
 const OPEN = ORDER_OPEN_STATES;   // a proposal is not work: it waits for the operator
@@ -36,6 +41,19 @@ export async function aggregate(db, { now = new Date() } = {}) {
   try { draftCounts = await drafts.counts(db); } catch {}
   try { recentRuns = await runs.list(db, { limit: 20 }); } catch {}
   try { recentEvents = await events.list(db, { limit: 25 }); } catch {}
+  // The operating system's own objects (0011). Each read is guarded so a
+  // database without the migration still gets a Bridge — with the block
+  // empty and the readiness check naming the file to run.
+  let goalsRows = [], projectRows = [], bottleneckRows = [], reviewRows = [], ruleRows = [], allocationRows = [];
+  try { goalsRows = await state.list(db, 'goals'); } catch {}
+  try { projectRows = await state.list(db, 'projects'); } catch {}
+  try { bottleneckRows = await state.list(db, 'bottlenecks', { limit: 100 }); } catch {}
+  try { reviewRows = await state.list(db, 'reviews', { limit: 40 }); } catch {}
+  try { ruleRows = await state.list(db, 'capital_rules'); } catch {}
+  try { allocationRows = await state.list(db, 'capital_allocations', { limit: 36 }); } catch {}
+  Object.assign(tables, { goals: goalsRows, projects: projectRows, capital_rules: ruleRows, capital_allocations: allocationRows, draftCounts: draftCounts ? { total: Object.values(draftCounts).reduce((a, b) => a + (Number(b) || 0), 0), waiting: (draftCounts.draft || 0) + (draftCounts.review || 0), posted: draftCounts.posted || 0 } : null });
+  let allRuns = recentRuns;
+  try { allRuns = await runs.list(db, { limit: 200 }); } catch {}
 
   const open = orders.filter((o) => OPEN.includes(o.state));
   // What an agent has put forward and nobody has answered yet. Each one
@@ -61,8 +79,31 @@ export async function aggregate(db, { now = new Date() } = {}) {
     return { id: v.id, name: v.name, room: v.room, rank: f.rank, allocation: f.allocation, why: f.why, open: vOrders.length, p0: vOrders.filter((o) => o.priority === 0).length, blocked: vOrders.filter((o) => o.state === 'blocked').length, top: vOrders.length ? withAge(vOrders.sort((a, b) => a.priority - b.priority)[0]) : null, moves: moves.filter((m) => m.venture === v.id).length };
   }).sort((a, b) => (a.rank || 9) - (b.rank || 9));
 
+  // Goals as targets: every active one read against the tables, tree-ordered;
+  // the north star is the longest-horizon goal with a target in play, and the
+  // year's headline the first active year goal.
+  const tgts = goalTargets(goalsRows, tables, { now });
+  const northStar = tgts.find((g) => g.horizon === 'decade') || tgts.find((g) => g.horizon === 'three') || null;
+  const annual = tgts.filter((g) => g.horizon === 'year');
+  const projects = projectsSummary(projectRows.filter((p) => !['done', 'dropped'].includes(p.status)), orders, { now });
+  const bottlenecks = bottleneckRows.filter((b) => b.status !== 'cleared').sort((a, b) => ['breach', 'warn', 'info'].indexOf(a.severity) - ['breach', 'warn', 'info'].indexOf(b.severity));
+  const roster = rosterStatus({ runs: allRuns, orders, now: t });
+  const reviewsDue = ['day', 'week', 'month', 'quarter'].map((kind) => { const period = periodOf(kind, now); const r = reviewRows.find((x) => x.kind === kind && x.period === period); return { kind, period, status: r ? r.status : 'none', id: r?.id || null }; });
+  let capital = null;
+  try { capital = waterfall(tables, monthOf(now)); } catch {}
+
   return {
     at: now.toISOString(), day: today,
+    north_star: northStar,
+    annual,
+    targets: tgts,
+    goals_behind: tgts.filter(behind).map((g) => g.id),
+    goal_tree: goalTree(goalsRows).map(strip),
+    projects: projects.map((p) => ({ id: p.id, name: p.name, venture: p.venture, goal_id: p.goal_id, status: p.status, due: p.due, owner: p.owner, ...p.summary })),
+    bottlenecks: bottlenecks.map((b) => ({ id: b.id, text: b.text, area: b.area, severity: b.severity, venture: b.venture, owner: b.owner, status: b.status, evidence: b.evidence, since: b.created_at })),
+    reviews: reviewsDue,
+    agents: { counts: roster.counts, list: roster.agents.map((a) => ({ id: a.id, name: a.name, status: a.status, wired: a.wired, job: a.job, proposals: a.proposals.length, queue: a.queue.length, runs: a.runs, lastAt: a.lastAt })) },
+    capital: capital ? { month: capital.month, revenue: capital.revenue, cogs: capital.cogs, gross: capital.gross, fixed: capital.fixed, net: capital.net, tax: capital.tax, available: capital.available, rule: capital.rule?.name || '', buckets: capital.buckets, confirmed: !!capital.existing?.confirmed_at } : null,
     today: {
       focus: today.focus,
       orders: open.filter((o) => o.priority <= 1 && o.state !== 'blocked').sort((a, b) => a.priority - b.priority || new Date(a.created_at) - new Date(b.created_at)).map(withAge),
@@ -104,6 +145,9 @@ export async function aggregate(db, { now = new Date() } = {}) {
     events: recentEvents,
   };
 }
+
+/** A goal-tree node without its children's children's … as a flat reference: id, title, horizon, children ids. */
+function strip(g) { return { id: g.id, title: g.title, horizon: g.horizon, status: g.status, children: (g.children || []).map(strip) }; }
 
 /** An order with its age and the names a reader needs, without the closure. */
 function withAge0(o, t) {

@@ -33,7 +33,7 @@ import { floorState } from './lib/state.mjs';
 import { loadEnv } from '../packages/database/src/index.js';
 import { openDb } from '../packages/database/src/dev.js';
 import { mirrorDrafts, importDrafts } from './lib/content-mirror.mjs';
-import { importOrders, mirrorOrders, mirrorLists, mirrorDecisions, mirrorCounsel, mirrorFocus, mirrorLab } from './lib/state-mirror.mjs';
+import { importOrders, mirrorOrders, mirrorLists, mirrorDecisions, mirrorCounsel, mirrorFocus, mirrorLab, importGoals, mirrorGoals, mirrorOperating } from './lib/state-mirror.mjs';
 
 loadEnv();
 let db;
@@ -73,6 +73,14 @@ if (draftsChanged) spawnSync('node', [path.join(REPO, 'tools', 'content-board.mj
     note('lists', await mirrorLists(db, brain, now));
     note('focus', await mirrorFocus(db, brain, now));
   } catch (e) { console.error(`  ~ orders/lists not mirrored: ${e.message}`); note('orders', 'skipped'); }
+  // NORTH STAR: the hand-written Goals.md seeds the table once; from then on the table is the truth and Goals.md the mirror.
+  try {
+    const seeded = await importGoals(db, brain);
+    if (seeded.length) console.log(`  imported into the database from 05-Knowledge/Goals.md: ${seeded.join(', ')}`);
+    note('goals', await mirrorGoals(db, brain, now));
+    const op = await mirrorOperating(db, brain, now);
+    note('projects', op.projects); if (op.reviews) note('reviews', `${op.reviews} written`); note('bottlenecks', op.bottlenecks);
+  } catch (e) { console.error(`  ~ goals/projects not mirrored: ${e.message} (run supabase/migrations/0011_command.sql)`); note('goals', 'skipped'); }
   try { note('lab', await mirrorLab(db, brain, now)); } catch (e) { console.error(`  ~ the Lab not mirrored: ${e.message}`); note('lab', 'skipped'); }
 }
 

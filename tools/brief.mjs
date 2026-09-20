@@ -64,6 +64,9 @@ const openCount = agg ? agg.active.open : live.length;
 const recent = (s.log || []).filter((l) => now - l.ts < 7 * DAY);
 const focusOf = (id) => agg?.ventures.find((v) => v.id === id) || null;
 
+/* ---------- MONEY: the Vault's tables when they answer, else the old blob (read first: VENTURES cites it) ---------- */
+const M = agg?.money || null;
+
 /* ---------- VENTURES ---------- */
 const ventures = VENTURES.map((v) => {
   const roomName = ROOM_BY_ID[v.room]?.name || '';
@@ -78,8 +81,7 @@ const ventures = VENTURES.map((v) => {
   return `| ${v.name} | ${f ? `${f.rank || '—'} · ${f.allocation}${f.why ? ` — ${cell(f.why)}` : ''}` : '—'} | ${cell(moved)} | ${stuck ? cell(`${stuck.text}${stuck.ts ? ` (${Math.floor((now - stuck.ts) / DAY)}d)` : ''}`) : '—'} | ${number} |`;
 });
 
-/* ---------- MONEY: the Vault's tables when they answer, else the old blob ---------- */
-const M = agg?.money || null;
+/* ---------- MONEY ---------- */
 const cash = M ? (M.cash?.cash ?? 0) : Number(s.budget?.cash) || 0;
 const rev = M ? (M.revenue ?? 0) : monthlyRevenue(s, VENTURES), fixed = M ? M.fixed : monthlyFixed(s);
 const split = M ? M.pots.map((p) => p.pct).join(' / ') : Object.entries(s.budget?.split || {}).map(([, p]) => p).join(' / ') || '—';
@@ -92,7 +94,9 @@ const coaPct = agg?.lab ? agg.lab.coaPct : liveStock.length ? Math.round(liveSto
 const draftStatus = (d) => s.drafts?.[d.id]?.status || d.status;
 const typed = Object.fromEntries((agg?.goals || []).map((g) => [g.goal_id, Number(g.value)]));
 const goalValue = (g) => g.id === 'g-coa' ? coaPct : g.id === 'g-mrr' ? rev : g.id === 'g-posts' ? vault.drafts.filter((d) => draftStatus(d) === 'posted').length : g.id === 'g-members' && M ? (M.ventures.find((x) => x.id === 'archives')?.units ?? typed[g.id] ?? null) : g.id === 'g-track' && M ? (M.ventures.find((x) => x.id === 'track')?.units ?? typed[g.id] ?? null) : (typed[g.id] ?? s.goals?.[g.id]?.progress ?? null);
-const goals = vault.goals.map((g) => {
+// The goals table, once it has rows, is the truth; the vault's flat list is the fallback before migration 0011 has run.
+const { fmt: fmtGoal } = await import('../apps/facility/src/core/goals.js');
+const goals = agg?.targets?.length ? agg.targets.filter((g) => g.status === 'active').map((g) => `| ${'↳ '.repeat(Math.min(g.depth || 0, 3))}${cell(g.title)} | ${g.actual === null ? '—' : fmtGoal(g.actual, g.unit)} / ${g.target === null ? '—' : fmtGoal(g.target, g.unit)}${g.pct !== null ? ` (${g.pct}%)` : ''} | ${g.trend ? g.trend : agg.goals_behind?.includes(g.id) ? 'behind' : '—'} |`) : vault.goals.map((g) => {
   const v = goalValue(g);
   const shown = v === null || v === undefined ? (g.progress || '—') : g.id === 'g-mrr' ? money(v) : /%/.test(g.target) ? `${v}%` : String(v);
   const moved = recent.filter((l) => (g.id === 'g-posts' && /→ posted/.test(l.text)) || (g.id === 'g-coa' && /^COA /.test(l.text))).length;

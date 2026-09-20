@@ -22,6 +22,10 @@ import { VENTURES, ROOMS, ROOM_BY_ID, GOALS_FALLBACK } from './seeds.js';
 import { ORDER_OPEN_STATES, AGENT_BY_ID } from '@arcane/config';
 import { stockLines, labSummary, settingsOf, stockOf, realised } from './lab.js';
 import { moneySummary, monthOf, ventureRow, history as moneyHistory } from './money.js';
+import { targets as goalTargets, target as goalTarget, goalTree, goalChain, goalDescendants } from './goals.js';
+import { projectSummary, projectsSummary } from './projects.js';
+import { waterfall, cumulative } from './capital.js';
+import { rosterStatus, agentStatus } from './agents.js';
 import { cloud } from './cloud.js';
 import { sync } from './sync.js';
 import { api } from './api.js';
@@ -32,7 +36,7 @@ const LOG_MAX = 80;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
 /** The parts of the state that live on the server; never written into the blob. */
-const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'dispatchItems', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal'];
+const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'dispatchItems', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal', 'goalsTable', 'projects', 'reviews', 'bottlenecks', 'capitalRules', 'capitalAllocations', 'runs'];
 const OPEN_STATES = ORDER_OPEN_STATES;   // a proposal is not open work: it is waiting to be answered
 const ts = (iso) => (iso ? new Date(iso).getTime() : 0);
 
@@ -52,7 +56,7 @@ function seedState(brain) {
   }
   const goals = {};
   for (const g of brain?.goals?.length ? brain.goals : GOALS_FALLBACK) goals[g.id] = { progress: Number(String(g.progress).replace(/[^\d.]/g, '')) || 0 };
-  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], dispatchItems: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] } };
+  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], dispatchItems: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] }, goalsTable: [], projects: [], reviews: [], bottlenecks: [], capitalRules: [], capitalAllocations: [], runs: [] };
 }
 
 export class Store {
@@ -138,6 +142,7 @@ export class Store {
     s.ledger = Array.isArray(saved.ledger) ? saved.ledger : []; s.fixedCosts = saved.fixedCosts || []; s.cash = saved.cash || []; s.pots = saved.pots || [];
     s.protocolItems = saved.protocolItems || []; s.protocolTicks = saved.protocolTicks || []; s.entries = saved.entries || [];
     s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups || [], checkins: saved.journal?.checkins || [] };
+    s.goalsTable = saved.goalsTable || []; s.projects = saved.projects || []; s.reviews = saved.reviews || []; s.bottlenecks = saved.bottlenecks || []; s.capitalRules = saved.capitalRules || []; s.capitalAllocations = saved.capitalAllocations || []; s.runs = saved.runs || [];
     // Once the server has answered, its rows are the truth for its keys; a blob or cache never overwrites them.
     if (this.server?.ready) for (const k of SERVER_KEYS) s[k] = fresh[k];
     this.state = s;
@@ -171,6 +176,8 @@ export class Store {
       const t = await api.state.all();
       this.applyServer(t);
       this.stampAt = Date.now();
+      // Tables the database lacks: the floor runs without them and says so once.
+      this.missing = t._missing || [];
       this.server = { ready: true, error: '', reason: '', loading: false };
       await this.importLocalOnce(t);
       this.emit();
@@ -186,14 +193,14 @@ export class Store {
     const s = this.state;
     const orders = {}; for (const r of ROOMS) orders[r.id] = [];
     const imported = new Set((t.orders || []).filter((o) => o.brain_n !== null && o.brain_n !== undefined).map((o) => o.brain_n));
-    for (const o of t.orders || []) (orders[o.room] || (orders[o.room] = [])).push({ id: o.id, t: o.text, p: o.priority, state: o.state, done: ['done', 'killed'].includes(o.state), proposed: o.state === 'proposed', holder: o.holder, actor: o.actor, agent: o.agent || '', blocked: o.blocked_on, venture: o.venture, due: o.due, note: o.note, source: o.source, sourceId: o.source_id || '', brain_n: o.brain_n, ts: ts(o.created_at), doneTs: ts(o.done_at) });
+    for (const o of t.orders || []) (orders[o.room] || (orders[o.room] = [])).push({ id: o.id, t: o.text, p: o.priority, state: o.state, done: ['done', 'killed'].includes(o.state), proposed: o.state === 'proposed', holder: o.holder, actor: o.actor, agent: o.agent || '', blocked: o.blocked_on, venture: o.venture, due: o.due, note: o.note, source: o.source, sourceId: o.source_id || '', brain_n: o.brain_n, ts: ts(o.created_at), doneTs: ts(o.done_at), projectId: o.project_id || '', goalId: o.goal_id || '', estimateH: o.estimate_h ?? null, actualH: o.actual_h ?? null, dependsOn: o.depends_on || '', recurrence: o.recurrence || '' });
     for (const r of ROOMS) for (const o of s.orders[r.id] || []) if (o.fromBrain && !imported.has(o.brain_n)) orders[r.id].push(o);
     s.orders = orders;
     const lists = {};
-    for (const i of t.list_items || []) (lists[i.list] || (lists[i.list] = [])).push({ id: i.id, text: i.text, tag: i.tag, venture: i.venture, position: i.position, done: i.done, outcome: i.outcome, ts: ts(i.created_at), doneTs: ts(i.done_at) });
+    for (const i of t.list_items || []) (lists[i.list] || (lists[i.list] = [])).push({ id: i.id, text: i.text, tag: i.tag, venture: i.venture, position: i.position, done: i.done, outcome: i.outcome, ts: ts(i.created_at), doneTs: ts(i.done_at), value: i.value_gbp ?? null, due: i.due || null, note: i.note || '' });
     for (const k of Object.keys(lists)) lists[k].sort((a, b) => a.position - b.position || b.ts - a.ts);
     s.lists = lists;
-    s.decisions = (t.decisions || []).map((d) => ({ id: d.id, ts: ts(d.created_at), question: d.question, verdict: d.verdict, summary: d.summary, conditions: d.conditions || [], dissent: d.dissent, positions: d.positions || [], outcome: d.outcome, reviewed: ts(d.reviewed_at), source: d.source }));
+    s.decisions = (t.decisions || []).map((d) => ({ id: d.id, ts: ts(d.created_at), question: d.question, verdict: d.verdict, summary: d.summary, conditions: d.conditions || [], dissent: d.dissent, positions: d.positions || [], outcome: d.outcome, reviewed: ts(d.reviewed_at), source: d.source, context: d.context || '', options: d.options || [], evidence: d.evidence || '', assumptions: d.assumptions || '', risks: d.risks || '', impactGbp: d.impact_gbp ?? null, impact: d.impact || '', owner: d.owner || 'Leo', reviewOn: d.review_on || null, retro: d.retro || '', venture: d.venture || '', goalId: d.goal_id || '' }));
     s.counsel = (t.counsel_turns || []).map((c) => ({ id: c.id, who: c.who, text: c.text, ts: ts(c.created_at), specialist: c.specialist, order: c.proposal || null }));
     s.focus = Object.fromEntries((t.venture_focus || []).map((f) => [f.venture, { rank: f.rank, allocation: f.allocation, why: f.why, ts: ts(f.updated_at) }]));
     s.goalProgress = Object.fromEntries((t.goal_progress || []).map((g) => [g.goal_id, { value: Number(g.value), note: g.note, ts: ts(g.updated_at) }]));
@@ -202,6 +209,8 @@ export class Store {
     s.ledger = t.ledger_months || []; s.fixedCosts = t.fixed_costs || []; s.cash = t.cash_snapshots || []; s.pots = t.pots || [];
     s.protocolItems = t.protocol_items || []; s.protocolTicks = t.protocol_ticks || []; s.entries = t.entries || [];
     s.journal = { trades: (t.trades || []).map(fromTradeRow), setups: t.setups || [], checkins: (t.checkins || []).map((c) => ({ ...c, ts: ts(c.created_at) })) };
+    // The operating system's tables are kept as their rows: the pure modules read them as they are.
+    s.goalsTable = t.goals || []; s.projects = t.projects || []; s.reviews = t.reviews || []; s.bottlenecks = t.bottlenecks || []; s.capitalRules = t.capital_rules || []; s.capitalAllocations = t.capital_allocations || [];
     this.save();
   }
   /** The first time the server answers empty, what this device kept in its blob goes up once, so nothing typed before the tables existed is lost. */
@@ -337,10 +346,10 @@ export class Store {
   addOrder(roomId, text, p = 2, extra = {}) {
     const t = String(text).trim(); if (!t || !ROOM_BY_ID[roomId]) return null;
     const actor = extra.actor || 'human';
-    const local = { id: `tmp-${uid()}`, t, p, state: 'open', done: false, holder: extra.holder || (actor === 'agent' ? '' : 'Leo'), actor, agent: extra.agent || '', blocked: '', venture: extra.venture || '', source: extra.source || 'floor', sourceId: extra.sourceId || '', note: extra.note || '', ts: Date.now() };
+    const local = { id: `tmp-${uid()}`, t, p, state: 'open', done: false, holder: extra.holder || (actor === 'agent' ? '' : 'Leo'), actor, agent: extra.agent || '', blocked: '', venture: extra.venture || '', source: extra.source || 'floor', sourceId: extra.sourceId || '', note: extra.note || '', ts: Date.now(), projectId: extra.projectId || '', goalId: extra.goalId || '', estimateH: extra.estimateH ?? null, due: extra.due || null, recurrence: extra.recurrence || '', dependsOn: extra.dependsOn || '' };
     return this.commit(
       () => { this.state.orders[roomId].unshift(local); this.log(`Order in ${ROOM_BY_ID[roomId].name}: ${t}`, 'order'); },
-      async () => { const { row } = await api.state.insert('orders', { room: roomId, text: t, priority: p, actor, holder: local.holder || undefined, venture: local.venture, source: local.source, source_id: local.sourceId, agent: local.agent, note: extra.note || '' }); Object.assign(local, { id: row.id, holder: row.holder, ts: ts(row.created_at) }); return local; },
+      async () => { const { row } = await api.state.insert('orders', { room: roomId, text: t, priority: p, actor, holder: local.holder || undefined, venture: local.venture, source: local.source, source_id: local.sourceId, agent: local.agent, note: extra.note || '', project_id: local.projectId, goal_id: local.goalId, estimate_h: local.estimateH, due: local.due, recurrence: local.recurrence, depends_on: local.dependsOn }); Object.assign(local, { id: row.id, holder: row.holder, ts: ts(row.created_at) }); return local; },
       'order');
   }
   /** Move an order along its life: open · active · blocked · review · done · killed. */
@@ -354,14 +363,14 @@ export class Store {
     const was = o.state;
     return this.commit(
       () => { o.state = state; o.done = ['done', 'killed'].includes(state); o.proposed = state === 'proposed'; o.blocked = state === 'blocked' ? blockedOn : ''; if (o.done) o.doneTs = Date.now(); this.log(`${was === 'proposed' && state === 'open' ? 'Approved' : o.done ? (state === 'killed' ? 'Killed' : 'Done') : state === 'open' && was ? 'Reopened' : state}: ${o.t}`, 'order'); },
-      () => api.state.update('orders', id, { state, blocked_on: state === 'blocked' ? blockedOn : '' }),
+      async () => { const r = await api.state.update('orders', id, { state, blocked_on: state === 'blocked' ? blockedOn : '' }); if (state === 'done' && o.recurrence) await this.loadServer({ quiet: true }); return r; },
       'order');
   }
   toggleOrder(roomId, id) { const o = this.orders(roomId).find((x) => x.id === id); if (!o) return null; return this.setOrderState(roomId, id, o.done ? 'open' : 'done'); }
   editOrder(roomId, id, patch) {
     const o = this.orders(roomId).find((x) => x.id === id); if (!o || o.fromBrain) return null;
     return this.commit(
-      () => { if (patch.priority !== undefined) o.p = Number(patch.priority); if (patch.text !== undefined) o.t = patch.text; if (patch.due !== undefined) o.due = patch.due; if (patch.note !== undefined) o.note = patch.note; if (patch.venture !== undefined) o.venture = patch.venture; if (patch.holder !== undefined) o.holder = patch.holder; },
+      () => { if (patch.priority !== undefined) o.p = Number(patch.priority); if (patch.text !== undefined) o.t = patch.text; if (patch.due !== undefined) o.due = patch.due; if (patch.note !== undefined) o.note = patch.note; if (patch.venture !== undefined) o.venture = patch.venture; if (patch.holder !== undefined) o.holder = patch.holder; if (patch.project_id !== undefined) o.projectId = patch.project_id; if (patch.goal_id !== undefined) o.goalId = patch.goal_id; if (patch.estimate_h !== undefined) o.estimateH = patch.estimate_h; if (patch.actual_h !== undefined) o.actualH = patch.actual_h; if (patch.depends_on !== undefined) o.dependsOn = patch.depends_on; if (patch.recurrence !== undefined) o.recurrence = patch.recurrence; if (patch.room !== undefined && patch.room !== roomId) { this.state.orders[roomId] = this.orders(roomId).filter((x) => x.id !== id); (this.state.orders[patch.room] || (this.state.orders[patch.room] = [])).unshift(o); } },
       () => api.state.update('orders', id, patch),
       'order');
   }
@@ -509,14 +518,14 @@ export class Store {
   openItems(key) { return this.list(key).filter((i) => !i.done); }
   addItem(key, text, tag = '', extra = {}) {
     const t = String(text).trim(); if (!t) return null;
-    const local = { id: `tmp-${uid()}`, text: t, tag, venture: extra.venture || '', position: extra.position ?? 0, done: false, outcome: '', ts: Date.now() };
+    const local = { id: `tmp-${uid()}`, text: t, tag, venture: extra.venture || '', position: extra.position ?? 0, done: false, outcome: '', ts: Date.now(), value: extra.value ?? null, due: extra.due || null, note: extra.note || '' };
     return this.commit(
       () => { const l = this.list(key); l.push(local); l.sort((a, b) => a.position - b.position || b.ts - a.ts); },
-      async () => { const { row } = await api.state.insert('list_items', { list: key, text: t, tag, venture: local.venture, position: local.position }); Object.assign(local, { id: row.id, ts: ts(row.created_at) }); return local; },
+      async () => { const { row } = await api.state.insert('list_items', { list: key, text: t, tag, venture: local.venture, position: local.position, value_gbp: local.value, due: local.due, note: local.note }); Object.assign(local, { id: row.id, ts: ts(row.created_at) }); return local; },
       key);
   }
   tagItem(key, id, tag) { const it = this.list(key).find((x) => x.id === id); if (!it) return null; return this.commit(() => { it.tag = tag; }, () => api.state.update('list_items', id, { tag }), key); }
-  editItem(key, id, patch) { const it = this.list(key).find((x) => x.id === id); if (!it) return null; return this.commit(() => { Object.assign(it, patch); }, () => api.state.update('list_items', id, patch), key); }
+  editItem(key, id, patch) { const it = this.list(key).find((x) => x.id === id); if (!it) return null; const local = { ...patch }; if (patch.value_gbp !== undefined) { local.value = patch.value_gbp; delete local.value_gbp; } return this.commit(() => { Object.assign(it, local); }, () => api.state.update('list_items', id, patch), key); }
   doneItem(key, id, done = true, outcome = '') { const it = this.list(key).find((x) => x.id === id); if (!it) return null; return this.commit(() => { it.done = done; it.outcome = outcome; it.doneTs = done ? Date.now() : 0; }, () => api.state.update('list_items', id, { done, outcome }), key); }
   removeItem(key, id) { return this.commit(() => { this.state.lists[key] = this.list(key).filter((x) => x.id !== id); }, () => api.state.remove('list_items', id), key); }
   /** Reorder a list: `ids` in the new order become positions 0..n. */
@@ -580,6 +589,91 @@ export class Store {
   }
   setEntry(id, patch) { const e = this.state.entries.find((x) => x.id === id); if (!e) return null; return this.commit(() => { Object.assign(e, patch); }, () => api.state.update('entries', id, patch), 'entry'); }
 
+  /* ---------- THE OPERATING SYSTEM: goals, projects, reviews, bottlenecks, the capital plan ---------- */
+  /**
+   * The raw tables in the shape the pure modules read (goals.js, capital.js,
+   * vigil.js server-side). One seam, so a target on the floor and a target
+   * in the brief are the same arithmetic over the same rows.
+   */
+  tables() {
+    const s = this.state;
+    const orders = ROOMS.flatMap((r) => (s.orders[r.id] || []).map((o) => ({ id: o.id, room: r.id, text: o.t, priority: o.p, state: o.state, actor: o.actor, agent: o.agent || '', holder: o.holder, venture: o.venture || '', due: o.due || null, note: o.note || '', source: o.source || 'floor', source_id: o.sourceId || '', project_id: o.projectId || '', goal_id: o.goalId || '', estimate_h: o.estimateH ?? null, actual_h: o.actualH ?? null, depends_on: o.dependsOn || '', recurrence: o.recurrence || '', blocked_on: o.blocked || '', created_at: o.ts ? new Date(o.ts).toISOString() : null, done_at: o.doneTs ? new Date(o.doneTs).toISOString() : null })));
+    const dc = this.draftCounts || null;
+    return { orders, products: s.products, stock_lots: s.lots, settings: s.settings, dispatch: s.dispatch, dispatch_items: s.dispatchItems, ledger_months: s.ledger, fixed_costs: s.fixedCosts, cash_snapshots: s.cash, pots: s.pots, trades: s.journal.trades.map(toTradeRow), protocol_items: s.protocolItems, protocol_ticks: s.protocolTicks, goals: s.goalsTable, projects: s.projects, bottlenecks: s.bottlenecks, capital_rules: s.capitalRules, capital_allocations: s.capitalAllocations, draftCounts: dc ? { total: Object.values(dc).reduce((a, b) => a + (Number(b) || 0), 0), waiting: (dc.draft || 0) + (dc.review || 0), posted: dc.posted || 0 } : null };
+  }
+  /** BEACON's counts, when a view has loaded them, so the metrics that read them can. */
+  setDraftCounts(c) { this.draftCounts = c; }
+
+  goals(includeDone = false) { return this.state.goalsTable.filter((g) => includeDone || g.status === 'active'); }
+  goal(id) { return this.state.goalsTable.find((g) => g.id === id) || null; }
+  goalTree() { return goalTree(this.state.goalsTable); }
+  goalChain(id) { return goalChain(this.state.goalsTable, id); }
+  goalDescendants(id) { return goalDescendants(this.state.goalsTable, id); }
+  targets({ includeDone = false } = {}) { return goalTargets(this.state.goalsTable, this.tables(), { includeDone }); }
+  targetOf(id) { const g = this.goal(id); return g ? goalTarget(g, this.tables(), { goals: this.state.goalsTable }) : null; }
+  addGoal(row) {
+    const local = { id: `tmp-${uid()}`, description: '', horizon: 'year', parent_id: null, category: '', venture: '', owner: 'Leo', metric: '', unit: '', currency: 'GBP', target: null, current: null, status: 'active', starts: null, ends: null, note: '', position: this.state.goalsTable.length, created_at: new Date().toISOString(), ...row };
+    return this.commit(() => { this.state.goalsTable.push(local); this.log(`Goal: ${local.title}`, 'goal'); }, async () => { const { row: saved } = await api.state.insert('goals', row); Object.assign(local, saved); return local; }, 'goal');
+  }
+  setGoal(id, patch) { const g = this.goal(id); if (!g) return null; return this.commit(() => { Object.assign(g, patch); if (patch.status) this.log(`Goal ${patch.status}: ${g.title}`, 'goal'); }, () => api.state.update('goals', id, patch), 'goal'); }
+  /** Orders that serve a goal, directly or through its descendants and projects. */
+  ordersForGoal(id) { const ids = new Set([id, ...this.goalDescendants(id).map((g) => g.id)]); const prjs = new Set(this.state.projects.filter((p) => p.goal_id && ids.has(p.goal_id)).map((p) => p.id)); return this.allOrders().filter((o) => (o.goalId && ids.has(o.goalId)) || (o.projectId && prjs.has(o.projectId))); }
+  projectsForGoal(id) { const ids = new Set([id, ...this.goalDescendants(id).map((g) => g.id)]); return this.state.projects.filter((p) => p.goal_id && ids.has(p.goal_id)); }
+
+  projects(includeDone = false) { return this.state.projects.filter((p) => includeDone || !['done', 'dropped'].includes(p.status)); }
+  project(id) { return this.state.projects.find((p) => p.id === id) || null; }
+  projectSummary(id) { const p = this.project(id); return p ? projectSummary(p, this.tables().orders) : null; }
+  projectsSummary(includeDone = false) { return projectsSummary(this.projects(includeDone), this.tables().orders); }
+  projectOrders(id) { return this.allOrders().filter((o) => o.projectId === id); }
+  addProject(row) {
+    const local = { id: `tmp-${uid()}`, objective: '', venture: '', goal_id: null, owner: 'Leo', agent: '', status: 'ready', budget_gbp: null, spent_gbp: null, starts: null, due: null, note: '', position: 0, created_at: new Date().toISOString(), ...row };
+    return this.commit(() => { this.state.projects.unshift(local); this.log(`Project: ${local.name}`, 'project'); }, async () => { const { row: saved } = await api.state.insert('projects', row); Object.assign(local, saved); return local; }, 'project');
+  }
+  setProject(id, patch) { const p = this.project(id); if (!p) return null; return this.commit(() => { Object.assign(p, patch); if (patch.status) this.log(`Project ${patch.status}: ${p.name}`, 'project'); }, () => api.state.update('projects', id, patch), 'project'); }
+
+  reviews(kind = '') { return this.state.reviews.filter((r) => !kind || r.kind === kind); }
+  review(kind, period) { return this.state.reviews.find((r) => r.kind === kind && r.period === period) || null; }
+  saveReview(kind, period, { answers = {}, facts = {}, summary = '', keep = false } = {}) {
+    const cur = this.review(kind, period);
+    if (cur && cur.status === 'kept') return null;
+    const patch = { answers, facts, summary, ...(keep ? { status: 'kept' } : {}) };
+    if (cur) return this.commit(() => { Object.assign(cur, patch, keep ? { kept_at: new Date().toISOString() } : {}); if (keep) this.log(`${kind} review kept: ${period}`, 'review'); }, () => api.state.update('reviews', cur.id, patch), 'review');
+    const local = { id: `tmp-${uid()}`, kind, period, status: 'draft', created_at: new Date().toISOString(), ...patch, kept_at: keep ? new Date().toISOString() : null };
+    return this.commit(() => { this.state.reviews.unshift(local); if (keep) this.log(`${kind} review kept: ${period}`, 'review'); }, async () => { const { row } = await api.state.insert('reviews', { kind, period, ...patch }); Object.assign(local, row); return local; }, 'review');
+  }
+
+  bottlenecks(includeCleared = false) { return this.state.bottlenecks.filter((b) => includeCleared || b.status !== 'cleared').slice().sort((a, b) => ['breach', 'warn', 'info'].indexOf(a.severity) - ['breach', 'warn', 'info'].indexOf(b.severity) || String(b.created_at).localeCompare(String(a.created_at))); }
+  addBottleneck(row) {
+    const local = { id: `tmp-${uid()}`, area: 'attention', severity: 'warn', venture: '', evidence: '', owner: 'Leo', proposed: '', status: 'open', source: 'floor', source_id: '', created_at: new Date().toISOString(), ...row };
+    return this.commit(() => { this.state.bottlenecks.unshift(local); this.log(`Bottleneck: ${local.text}`, 'bottleneck'); }, async () => { const { row: saved } = await api.state.insert('bottlenecks', row); Object.assign(local, saved); return local; }, 'bottleneck');
+  }
+  setBottleneck(id, patch) { const b = this.state.bottlenecks.find((x) => x.id === id); if (!b) return null; return this.commit(() => { Object.assign(b, patch); if (patch.status === 'cleared') { b.cleared_at = new Date().toISOString(); this.log(`Bottleneck cleared: ${b.text}`, 'bottleneck'); } }, () => api.state.update('bottlenecks', id, patch), 'bottleneck'); }
+
+  capital(month = monthOf()) { return waterfall(this.tables(), month); }
+  capitalHistory() { return cumulative(this.state.capitalAllocations); }
+  capitalRules() { return this.state.capitalRules.slice().sort((a, b) => (a.position || 0) - (b.position || 0)); }
+  setCapitalRule(id, patch) {
+    const cur = this.state.capitalRules.find((r) => r.id === id);
+    const next = { ...(cur || { id, name: patch.name || id, min_available: 0, pcts: {}, active: true, position: this.state.capitalRules.length, note: '' }), ...patch };
+    return this.commit(() => { const i = this.state.capitalRules.findIndex((r) => r.id === id); if (i >= 0) this.state.capitalRules[i] = next; else this.state.capitalRules.push(next); }, () => api.state.insert('capital_rules', next), 'capital rule');
+  }
+  removeCapitalRule(id) { return this.commit(() => { this.state.capitalRules = this.state.capitalRules.filter((r) => r.id !== id); }, () => api.state.remove('capital_rules', id), 'capital rule'); }
+  /** Write this month's split down. Proposed until confirmed; confirmed is a record and cannot change. */
+  saveAllocation(month, { available, rule_id = '', proposed = {}, confirmed = null, note = '' } = {}) {
+    const cur = this.state.capitalAllocations.find((a) => a.month === month);
+    if (cur?.confirmed_at) return null;
+    const row = { id: month, month, available, rule_id, proposed, note, ...(confirmed ? { confirmed } : {}) };
+    return this.commit(
+      () => { const next = { ...(cur || { created_at: new Date().toISOString() }), ...row, confirmed: confirmed || cur?.confirmed || {}, confirmed_at: confirmed ? new Date().toISOString() : cur?.confirmed_at || null }; const i = this.state.capitalAllocations.findIndex((a) => a.month === month); if (i >= 0) this.state.capitalAllocations[i] = next; else this.state.capitalAllocations.unshift(next); if (confirmed) this.log(`Allocation confirmed: ${month}`, 'capital'); },
+      () => (cur ? api.state.update('capital_allocations', month, { available, rule_id, proposed, note, ...(confirmed ? { confirmed } : {}) }) : api.state.insert('capital_allocations', row)),
+      'allocation');
+  }
+
+  /** Every agent's derived status, from the runs the Bridge loaded and the orders in hand. */
+  roster() { return rosterStatus({ runs: this.state.runs, orders: this.tables().orders }); }
+  agentStatus(id) { const a = AGENT_BY_ID[id]; return a ? agentStatus(a, { runs: this.state.runs, orders: this.tables().orders }) : null; }
+  setRuns(runs) { this.state.runs = runs || []; }
+
   /* ---------- counsel and the council ---------- */
   counsel() { return this.state.counsel; }
   addCounsel(who, text, extra = {}) {
@@ -598,10 +692,16 @@ export class Store {
     const local = { id: `tmp-${uid()}`, ts: Date.now(), outcome: '', reviewed: 0, source: d.source || 'council', ...d };
     return this.commit(
       () => { this.state.decisions.unshift(local); this.log(`Council: ${d.verdict} — ${d.question}`, 'council'); },
-      async () => { const { row } = await api.state.insert('decisions', { question: d.question, verdict: d.verdict, summary: d.summary || '', conditions: d.conditions || [], dissent: d.dissent || '', positions: d.positions || [], source: local.source, usage: d.usage || {} }); local.id = row.id; local.ts = ts(row.created_at); return local; },
+      async () => { const { row } = await api.state.insert('decisions', { question: d.question, verdict: d.verdict || 'WATCH', summary: d.summary || '', conditions: d.conditions || [], dissent: d.dissent || '', positions: d.positions || [], source: local.source, usage: d.usage || {}, context: d.context || '', options: d.options || [], evidence: d.evidence || '', assumptions: d.assumptions || '', risks: d.risks || '', impact_gbp: d.impactGbp ?? null, impact: d.impact || '', owner: d.owner || 'Leo', review_on: d.reviewOn || null, venture: d.venture || '', goal_id: d.goalId || '' }); local.id = row.id; local.ts = ts(row.created_at); return local; },
       'decision');
   }
   setDecisionOutcome(id, outcome) { const d = this.state.decisions.find((x) => x.id === id); if (!d) return null; return this.commit(() => { d.outcome = outcome; d.reviewed = Date.now(); }, () => api.state.update('decisions', id, { outcome }), 'decision'); }
+  /** The rest of a decision's record: context, options, evidence, assumptions, risks, impact, owner, review date, retrospective, the verdict itself. */
+  setDecision(id, patch) {
+    const d = this.state.decisions.find((x) => x.id === id); if (!d) return null;
+    const local = { ...patch }; if (patch.impact_gbp !== undefined) { local.impactGbp = patch.impact_gbp; delete local.impact_gbp; } if (patch.review_on !== undefined) { local.reviewOn = patch.review_on; delete local.review_on; } if (patch.goal_id !== undefined) { local.goalId = patch.goal_id; delete local.goal_id; }
+    return this.commit(() => { Object.assign(d, local); }, () => api.state.update('decisions', id, patch), 'decision');
+  }
 
   /* ---------- THE TRADING FLOOR: the journal on tables ---------- */
   journal() { return this.state.journal; }

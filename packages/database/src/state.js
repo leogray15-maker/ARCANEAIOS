@@ -211,7 +211,7 @@ export const TABLES = {
   },
   /* ---- THE OPERATING SYSTEM (0011): goals, projects, reviews, bottlenecks, the capital plan ---- */
   goals: {
-    key: 'id', mint: (db, now) => nextId(db, 'goals', 'GL', now), order: 'position.asc,created_at.asc', event: 'goal',
+    key: 'id', mint: (db, now) => nextId(db, 'goals', 'GL', now), allowId: true, order: 'position.asc,created_at.asc', event: 'goal',
     required: ['title'],
     defaults: { description: '', horizon: 'year', parent_id: null, category: '', venture: '', owner: 'Leo', metric: '', unit: '', currency: 'GBP', target: null, current: null, status: 'active', starts: null, ends: null, note: '', position: 0, done_at: null },
     fields: { title: str(200), description: str(4000), horizon: oneOf(HORIZON_IDS), parent_id: (v) => (v === null || v === '' || v === undefined ? null : str(40)(v)), category: str(40), venture: ventureOrEmpty(), owner: str(60), metric: (v) => { const s = String(v ?? ''); if (s && !METRIC_IDS.includes(s)) throw bad(`unknown metric "${s}" — one of ${METRIC_IDS.join(', ')}`); return s; }, unit: str(20), currency: str(3), target: numOrNull(), current: numOrNull(), status: oneOf(GOAL_STATES), starts: dayOrNull(), ends: dayOrNull(), note: str(4000), position: int(-100000, 100000), done_at: dateOrNull() },
@@ -288,17 +288,28 @@ export const state = {
     const t = spec(table);
     return db.get(table, { select: '*', order: t.order, limit: Math.min(5000, Number(limit) || 1000), ...where });
   },
-  /** Every table the floor needs, in one round trip. */
+  /**
+   * Every table the floor needs, in one round trip. A table the database
+   * does not have yet (a migration not run) comes back empty and is named
+   * in `_missing`, so a floor keeps working on the tables that exist and
+   * the readiness check says which file to run — one missing table never
+   * makes the whole floor read-only.
+   */
   async all(db, tables = TABLE_IDS) {
-    const out = {};
-    for (const t of tables) out[t] = await state.list(db, t);
+    const out = {}; const missing = [];
+    for (const t of tables) {
+      try { out[t] = await state.list(db, t); }
+      catch (e) { if (e.hint === 'migration not applied') { out[t] = []; missing.push({ table: t, error: e.message }); } else throw e; }
+    }
+    if (missing.length) out._missing = missing;
     return out;
   },
   async insert(db, table, input, { actor = 'leo', now = new Date() } = {}) {
     const t = spec(table);
     const row = clean(table, input, { insert: true });
     if (t.verify) await t.verify(db, row, { insert: true });
-    if (!t.natural) row[t.key] = await t.mint(db, now);
+    // A table that allows a caller's id (the seeded goals keep their slugs) takes it as a slug; otherwise the id is minted.
+    if (!t.natural) row[t.key] = t.allowId && input?.id ? slug()(input.id) : await t.mint(db, now);
     row.created_at = now.toISOString();
     if (t.natural) {
       const [saved] = await db.post(table, row, { upsert: t.key });

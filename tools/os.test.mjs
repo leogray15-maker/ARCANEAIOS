@@ -10,6 +10,10 @@ import { METRICS, METRIC_IDS, goalTree, goalsFlat, goalChain, goalDescendants, t
 import { projectSummary } from '../apps/facility/src/core/projects.js';
 import { ruleFor, allocate, pctsValid, waterfall, cumulative } from '../apps/facility/src/core/capital.js';
 import { HORIZON_IDS, REVIEW_KINDS, TASK_STATE_NAMES, ORDER_STATES } from '../packages/config/src/index.js';
+import { importGoals, mirrorGoals, mirrorOperating } from './lib/state-mirror.mjs';
+import { REPO } from './lib/brain.mjs';
+import { aggregate } from '../packages/database/src/bridge.js';
+import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path';
 
 const fails = []; const ok = (c, m) => { if (!c) fails.push(m); };
 const refuses = async (fn, re, m) => { try { await fn(); fails.push(`${m} (accepted)`); } catch (e) { if (!re.test(e.message)) fails.push(`${m}: ${e.message}`); } };
@@ -153,6 +157,35 @@ await refuses(() => state.update(db, 'capital_allocations', '2026-09', { confirm
 await refuses(() => state.remove(db, 'capital_allocations', '2026-09'), /record/, 'deleting a confirmed allocation'); n++;
 const cum = cumulative([al2, { month: '2026-08', confirmed: { reinvest: 100, pay: 50 }, confirmed_at: '2026-08-31T00:00:00Z' }]);
 ok(cum.rows[0].month === '2026-08' && cum.total.reinvest === 985 && cum.total.pay === 935, `cumulative confirmed by bucket (${JSON.stringify(cum.total)})`); n++;
+
+/* ---- the vault: Goals.md seeds the table once, then is the mirror ---- */
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'arcane-brain-'));
+fs.cpSync(path.join(REPO, 'brain'), scratch, { recursive: true });
+const db2 = memoryDb();
+await state.insert(db2, 'goal_progress', { goal_id: 'g-codex', value: 40 }, { now });
+const seeded = await importGoals(db2, scratch);
+ok(seeded.length >= 9 && seeded.includes('g-mrr') && seeded.includes('g-coa'), `Goals.md seeded the table with its ids (${seeded.length})`); n++;
+const g2 = await state.list(db2, 'goals');
+ok(g2.find((g) => g.id === 'g-mrr').metric === 'revenue_month' && g2.find((g) => g.id === 'g-mrr').target === 10000, 'the £10k goal is bound to this month\'s revenue'); n++;
+ok(g2.find((g) => g.id === 'g-codex').current === 40 && !g2.find((g) => g.id === 'g-codex').metric, 'a typed goal carried its goal_progress value over'); n++;
+ok((await importGoals(db2, scratch)).length === 0, 'a second import adds nothing'); n++;
+ok((await mirrorGoals(db2, scratch, now)) !== 'kept', 'Goals.md rewritten as a generated file'); n++;
+ok(/generated: true/.test(fs.readFileSync(path.join(scratch, '05-Knowledge', 'Goals.md'), 'utf8')), 'and marked generated'); n++;
+ok((await importGoals(db2, scratch)).length === 0, 'a generated Goals.md is never imported back'); n++;
+await state.insert(db2, 'projects', { name: 'Mirror me', due: '2026-10-01' }, { now });
+const op = await mirrorOperating(db2, scratch, now);
+ok(op.projects !== 'kept' && fs.existsSync(path.join(scratch, '05-Knowledge', 'Projects.md')) && fs.existsSync(path.join(scratch, '05-Knowledge', 'Bottlenecks.md')), 'projects and bottlenecks mirrored'); n++;
+await state.insert(db2, 'reviews', { kind: 'week', period: '2026-W38', answers: { goals: 'moved' }, status: 'kept' }, { now });
+ok((await mirrorOperating(db2, scratch, now)).reviews === 1 && fs.existsSync(path.join(scratch, '04-Records', 'Reviews', 'week-2026-W38.md')), 'a kept review lands in the Records'); n++;
+fs.rmSync(scratch, { recursive: true, force: true });
+
+/* ---- the Bridge carries the picture ---- */
+const agg = await aggregate(db, { now });
+ok(agg.north_star?.id === decade.id && agg.annual.length === 1 && agg.targets.length >= 3, 'the aggregate names the north star and the year'); n++;
+ok(agg.projects.length === 2 && agg.projects.every((p) => p.health), 'projects with health'); n++;
+ok(agg.agents.list.length === 19 && typeof agg.agents.counts.idle === 'number', 'nineteen agents with a derived status'); n++;
+ok(agg.reviews.length === 4 && agg.reviews.find((r) => r.kind === 'day').status === 'kept', 'the review cycle says which are kept'); n++;
+ok(agg.capital && agg.capital.month === '2026-09', 'the capital waterfall for the month'); n++;
 
 /* ---- the record ---- */
 const log = await events.list(db, { limit: 200 });

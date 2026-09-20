@@ -7,6 +7,8 @@
  *   mirrorDecisions database → vault   04-Records/Decisions/<id>.md and the Decision-Log rows from `decisions`
  *   mirrorCounsel   database → vault   04-Records/Counsel.md from `counsel_turns`
  *   mirrorFocus     database → vault   05-Knowledge/Focus.md from `venture_focus` and `days`
+ *   importGoals     vault → database   05-Knowledge/Goals.md rows the `goals` table has not seen (by id), once
+ *   mirrorGoals     database → vault   05-Knowledge/Goals.md rebuilt from `goals` as the hierarchy, with each target read against the tables
  *
  * The database is where the floor writes; these files are the record a
  * person reads in Obsidian. Orders.md keeps its prose above the tables
@@ -171,4 +173,88 @@ export async function mirrorMoney(db, brain, now = new Date()) {
   const gbp = (n) => (n === null || n === undefined ? '—' : `£${Math.round(n).toLocaleString('en-GB')}`);
   const body = `# Money\n\nThe treasury as typed in [[THE VAULT]]. This month (${m.month}): revenue ${gbp(m.revenue)} · fixed ${gbp(m.fixed)} · net ${gbp(m.net)} · cash ${m.cash ? `${gbp(m.cash.cash)} (${m.cash.day})` : '—'} · runway ${m.runway === null ? '—' : m.runway === Infinity ? 'covered' : `${m.runway.toFixed(1)} months`}.\n\n## Months\n\n| Month | ${VENTURES.map((v) => v.name).join(' | ')} | Revenue | Fixed | Net |\n| --- | ${VENTURES.map(() => '---').join(' | ')} | --- | --- | --- |\n${h.length ? h.map((r) => `| ${r.month} | ${VENTURES.map((v) => gbp(r.byVenture[v.id])).join(' | ')} | ${gbp(r.revenue)} | ${gbp(r.fixed)} | ${gbp(r.net)} |`).join('\n') : `| — | ${VENTURES.map(() => '—').join(' | ')} | — | — | — |`}\n\n## Fixed costs\n\n| Line | £ / month | Room |\n| --- | --- | --- |\n${fixed.filter((f) => f.active !== false).map((f) => `| ${cell(f.name)} | ${gbp(f.amount_gbp)} | ${cell(f.room || '—')} |`).join('\n') || '| — | — | — |'}\n\n## Cash\n\n| Day | Cash | Note |\n| --- | --- | --- |\n${cash.slice().sort((a, b) => String(b.day).localeCompare(String(a.day))).slice(0, 24).map((c) => `| ${c.day} | ${gbp(c.cash_gbp)} | ${cell(c.note || '—')} |`).join('\n') || '| — | — | — |'}\n\n## The split\n\n| Pot | % | This month |\n| --- | --- | --- |\n${m.pots.map((p) => `| ${cell(p.name)} | ${p.pct}% | ${gbp(p.amount)} |`).join('\n')}\n`;
   return writeGenerated(path.join(brain, '05-Knowledge', 'Money.md'), fm(now, { type: 'money', agent: 'TALLY', tags: ['knowledge', 'money', 'treasury'] }) + body, { write: true });
+}
+
+/* ---------- NORTH STAR: the goals table and Goals.md ---------- */
+
+/** How the hand-written Goals.md rows bind to the table: a metric where the tables know the figure, a typed value otherwise. */
+const SEED_GOALS = {
+  'g-mrr':     { horizon: 'year', metric: 'revenue_month', target: 10000, category: 'money' },
+  'g-members': { horizon: 'year', metric: 'members_archives', target: 50, category: 'money', venture: 'archives' },
+  'g-runway':  { horizon: 'year', metric: 'runway_months', target: 6, category: 'money' },
+  'g-track':   { horizon: 'year', metric: 'members_track', target: 250, category: 'money', venture: 'track' },
+  'g-index':   { horizon: 'quarter', target: 100, unit: '%', category: 'work', venture: 'archives' },
+  'g-posts':   { horizon: 'quarter', metric: 'posts', target: 90, category: 'work', venture: 'archives' },
+  'g-coa':     { horizon: 'quarter', metric: 'coa_pct', target: 100, category: 'work', venture: 'peptides' },
+  'g-codex':   { horizon: 'quarter', target: 100, unit: '%', category: 'work', venture: 'codex' },
+  'g-train':   { horizon: 'week', metric: 'habit_rate_week', target: 100, category: 'life' },
+};
+
+/** Vault → database: every row of Goals.md the table lacks, keeping its id so a typed goal_progress value carries over. Returns the ids made. */
+export async function importGoals(db, brain) {
+  const file = path.join(brain, '05-Knowledge', 'Goals.md');
+  if (!fs.existsSync(file)) return [];
+  const text = fs.readFileSync(file, 'utf8');
+  if (/generated:\s*true/.test(text.split('---')[1] || '')) return [];   // already ours: nothing to import
+  const rows = text.split('\n').filter((l) => /^\|/.test(l) && !/^\|\s*(ID|---)/.test(l)).map((l) => l.split('|').slice(1, -1).map((c) => c.trim()));
+  const have = new Set((await state.list(db, 'goals')).map((g) => g.id));
+  const progress = Object.fromEntries((await state.list(db, 'goal_progress').catch(() => [])).map((g) => [g.goal_id, Number(g.value)]));
+  const made = [];
+  for (const c of rows) {
+    const id = c[0]; if (!id || have.has(id)) continue;
+    const seed = SEED_GOALS[id] || { horizon: 'year' };
+    const numeric = Number(String(c[4] || '').replace(/[^\d.]/g, '')) || null;
+    const row = { id, title: c[1], horizon: seed.horizon, category: seed.category || c[3] || '', venture: seed.venture || '', metric: seed.metric || '', unit: seed.unit || (seed.metric ? '' : String(c[4] || '').replace(/[\d.,£\s]/g, '')), target: seed.target ?? numeric, current: seed.metric ? null : (progress[id] ?? (Number(String(c[5] || '').replace(/[^\d.]/g, '')) || null)), note: `Room: ${c[2].replace(/\[\[|\]\]/g, '')}` };
+    const saved = await state.insert(db, 'goals', row, { actor: 'tools/vault-sync.mjs' });
+    made.push(saved.id);
+  }
+  return made;
+}
+
+/** Database → vault: Goals.md as the hierarchy, each goal read against the tables the way NORTH STAR shows it. */
+export async function mirrorGoals(db, brain, now = new Date()) {
+  const { targets, fmt } = await import('../../apps/facility/src/core/goals.js');
+  const { HORIZON_BY_ID } = await import('../../packages/config/src/index.js');
+  const goals = await state.list(db, 'goals');
+  const tables = {};
+  for (const t of ['ledger_months', 'fixed_costs', 'cash_snapshots', 'pots', 'dispatch', 'dispatch_items', 'products', 'stock_lots', 'settings', 'trades', 'protocol_items', 'protocol_ticks', 'orders']) { try { tables[t] = await state.list(db, t); } catch { tables[t] = []; } }
+  tables.goals = goals;
+  const list = targets(goals, tables, { now, includeDone: true });
+  const rows = list.map((g) => `| ${'  '.repeat(g.depth)}${g.depth ? '↳ ' : ''}${cell(g.title)} | ${HORIZON_BY_ID[g.horizon]?.name || g.horizon} | ${g.target === null ? '—' : fmt(g.target, g.unit)} | ${g.actual === null ? '—' : fmt(g.actual, g.unit)} | ${g.pct === null ? '—' : `${g.pct}%`} | ${g.daysLeft === null ? '—' : g.daysLeft} | ${g.trend || '—'} | ${g.status} |`);
+  // Goals.md was hand-written. It becomes the mirror only once every row it
+  // holds is in the table — nothing typed is lost, it has moved — and the
+  // hand-written copy is kept beside it for the record.
+  const file = path.join(brain, '05-Knowledge', 'Goals.md');
+  if (fs.existsSync(file)) {
+    const text = fs.readFileSync(file, 'utf8');
+    if (!/generated:\s*true/.test(text.split('---')[1] || '')) {
+      const ids = text.split('\n').filter((l) => /^\|/.test(l) && !/^\|\s*(ID|---)/.test(l)).map((l) => l.split('|')[1].trim()).filter(Boolean);
+      const have = new Set(goals.map((g) => g.id));
+      if (!ids.every((id) => have.has(id))) return 'kept';
+      fs.copyFileSync(file, path.join(brain, '05-Knowledge', 'Goals-hand.md'));
+      fs.unlinkSync(file);
+    }
+  }
+  const body = `# Goals\n\nThe hierarchy from [[BRIDGE]] → NORTH STAR, each goal read against the tables: a bound goal's actual is computed, a typed one is what Leo entered. ${list.length} goals, ${list.filter((g) => g.status === 'active').length} active.\n\n| Goal | Horizon | Target | Actual | Progress | Days left | Trend | Status |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n${rows.join('\n') || '| — | | | | | | | |'}\n`;
+  return writeGenerated(path.join(brain, '05-Knowledge', 'Goals.md'), fm(now, { type: 'goals', agent: 'ARCANE', tags: ['knowledge', 'goals'] }) + body, { write: true });
+}
+
+/** MISSION CONTROL → 05-Knowledge/Projects.md; the reviews → 04-Records/Reviews/<kind>-<period>.md; bottlenecks → 05-Knowledge/Bottlenecks.md. */
+export async function mirrorOperating(db, brain, now = new Date()) {
+  const { projectsSummary, HEALTH_NAME } = await import('../../apps/facility/src/core/projects.js');
+  const { REVIEW_BY_ID } = await import('../../packages/config/src/index.js');
+  const [projects, orders, reviews, bottlenecks] = await Promise.all([state.list(db, 'projects'), state.list(db, 'orders'), state.list(db, 'reviews', { limit: 200 }), state.list(db, 'bottlenecks', { limit: 200 })]);
+  const ps = projectsSummary(projects, orders, { now });
+  const pBody = `# Projects\n\nMISSION CONTROL, from the database. Health is computed from each project's orders, never typed.\n\n| Project | Venture | Goal | Status | Health | Done | Due | Why |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n${ps.map((p) => `| ${cell(p.name)} | ${p.venture ? VENTURE_BY_ID[p.venture]?.name || p.venture : '—'} | ${cell(p.goal_id || '—')} | ${p.status} | ${HEALTH_NAME[p.summary.health]} | ${p.summary.done}/${p.summary.total} | ${p.due || '—'} | ${cell(p.summary.reasons.join('; '))} |`).join('\n') || '| — | | | | | | | |'}\n`;
+  const out = { projects: writeGenerated(path.join(brain, '05-Knowledge', 'Projects.md'), fm(now, { type: 'projects', agent: 'ANVIL', tags: ['knowledge', 'projects'] }) + pBody, { write: true }), reviews: 0, bottlenecks: null };
+  const dir = path.join(brain, '04-Records', 'Reviews'); fs.mkdirSync(dir, { recursive: true });
+  for (const r of reviews.filter((x) => x.status === 'kept')) {
+    const kind = REVIEW_BY_ID[r.kind];
+    const body = `# ${kind?.name || r.kind} review — ${r.period}\n\n${(kind?.questions || []).map(([k, q]) => `## ${q}\n\n${r.answers?.[k] || '—'}\n`).join('\n')}\n## The facts as they stood\n\n${Object.entries(r.facts || {}).map(([k, v]) => `- ${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n') || '—'}\n`;
+    const res = writeGenerated(path.join(dir, `${r.kind}-${r.period}.md`), fm(new Date(r.kept_at || r.created_at), { type: 'review', agent: 'ARCANE', review: r.id, tags: ['record', 'review', r.kind] }) + body, { write: true });
+    if (res !== 'unchanged') out.reviews++;
+  }
+  const bBody = `# Bottlenecks\n\nWhat binds, with its evidence. Cleared ones stay for the record.\n\n| Bottleneck | Area | Severity | Venture | Owner | Status | Evidence | Since |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n${bottlenecks.map((b) => `| ${cell(b.text)} | ${b.area} | ${b.severity} | ${b.venture ? VENTURE_BY_ID[b.venture]?.name || b.venture : '—'} | ${cell(b.owner)} | ${b.status} | ${cell(b.evidence || '—')} | ${day(b.created_at)} |`).join('\n') || '| — | | | | | | | |'}\n`;
+  out.bottlenecks = writeGenerated(path.join(brain, '05-Knowledge', 'Bottlenecks.md'), fm(now, { type: 'bottlenecks', agent: 'VECTOR', tags: ['knowledge', 'bottlenecks'] }) + bBody, { write: true });
+  return out;
 }
