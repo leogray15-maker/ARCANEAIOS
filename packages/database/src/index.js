@@ -58,10 +58,18 @@ const MIGRATION_OF = {
   trades: '0008_trading.sql', setups: '0008_trading.sql', checkins: '0008_trading.sql',
   dispatch_items: '0010_dispatch_items.sql',
 };
+/** Columns a later migration added to an existing table, so a half-applied schema is named rather than mistaken for a working one. */
+const COLUMN_OF = { 'orders.source_id': '0009_proposals.sql', 'orders.agent': '0009_proposals.sql' };
 
 function translate(status, body, table) {
   const code = body?.code || '';
   const msg = body?.message || body?.hint || `${status}`;
+  // A column the code expects and the table lacks: the migration that adds it has not run.
+  if (code === 'PGRST204' || code === '42703') {
+    const col = (/column ['"]?(?:\w+\.)?(\w+)['"]?/i.exec(msg) || [])[1] || '';
+    const file = COLUMN_OF[`${table}.${col}`];
+    return new DatabaseError(`${table} has no column ${col || '(unknown)'} yet — run supabase/migrations/${file || '<the migration that adds it>'} in the Supabase SQL editor`, { status: 503, code, table, hint: 'migration not applied' });
+  }
   if (code === 'PGRST205' || code === '42P01' || /schema cache|does not exist/i.test(msg)) {
     return new DatabaseError(`the table ${table} does not exist yet — run supabase/migrations/${MIGRATION_OF[table] || '<the migration that creates it>'} in the Supabase SQL editor`, { status: 503, code, table, hint: 'migration not applied' });
   }
@@ -132,6 +140,14 @@ export async function checkSchema(db) {
     const key = { archive_subjects: 'subject', venture_focus: 'venture', goal_progress: 'goal_id', days: 'day', settings: 'key', cash_snapshots: 'day' }[table] || 'id';
     try { await db.get(table, { select: key, limit: 1 }); out.push({ table, ok: true, migration: MIGRATION_OF[table] }); }
     catch (e) { out.push({ table, ok: false, migration: MIGRATION_OF[table], error: e.message }); }
+  }
+  // Then the columns later migrations added: a table that exists without
+  // them is reported under the migration that supplies them, as its own row.
+  for (const [ref, migration] of Object.entries(COLUMN_OF)) {
+    const [table, col] = ref.split('.');
+    if (!out.find((r) => r.table === table)?.ok) continue;
+    try { await db.get(table, { select: col, limit: 1 }); out.push({ table: ref, ok: true, migration }); }
+    catch (e) { out.push({ table: ref, ok: false, migration, error: e.message }); }
   }
   return out;
 }

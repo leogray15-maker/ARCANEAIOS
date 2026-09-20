@@ -20,6 +20,6 @@ const db = createDb({ url: c.url, key });
 console.log(`${c.url} · ${c.key ? 'service key' : 'anon key only (service-role tables will look missing)'}\n`);
 const rows = await checkSchema(db);
 for (const r of rows) console.log(`${r.ok ? '✓' : '✗'} ${r.table.padEnd(20)} ${r.ok ? '' : `→ run supabase/migrations/${r.migration}`}${!r.ok && !/does not exist/.test(r.error) ? `  (${r.error})` : ''}`);
-const missing = [...new Set(rows.filter((r) => !r.ok).map((r) => r.migration))];
-console.log(missing.length ? `\n${missing.length} migration${missing.length === 1 ? '' : 's'} to run in the Supabase SQL editor: ${missing.join(', ')}` : '\n✓ every table the code expects is there');
+const missing = [...new Set(rows.filter((r) => !r.ok).map((r) => r.migration))].sort();   // in the order they must run
+console.log(missing.length ? `\n${missing.length} migration${missing.length === 1 ? '' : 's'} to run in the Supabase SQL editor, in this order: ${missing.join(', ')}` : '\n✓ every table the code expects is there');
 process.exit(missing.length ? 2 : 0);

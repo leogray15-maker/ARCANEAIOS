@@ -37,6 +37,10 @@ ok(mig.title === '1 migration to run', 'two tables from one file are one migrati
 ok(mig.fix.includes('supabase/migrations/0008_trading.sql'), 'the fix names the file to run');
 ok(mig.evidence.tables.join() === 'trades,setups', 'the evidence names the tables');
 
+/* ---- a table that exists without a later column is a migration to run, not a working table ---- */
+r = readiness({ ...full, tables: [{ table: 'orders', ok: true, migration: '0004_operating_state.sql' }, { table: 'orders.source_id', ok: false, migration: '0009_proposals.sql' }, { table: 'orders.agent', ok: false, migration: '0009_proposals.sql' }] });
+ok(item(r, 'migrations').level === 'blocked' && item(r, 'migrations').fix.includes('0009_proposals.sql'), 'a missing column names the migration that adds it');
+
 /* ---- the imports ---- */
 r = readiness({ ...full, counts: { ...full.counts, archive_modules: 0 } });
 ok(item(r, 'archives').level === 'blocked' && /herald:index/.test(item(r, 'archives').fix), 'an empty index blocks and names the command');
@@ -78,4 +82,4 @@ ok(r.items.every((i) => i.id && i.title && i.detail && i.room), 'every item name
 ok(r.items.filter((i) => i.level !== 'ok').every((i) => i.fix), 'every item that is not ok says what to do');
 
 if (fails.length) { console.error(`✗ readiness: ${fails.length} failed`); for (const f of fails) console.error('  · ' + f); process.exit(1); }
-console.log('✓ readiness — the blockers the bar reports are the ones the evidence supports (24 checks)');
+console.log('✓ readiness — the blockers the bar reports are the ones the evidence supports (25 checks)');
