@@ -144,20 +144,21 @@ function drawRoomFloor(g, p, room) {
   // 16px tiles: a grout line between them, and each tile a slightly different shade so the floor has grain.
   for (let ty = y + WALL; ty < y + h - WALL; ty += 16) for (let tx = x + WALL; tx < x + w - WALL; tx += 16) {
     const v = r();
-    g.fillStyle = v < 0.25 ? PX.floorAlt : v > 0.92 ? '#111119' : PX.floor;
+    g.fillStyle = v < 0.16 ? PX.floorAlt : v > 0.965 ? '#111119' : PX.floor;
     g.fillRect(tx, ty, Math.min(16, x + w - WALL - tx), Math.min(16, y + h - WALL - ty));
   }
-  g.fillStyle = 'rgba(0,0,0,0.22)';
+  g.fillStyle = 'rgba(0,0,0,0.16)';
   for (let ty = y + WALL + 16; ty < y + h - WALL; ty += 16) g.fillRect(x + WALL, ty, w - 2 * WALL, 1);
   for (let tx = x + WALL + 16; tx < x + w - WALL; tx += 16) g.fillRect(tx, y + WALL, 1, h - 2 * WALL);
-  // Cracks, scuffs, a stain and a drain — seeded from the room id so nothing moves between loads.
-  g.fillStyle = 'rgba(0,0,0,0.35)';
-  for (let i = 0; i < 3; i++) { let cx = x + 20 + r() * (w - 40), cy = y + 34 + r() * (h - 44); for (let k = 0; k < 6; k++) { g.fillRect(cx, cy, 1, 1); cx += r() < 0.5 ? 1 : 0; cy += 1; if (r() < 0.3) cx -= 1; } }
-  for (let i = 0; i < 14; i++) {
-    g.globalAlpha = 0.25 + r() * 0.3; g.fillStyle = PX.wallDark;
+  // A crack, a few scuffs, a stain and a drain — seeded from the room id so
+  // nothing moves between loads. Sparingly: a worn floor still reads as swept.
+  g.fillStyle = 'rgba(0,0,0,0.26)';
+  for (let i = 0; i < 2; i++) { let cx = x + 20 + r() * (w - 40), cy = y + 34 + r() * (h - 44); for (let k = 0; k < 6; k++) { g.fillRect(cx, cy, 1, 1); cx += r() < 0.5 ? 1 : 0; cy += 1; if (r() < 0.3) cx -= 1; } }
+  for (let i = 0; i < 6; i++) {
+    g.globalAlpha = 0.16 + r() * 0.18; g.fillStyle = PX.wallDark;
     g.fillRect(x + 10 + r() * (w - 30), y + 30 + r() * (h - 40), 3 + r() * 14, 1 + (r() < 0.3 ? 1 : 0));
   }
-  g.globalAlpha = 0.14; g.fillStyle = PX.rust;
+  g.globalAlpha = 0.09; g.fillStyle = PX.rust;
   g.fillRect(x + 20 + r() * (w - 60), y + 34 + r() * (h - 50), 10 + r() * 16, 6 + r() * 10);
   g.globalAlpha = 1;
   const dx = x + 30 + r() * (w - 60), dy = y + h - 14;
@@ -167,7 +168,7 @@ function drawRoomFloor(g, p, room) {
   g.fillRect(x, y, w, 7); g.fillRect(x, y, 7, h); g.fillRect(x + w - 7, y, 7, h); g.fillRect(x, y + h - 7, w, 7);
   for (const [cx, cy] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]) {
     const ao = g.createRadialGradient(cx, cy, 4, cx, cy, 46);
-    ao.addColorStop(0, 'rgba(0,0,0,0.42)'); ao.addColorStop(1, 'rgba(0,0,0,0)');
+    ao.addColorStop(0, 'rgba(0,0,0,0.32)'); ao.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = ao; g.fillRect(cx - 46, cy - 46, 92, 92);
   }
   const wash = g.createLinearGradient(0, y, 0, y + h);
@@ -196,7 +197,7 @@ function drawServices(g, p, room) {
     g.fillStyle = PX.ink; g.fillRect(lx - 7, y + WALL + 11, 14, 2);
     g.fillStyle = hexA(c, 0.5); g.fillRect(lx - 7, y + WALL + 13, 14, 1);
     const cone = g.createRadialGradient(lx, y + 60, 4, lx, y + 60, 58);
-    cone.addColorStop(0, hexA(c, 0.16)); cone.addColorStop(0.6, hexA(c, 0.06)); cone.addColorStop(1, hexA(c, 0));
+    cone.addColorStop(0, hexA(c, 0.2)); cone.addColorStop(0.6, hexA(c, 0.07)); cone.addColorStop(1, hexA(c, 0));
     g.fillStyle = cone; g.fillRect(lx - 58, y + 8, 116, 110);
   }
   g.fillStyle = PX.wallDark; g.fillRect(x + w - 22, y + WALL + 8, 10, 7);

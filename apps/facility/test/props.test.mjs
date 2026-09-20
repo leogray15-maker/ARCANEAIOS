@@ -5,7 +5,7 @@
  */
 import { ROOMS } from '@arcane/config';
 import { ROOM_PROPS } from '../src/config/props.js';
-import { PAINT } from '../src/render/props.js';
+import { PAINT, WALL_MOUNTED } from '../src/render/props.js';
 import { PLAN_BY_ID, ROOM_W, ROOM_H } from '../src/config/floorplan.js';
 
 const fails = []; const ok = (c, m) => { if (!c) fails.push(m); };
@@ -21,6 +21,16 @@ for (const room of ROOMS) {
     const [dx, dy, dw, dh] = doorZone;
     const overlaps = p.x < dx + dw && p.x + p.w > dx && p.y < dy + dh && p.y + p.h > dy;
     ok(!overlaps, `${room.name}: ${p.type} at ${p.x},${p.y} blocks the door approach (${side})`);
+  }
+  // Two pieces of furniture in the same place is what makes a room look
+  // cluttered rather than furnished. A floor piece standing in front of a
+  // wall piece is fine; two of a kind in the same square is not.
+  for (let i = 0; i < spec.props.length; i++) for (let j = i + 1; j < spec.props.length; j++) {
+    const a = spec.props[i], b = spec.props[j];
+    if (WALL_MOUNTED.has(a.type) !== WALL_MOUNTED.has(b.type)) continue;
+    const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+    const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+    ok(ox <= 2 || oy <= 2, `${room.name}: ${a.type} and ${b.type} overlap by ${ox}x${oy}`);
   }
   ok(spec.props.length >= 12, `${room.name}: only ${spec.props.length} props — sparse`);
   const s = spec.station; ok(s && s.x > 6 && s.x < ROOM_W - 6 && s.y > 40 && s.y < ROOM_H - 2, `${room.name}: station outside the room`);

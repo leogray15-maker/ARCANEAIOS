@@ -161,6 +161,71 @@ export const PAINT = {
   servers(g, x, y, w, h, o, t) { box(g, x, y, w, h, '#23252f', 1); const rows = Math.floor((h - 4) / 5); for (let r = 0; r < rows; r++) { const sy = y + 3 + r * 5; g.fillStyle = '#31343f'; g.fillRect(x + 2, sy, w - 4, 4); g.fillStyle = dark('#31343f', 0.4); g.fillRect(x + 2, sy + 3, w - 4, 1); for (let i = 0; i < 3; i++) { const on = Math.sin(t * (2 + i) + r * 1.3 + i) > 0.2; g.fillStyle = on ? (i === 2 ? PX.breach : PX.cyan) : '#1b1b28'; g.fillRect(x + w - 5 - i * 3, sy + 1, 2, 1); } } glow(g, x + w / 2, y + h + 4, w * 0.6, PX.cyan, 0.08); },
   workbench(g, x, y, w, h, o, t) { PAINT.desk(g, x, y + h - 12, w, 12, { tone: 'steel' }, t); g.fillStyle = '#4a4e60'; g.fillRect(x, y, w, h - 12); outline(g, x, y, w, h - 12); for (let i = 0; i < Math.floor((w - 4) / 6); i++) { g.fillStyle = [PX.steel, '#ecebf5', PX.rust][i % 3]; g.fillRect(x + 3 + i * 6, y + 3 + (i % 2) * 2, 2, 6 - (i % 2) * 2); } if (o.device) { box(g, x + w / 2 - 8, y + h - 18, 16, 6, '#3a3e4e', 1); g.fillStyle = Math.sin(t * 6) > 0 ? PX.cyan : PX.arcane; g.fillRect(x + w / 2 - 6, y + h - 16, 3, 2); g.fillStyle = PX.rust; g.fillRect(x + w / 2 + 2, y + h - 16, 4, 2); } },
   lift(g, x, y, w, h, o, t) { box(g, x, y + h - 8, w, 8, '#3a3e4e', 2); g.fillStyle = PX.steel; g.fillRect(x + 6, y + 6, 3, h - 14); g.fillRect(x + w - 9, y + 6, 3, h - 14); g.fillStyle = PX.flare; g.fillRect(x + 6, y + 6, 3, 2); g.fillRect(x + w - 9, y + 6, 3, 2); const cx = x + w / 2; g.fillStyle = OUT; g.fillRect(cx - 5, y + 10, 10, 20); g.fillStyle = '#2c2c46'; g.fillRect(cx - 4, y + 22, 8, 7); g.fillStyle = PX.ash; g.fillRect(cx - 4, y + 14, 8, 8); g.fillStyle = '#4a4a66'; g.fillRect(cx - 3, y + 11, 6, 3); const spark = Math.sin(t * 17 + Math.sin(t * 5) * 3) > 0.6; if (spark) { g.fillStyle = '#ffffff'; g.fillRect(cx + 4, y + 18, 2, 2); px(g, cx + 6, y + 16, PX.cyan); px(g, cx + 7, y + 20, PX.flare); glow(g, cx + 4, y + 18, 22, PX.cyan, 0.4); } else glow(g, cx, y + h - 6, 22, PX.cyan, 0.08); },
+  /**
+   * The car. A Vanquish is a long bonnet, a short deck and a fastback
+   * roofline, so it is drawn as a roof profile sampled column by column
+   * rather than a stack of boxes — that is what keeps the curve. Purple,
+   * because the operator asked for purple.
+   */
+  vanquish(g, x, y, w, h, o, t) {
+    const body = o.colour || '#7a3fe0';
+    const sx = w / 76, sy = h / 32;                       // the art is drawn at 76 x 32
+    const X = (v) => x + Math.round(v * sx), Y = (v) => y + Math.round(v * sy);
+    const R = (a, b, c, d, col) => { const x0 = X(a), y0 = Y(b); g.fillStyle = col; g.fillRect(x0, y0, Math.max(1, X(a + c) - x0), Math.max(1, Y(b + d) - y0)); };
+    // front to back: nose, bonnet, windscreen, roof, fastback, boot
+    const roof = (i) => i < 12 ? 20 - (i - 2) * 0.32
+      : i < 30 ? 17 - (i - 12) * 0.06
+      : i < 39 ? 16 - (i - 30) * 0.89
+      : i < 54 ? 8
+      : i < 67 ? 8 + (i - 54) * 0.46
+      : 14 + (i - 67) * 0.14;
+    const SILL = 25, GLASS = '#161b2e';
+    glow(g, X(38), Y(28), Math.max(16, w * 0.55), body, 0.13);
+    R(4, 28, 68, 2, 'rgba(0,0,0,0.38)'); R(9, 30, 58, 1, 'rgba(0,0,0,0.24)');
+    // the body, one column at a time, with the light running along the top edge
+    for (let i = 2; i < 74; i++) {
+      const ty = roof(i);
+      R(i, ty, 1, SILL - ty, body);
+      R(i, ty, 1, 1, lit(body, i > 32 && i < 58 ? 0.5 : 0.3));
+      R(i, ty + 1, 1, 1, lit(body, 0.12));
+    }
+    R(2, 18, 1, 7, dark(body, 0.4)); R(73, 15, 1, 10, dark(body, 0.4));
+    // glass: windscreen, side, rear quarter — with the pillar left in body colour
+    for (let i = 32; i < 67; i++) {
+      if (i >= 52 && i < 55) continue;                    // B-pillar
+      const ty = roof(i) + 1.5;
+      if (ty < 15) R(i, ty, 1, 15 - ty, GLASS);
+    }
+    for (let i = 34; i < 50; i++) R(i, roof(i) + 2, 1, 1, 'rgba(210,225,255,0.18)');
+    R(57, 11, 8, 1, 'rgba(210,225,255,0.12)');
+    // shoulder line, door shut, the strake behind the front arch
+    R(26, 16, 44, 1, dark(body, 0.26));
+    R(41, 16, 1, 8, dark(body, 0.45)); R(42, 17, 1, 6, lit(body, 0.1));
+    R(24, 18, 7, 1, dark(body, 0.5)); R(24, 20, 6, 1, dark(body, 0.44));
+    R(48, 18, 3, 1, lit(body, 0.36));                      // door handle
+    // sill, and the shadow the body casts on its own flank
+    R(4, 23, 68, 2, dark(body, 0.48)); R(5, 24, 66, 1, dark(body, 0.66));
+    // lights and grille
+    R(2, 21, 6, 3, '#0d0e16'); for (let i = 3; i < 8; i += 2) R(i, 22, 1, 1, '#3a3d4e');
+    R(3, 18, 4, 1, '#eef0ff'); R(3, 19, 4, 1, 'rgba(180,200,255,0.55)'); glow(g, X(5), Y(19), 8, '#dfe6ff', 0.14);
+    R(70, 17, 3, 1, '#ff5f6d'); R(70, 18, 3, 1, dark('#ff5f6d', 0.35)); glow(g, X(71), Y(18), 7, '#ff5f6d', 0.14);
+    R(33, 15, 3, 1, PX.gold);                              // the wing on the bonnet
+    // arches and wheels, drawn over the flank so the body sits on them
+    for (const cx of [16, 58]) {
+      for (let dx = -6; dx <= 6; dx++) {                   // the arch, hugging the tyre
+        const cut = Math.sqrt(Math.max(0, 36 - dx * dx)) * 0.55;
+        R(cx + dx, 23 - cut, 1, cut + 1, 'rgba(8,8,14,0.26)');
+      }
+      R(cx - 3, 20, 6, 1, '#0b0b12');                      // the tyre, tapered into a circle
+      R(cx - 4, 21, 8, 1, '#15151f'); R(cx - 5, 22, 10, 3, '#15151f'); R(cx - 4, 25, 8, 1, '#15151f');
+      R(cx - 3, 26, 6, 1, '#0d0d16');
+      R(cx - 5, 22, 1, 3, '#0b0b12'); R(cx + 4, 22, 1, 3, '#0b0b12');
+      R(cx - 2, 22, 4, 3, '#8d89a4'); R(cx - 1, 23, 2, 1, '#4e4a60'); R(cx - 2, 22, 4, 1, '#c9c6da');
+    }
+    // a slow gleam down the flank, so the paint reads as paint
+    const gl = (t * 9) % 170;
+    if (gl < 72) { const i = Math.round(gl) + 2; const ty = roof(Math.min(73, i)); R(i, ty, 1, SILL - ty, 'rgba(255,255,255,0.07)'); R(i + 1, ty, 1, 2, 'rgba(255,255,255,0.13)'); }
+  },
   lever(g, x, y, w, h, o, t) { box(g, x, y + h - 10, w, 10, '#2a2c38', 2); g.fillStyle = '#1b1b28'; g.fillRect(x + w / 2 - 2, y + h - 12, 4, 4); g.fillStyle = PX.steel; for (let i = 0; i < h - 14; i++) px(g, x + w / 2 + Math.round(i * 0.35), y + h - 12 - i, PX.steel); g.fillStyle = PX.breach; g.fillRect(x + w / 2 + Math.round((h - 14) * 0.35) - 2, y - 1, 5, 5); g.fillStyle = lit(PX.breach, 0.4); g.fillRect(x + w / 2 + Math.round((h - 14) * 0.35) - 1, y, 2, 1); glow(g, x + w / 2, y + h - 4, 22, PX.breach, 0.16); g.fillStyle = Math.sin(t * 2) > 0 ? PX.breach : dark(PX.breach, 0.6); g.fillRect(x + 3, y + h - 7, 3, 2); },
   safe(g, x, y, w, h, o, t) { box(g, x, y, w, h, '#3b3f4c', 2); g.fillStyle = OUT; g.fillRect(x + 4, y + 4, w - 8, h - 8); g.fillStyle = '#4a4e5c'; g.fillRect(x + 5, y + 5, w - 10, h - 10); const cx = x + w / 2, cy = y + h / 2; g.fillStyle = PX.gold; g.fillRect(cx - 5, cy - 5, 10, 10); g.fillStyle = dark(PX.gold, 0.5); g.fillRect(cx - 3, cy - 3, 6, 6); const a = t * 0.8; px(g, Math.round(cx + Math.cos(a) * 3), Math.round(cy + Math.sin(a) * 3), '#ffe9a0'); g.fillStyle = PX.steel; g.fillRect(x + w - 12, y + 8, 3, h - 16); for (let i = 0; i < 3; i++) g.fillRect(x + w - 14, y + 10 + i * ((h - 20) / 2), 7, 2); glow(g, cx, y + h + 4, w * 0.5, PX.gold, 0.14); },
   coins(g, x, y, w, h) { let k = x; for (let i = 0; i < 3; i++) { const cx = x + i * (w / 3), ch = h - (k % 4); g.fillStyle = OUT; g.fillRect(cx - 1, y + h - ch - 1, 5, ch + 2); g.fillStyle = PX.gold; g.fillRect(cx, y + h - ch, 3, ch); g.fillStyle = lit(PX.gold, 0.5); for (let yy = y + h - ch; yy < y + h; yy += 2) g.fillRect(cx, yy, 3, 1); k = (k * 7 + 5) | 0; } },
@@ -522,7 +587,7 @@ export const WALL_MOUNTED = new Set(['hearth', 'neonsign', 'stringlights', 'card
  * pieces straight into the static buffer, floor pieces into their own small
  * canvases so they can still be depth-sorted with the crew.
  */
-export const ANIMATED = new Set(['screen', 'wallscreen', 'bigscreen', 'terminal', 'cardwall', 'coldstore', 'instrument', 'servers', 'radio', 'mast', 'lift', 'lever', 'safe', 'window', 'commandtable', 'till', 'candle', 'council', 'workbench', 'camera', 'coa', 'archiveterminal', 'holo', 'secureterminal', 'cashdisplay', 'lockedcabinet', 'orderboard', 'funnel', 'buildmonitor', 'healthdash', 'clock', 'balance', 'fraction', 'wastebin', 'statuspanel', 'screenwall', 'signaldesk', 'rack', 'chartscreen', 'tradingdesk', 'tickertape', 'sessionclocks']);
+export const ANIMATED = new Set(['vanquish', 'screen', 'wallscreen', 'bigscreen', 'terminal', 'cardwall', 'coldstore', 'instrument', 'servers', 'radio', 'mast', 'lift', 'lever', 'safe', 'window', 'commandtable', 'till', 'candle', 'council', 'workbench', 'camera', 'coa', 'archiveterminal', 'holo', 'secureterminal', 'cashdisplay', 'lockedcabinet', 'orderboard', 'funnel', 'buildmonitor', 'healthdash', 'clock', 'balance', 'fraction', 'wastebin', 'statuspanel', 'screenwall', 'signaldesk', 'rack', 'chartscreen', 'tradingdesk', 'tickertape', 'sessionclocks']);
 const LIVE_ITEMS = new Set(['terminal', 'dual', 'candle', 'printer', 'secure']);
 /** True when a placement must be painted every frame. */
 export const isAnimated = (p) => ANIMATED.has(p.type) || (p.opts.items || []).some((i) => LIVE_ITEMS.has(i));

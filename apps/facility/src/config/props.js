@@ -23,15 +23,14 @@ export const ROOM_PROPS = {
       // back wall: the storage bank (cold, cryo, reagent), solvent and standards racks, systems panel
       P('coldstore', 8, 26, 22, 44, { kind: 'cold', label: 'COLD -80°C' }), P('coldstore', 32, 26, 20, 44, { kind: 'cryo', label: 'CRYO' }), P('coldstore', 54, 26, 20, 44, { kind: 'reagent', label: 'REAGENT' }),
       P('vialrack', 78, 30, 36, 24, { tint: 'blue', label: 'SOLVENTS' }), P('vialrack', 116, 30, 36, 24, { tint: 'green', label: 'STANDARDS' }),
-      P('statuspanel', 156, 28, 18, 12, { colour: 'cyan', label: 'SYSTEMS' }), P('sign', 176, 22, 18, 6, { colour: 'arcane' }), P('clock', 120, 22, 7, 7), P('vent', 176, 30, 14, 8), P('extinguisher', 194, 30, 5, 12),
-      // middle: balance, the COA station, the HPLC
-      P('balance', 78, 58, 24, 18, { label: 'BALANCE' }), P('coa', 104, 60, 44, 26, { label: 'COA STATION' }), P('instrument', 128, 74, 44, 30, { label: 'HPLC' }),
-      P('cable', 8, 72, 68, 4),
-      // front: packing, fractions, waste, stock
-      P('packbench', 8, 80, 56, 20, { label: 'PACKING' }), P('fraction', 66, 84, 34, 18, { label: 'FRACTIONS' }), P('wastebin', 176, 92, 12, 14, { label: 'WASTE' }),
-      P('boxes', 104, 90, 18, 14), P('barrel', 66, 104, 10, 8, { colour: '#3d4656', mark: '#56c9f0' }), P('grate', 108, 106, 16, 6), P('stool', 100, 100, 8, 8), P('cabletray', 60, 104, 40, 5),
+      P('statuspanel', 156, 30, 18, 12, { colour: 'cyan', label: 'SYSTEMS' }), P('sign', 176, 22, 18, 6, { colour: 'arcane' }), P('clock', 120, 22, 7, 7), P('vent', 176, 32, 14, 8), P('extinguisher', 194, 30, 5, 12),
+      // the working line: weigh, then certify — the floor between it and the bench is the walkway
+      P('balance', 78, 60, 22, 16, { label: 'BALANCE' }), P('coa', 104, 58, 42, 24, { label: 'COA STATION' }), P('stool', 64, 70, 8, 8), P('cabletray', 8, 76, 60, 4),
+      // the front bench: packing at the door end, fractions, then the HPLC in its own bay
+      P('packbench', 8, 84, 56, 20, { label: 'PACKING' }), P('fraction', 68, 86, 32, 18, { label: 'FRACTIONS' }), P('instrument', 104, 84, 44, 26, { label: 'HPLC' }),
+      P('boxes', 152, 74, 18, 12), P('wastebin', 154, 92, 12, 14, { label: 'WASTE' }), P('grate', 68, 106, 16, 5),
     ],
-    station: { x: 36, y: 104, face: 'back' }, walk: [104, 92, 20, 12],
+    station: { x: 36, y: 108, face: 'back' }, walk: [150, 58, 22, 12],
   },
   vitals: {
     props: [
@@ -78,7 +77,7 @@ export const ROOM_PROPS = {
       P('rack', 8, 60, 24, 34, { colour: 'flare', label: 'RACK A' }), P('signaldesk', 36, 62, 100, 26, { accent: '#e8b64c', label: 'SIGNAL DESK' }), P('rack', 140, 60, 22, 30, { colour: 'flare', label: 'UPLINK' }),
       P('chair', 80, 90, 10, 10),
       // front: the mast, a camera, cable tray, hazard mat, stock
-      P('mast', 176, 74, 20, 36, { label: 'BEACON' }), P('camera', 150, 92, 12, 18, { label: 'CAM' }), P('cabletray', 36, 100, 40, 5), P('floormat', 112, 94, 24, 12), P('bin', 100, 96, 8, 10), P('boxes', 8, 98, 18, 12), P('stool', 140, 92, 8, 8),
+      P('mast', 176, 74, 20, 36, { label: 'BEACON' }), P('camera', 150, 92, 12, 18, { label: 'CAM' }), P('cabletray', 36, 100, 40, 5), P('floormat', 108, 96, 24, 10), P('bin', 100, 96, 8, 10), P('boxes', 8, 98, 18, 12), P('stool', 140, 92, 8, 8),
     ],
     station: { x: 86, y: 100, face: 'back' }, walk: [36, 106, 40, 5],
   },
@@ -92,7 +91,7 @@ export const ROOM_PROPS = {
       P('cable', 40, 54, 130, 4),
       // middle: the command table with a hologram beside it, seats, a terminal desk
       P('commandtable', 60, 62, 80, 26), P('holo', 146, 64, 16, 18, { colour: 'arcane' }), P('chair', 44, 70, 10, 10), P('stool', 44, 84, 8, 8), P('chair', 138, 88, 10, 10),
-      P('cabinet', 176, 62, 18, 22), P('bin', 166, 86, 8, 10),
+      P('cabinet', 176, 62, 18, 22), P('bin', 140, 100, 8, 10),
       // front: the captain's chair, a terminal desk, a rug, a plant
       P('chair', 96, 92, 12, 12, { tone: 'wood' }), P('desk', 150, 92, 36, 14, { tone: 'steel', items: ['terminal', 'keyboard'] }), P('plant', 188, 90, 8, 14),
       P('rug', 40, 96, 40, 10, { colour: '#2a2440' }), P('bookstack', 30, 96, 10, 12),
@@ -101,7 +100,7 @@ export const ROOM_PROPS = {
   },
   warroom: {
     props: [
-      P('sign', 176, 22, 18, 6, { colour: 'arcane' }), P('bin', 60, 84, 8, 10), P('cable', 40, 58, 90, 4),
+      P('sign', 176, 22, 18, 6, { colour: 'arcane' }), P('bin', 30, 92, 8, 10), P('cable', 40, 58, 90, 4),
       P('board', 40, 28, 90, 28, { kind: 'pins', strings: true }), P('screen', 140, 30, 30, 18, { colour: 'arcane' }), P('maprack', 176, 28, 18, 26), P('pipe', 8, 30, 5, 12),
       P('table', 90, 68, 40, 24, { tone: 'wood', items: ['papers', 'papers', 'mug'] }), P('chair', 78, 72, 10, 10), P('chair', 134, 72, 10, 10), P('chair', 96, 94, 10, 10), P('chair', 114, 94, 10, 10),
       P('cabinet', 176, 64, 18, 22), P('lamp', 44, 70, 8, 26), P('crate', 44, 98, 14, 12), P('bookstack', 60, 96, 10, 12), P('plant', 176, 92, 10, 16),
@@ -113,7 +112,7 @@ export const ROOM_PROPS = {
       P('sign', 176, 22, 18, 6, { colour: 'gold' }), P('cable', 40, 48, 60, 4), P('clock', 120, 22, 7, 7),
       P('board', 50, 28, 14, 18, { kind: 'banner', colour: 'gold' }), P('board', 150, 28, 14, 18, { kind: 'banner', colour: 'arcane' }), P('pipe', 8, 30, 5, 12),
       P('council', 46, 52, 120, 28), P('plant', 180, 28, 10, 16), P('plant', 180, 92, 10, 16), P('rug', 40, 86, 130, 20, { colour: '#3a2e1c' }),
-      P('lectern', 100, 30, 14, 18), P('cabinet', 176, 60, 18, 22, { tone: 'wood' }), P('candle', 70, 34, 4, 8), P('candle', 136, 34, 4, 8), P('bookstack', 176, 46, 12, 10), P('maprack', 40, 92, 16, 14),
+      P('lectern', 100, 30, 14, 18), P('cabinet', 176, 60, 18, 22, { tone: 'wood' }), P('candle', 70, 34, 4, 8), P('candle', 136, 34, 4, 8), P('bookstack', 176, 46, 12, 10), P('maprack', 34, 26, 16, 20),
     ],
     station: { x: 106, y: 100, face: 'back' }, walk: [40, 92, 30, 12],
   },
@@ -123,10 +122,11 @@ export const ROOM_PROPS = {
       P('safe', 140, 28, 54, 50), P('lockedcabinet', 40, 30, 20, 26), P('lockedcabinet', 62, 30, 20, 26), P('cashdisplay', 86, 30, 24, 16), P('wallscreen', 112, 30, 26, 14, { colour: 'gold' }),
       P('sign', 150, 22, 20, 6, { colour: 'gold' }), P('clock', 176, 22, 7, 7), P('pipe', 8, 30, 5, 12), P('extinguisher', 194, 30, 5, 12), P('cable', 40, 58, 60, 4),
       // middle: the ledger desk with a secure terminal, the counting corner
-      P('desk', 44, 66, 50, 18, { tone: 'wood', items: ['secure', 'ledger', 'lamp'] }), P('chair', 64, 86, 10, 10, { tone: 'wood' }),
-      P('coins', 104, 72, 12, 10), P('coins', 118, 78, 12, 10), P('coins', 104, 86, 12, 10), P('bookstack', 124, 66, 12, 10), P('barrel', 122, 48, 12, 14, { colour: '#4a4030', mark: '#d9a441' }),
-      // front: strongboxes, a locked cabinet, a rug, a bin, a stool
-      P('crate', 150, 90, 20, 14), P('crate', 174, 94, 16, 12), P('lockedcabinet', 170, 80, 20, 12), P('rug', 100, 98, 40, 10, { colour: '#3a2e1c' }), P('bin', 96, 90, 8, 10), P('stool', 34, 96, 8, 8),
+      P('desk', 40, 70, 50, 18, { tone: 'wood', items: ['secure', 'ledger', 'lamp'] }), P('chair', 58, 90, 10, 10, { tone: 'wood' }), P('rug', 34, 92, 62, 10, { colour: '#3a2e1c' }),
+      // the bullion stands in a line in front of the safe, the way it is counted
+      P('coins', 104, 84, 12, 10), P('coins', 120, 84, 12, 10), P('coins', 136, 84, 12, 10), P('bookstack', 104, 68, 12, 10), P('barrel', 122, 64, 12, 14, { colour: '#4a4030', mark: '#d9a441' }),
+      // front wall: the strongboxes and the deposit cabinet, squared up
+      P('crate', 152, 92, 20, 14), P('crate', 174, 92, 18, 14), P('lockedcabinet', 170, 80, 22, 10),
     ],
     station: { x: 70, y: 100, face: 'back' }, walk: [110, 98, 30, 10],
   },
@@ -150,7 +150,7 @@ export const ROOM_PROPS = {
       P('tradingdesk', 30, 66, 96, 26, { label: 'THE DESK' }), P('chair', 72, 94, 10, 10), P('desk', 134, 70, 44, 16, { tone: 'wood', items: ['ledger', 'lamp', 'coffee'], label: 'JOURNAL' }), P('chair', 150, 88, 10, 10, { tone: 'wood' }),
       // front and detail
       P('rack', 8, 64, 18, 30, { colour: 'gold', label: 'FEED' }), P('cable', 30, 58, 100, 4), P('cabletray', 30, 100, 60, 5), P('plant', 186, 92, 10, 16), P('rug', 100, 98, 60, 10, { colour: '#3a2e1c' }),
-      P('bin', 120, 94, 8, 10), P('kettlebell', 10, 98, 10, 10), P('bookstack', 176, 72, 12, 10), P('extinguisher', 194, 76, 5, 12), P('floormat', 4, 52, 24, 10),
+      P('bin', 120, 94, 8, 10), P('kettlebell', 10, 98, 10, 10), P('bookstack', 176, 72, 12, 10), P('extinguisher', 194, 76, 5, 12), P('floormat', 8, 98, 22, 10),
     ],
     station: { x: 76, y: 104, face: 'back' }, walk: [100, 104, 30, 6],
   },
@@ -187,14 +187,14 @@ export const ROOM_PROPS = {
     props: [
       // back wall: four tall shelves, the ladder, the card catalogue, sign, clock
       P('shelf', 8, 26, 34, 34), P('shelf', 44, 26, 34, 34), P('shelf', 80, 26, 34, 34), P('shelf', 116, 26, 34, 34), P('ladder', 150, 26, 12, 34),
-      P('sign', 164, 22, 18, 6, { colour: 'cyan' }), P('clock', 150, 22, 7, 7), P('cardcatalogue', 166, 30, 26, 12),
+      P('sign', 164, 22, 18, 6, { colour: 'cyan' }), P('clock', 186, 22, 7, 7), P('cardcatalogue', 166, 30, 26, 12),
       // middle: two archive terminals, the reading table, a globe, the reading corner under its lamp
       P('archiveterminal', 8, 64, 14, 28), P('archiveterminal', 24, 64, 14, 28),
       P('desk', 50, 68, 60, 18, { tone: 'wood', items: ['lamp', 'papers', 'bookstack'] }), P('chair', 60, 88, 10, 10, { tone: 'wood' }), P('chair', 90, 88, 10, 10, { tone: 'wood' }),
-      P('globe', 116, 66, 12, 20), P('armchair', 168, 78, 18, 16), P('readinglamp', 156, 66, 8, 22), P('shelf', 130, 68, 30, 12, { rows: 1 }),
-      // front: module stacks, scrolls, a rug, a plant, a crate, a bin
-      P('bookstack', 10, 96, 14, 12), P('bookstack', 26, 98, 12, 10), P('scrolls', 176, 98, 16, 10), P('rug', 44, 100, 80, 8, { colour: '#1c2a3a' }),
-      P('plant', 140, 92, 10, 16), P('crate', 154, 96, 16, 12), P('bin', 132, 92, 8, 10), P('extinguisher', 194, 76, 5, 12),
+      P('globe', 116, 66, 12, 20), P('armchair', 168, 78, 18, 16), P('readinglamp', 158, 66, 8, 22), P('shelf', 126, 68, 28, 12, { rows: 1 }),
+      // front: the module stacks by the terminals, then the reading rug and the odd ends in a row
+      P('bookstack', 10, 96, 14, 12), P('bookstack', 26, 96, 12, 12), P('rug', 44, 96, 80, 10, { colour: '#1c2a3a' }),
+      P('plant', 130, 92, 10, 16), P('crate', 146, 94, 16, 12), P('scrolls', 168, 96, 16, 10), P('extinguisher', 194, 76, 5, 12),
     ],
     station: { x: 118, y: 96, face: 'left' }, walk: [100, 92, 30, 10],
   },
@@ -211,12 +211,16 @@ export const ROOM_PROPS = {
   /* ============ C4 · NETWORK & LIFE (doors on the left) ============ */
   garage: {
     props: [
-      P('sign', 176, 22, 18, 6, { colour: 'arcane' }), P('cable', 40, 56, 70, 4), P('bin', 104, 90, 8, 10), P('extinguisher', 194, 30, 5, 12),
-      P('workbench', 40, 28, 60, 24, { device: true }), P('lift', 110, 40, 50, 46), P('board', 170, 28, 26, 26, { kind: 'white' }), P('pipe', 8, 30, 5, 12),
-      P('servers', 40, 62, 22, 34), P('crate', 70, 70, 16, 14), P('crate', 88, 74, 16, 14), P('boxes', 176, 62, 18, 14), P('barrel', 170, 92, 12, 14, { colour: '#4a5060', mark: '#a98bff' }),
-      P('kettlebell', 66, 96, 10, 10), P('cabinet', 176, 80, 18, 12), P('locker', 104, 28, 28, 16, { colour: '#a98bff' }),
+      // back wall: the bench under the tool wall, the parts rack, the job board
+      P('sign', 176, 22, 18, 6, { colour: 'arcane' }), P('pipe', 8, 30, 5, 12), P('extinguisher', 194, 30, 5, 12),
+      P('toolwall', 38, 26, 54, 12), P('workbench', 38, 40, 54, 18, { device: true }), P('servers', 98, 28, 22, 30),
+      P('locker', 126, 28, 26, 16, { colour: '#a98bff' }), P('board', 160, 28, 32, 26, { kind: 'white' }), P('cable', 38, 60, 76, 4),
+      // the floor: the car in its bay, the lift back against the right wall
+      P('vanquish', 40, 66, 76, 32, { colour: '#7a3fe0' }),
+      P('lift', 138, 58, 44, 42),
+      P('crate', 8, 92, 16, 14), P('boxes', 122, 86, 18, 12), P('bin', 124, 74, 8, 10), P('kettlebell', 186, 96, 10, 10),
     ],
-    station: { x: 92, y: 100, face: 'back' }, walk: [40, 98, 26, 12],
+    station: { x: 128, y: 102, face: 'back' }, walk: [8, 76, 26, 12],
   },
   control: {
     props: [

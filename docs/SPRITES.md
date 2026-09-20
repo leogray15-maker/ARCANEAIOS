@@ -142,7 +142,7 @@ Room-specific anchors (so no two rooms share furniture):
 | THE DEAL ROOM | two chairs facing, a contract on the table, a coffee | lamp |
 | THE LIBRARY | floor-to-ceiling shelves, ladder, reading table | reading lamp |
 | THE LOUNGE | sofa, low table, a plant, a window | window (warm) |
-| THE AGENT GARAGE | a lift with a half-built sprite on it, tool wall | welding light (cyan flicker) |
+| THE AGENT GARAGE | the purple Vanquish in its bay, a lift, the tool wall | welding light (cyan flicker), the car's underglow |
 | THE CONTROL ROOM | the permission matrix as a wall of switches, a big red lever | lever (breach) |
 | THE INVENTOR'S ROOM | cluttered bench, blueprints, a whiteboard | bench lamp |
 | THE RECORDS | filing cabinets, a card index, a rolled-map rack | desk lamp |
@@ -171,3 +171,13 @@ per frame. Props are painter functions in `render/props.js`. Author in a
 pixel editor at 1:1 on a 12×20 grid with the palette above, then transcribe.
 A `tools/sprite-sheet.mjs` (day 6) will render every agent's 18 frames to
 one PNG for review.
+
+Prop work is judged one room at a time, not on the floor: run the facility
+and open `/room-lab.html?r=garage,vault&s=6` — it bakes the building the
+way the floor does and crops the rooms you name at the scale you ask for.
+`s` is the zoom, `t` the time in seconds for the props that move. Two
+rules the test enforces (`apps/facility/test/props.test.mjs`): every prop
+stands inside the room with the door approach clear, and no two pieces of
+the same kind — two floor pieces, or two wall pieces — occupy the same
+square. Overlap is what makes a room read as cluttered rather than
+furnished.
