@@ -26,6 +26,8 @@ import { renderSanctum, bindSanctum } from './render/sanctum.js';
 import { renderRecords, bindRecords } from './render/records.js';
 import { renderControl, bindControl } from './render/control.js';
 import { renderIntel, bindIntel } from './render/intel.js';
+import { installNav, navCounts, toggle as toggleNav, isOpen as navOpen } from './render/nav.js';
+import { installResponsive, markTabs, isPhone, isTouch } from './render/responsive.js';
 import { BrainGraph } from './render/graph.js';
 import { Strip } from './render/strip.js';
 import { signals } from './core/vigil.js';
@@ -66,11 +68,15 @@ const strip = new Strip($('strip'), ctx);
 const dpr = () => Math.max(1, window.devicePixelRatio || 1);
 
 function fit() {
-  const H = stage.clientHeight - 34;
-  const s = Math.max(1, Math.floor(Math.min(stage.clientWidth / PW, H / PH)));
-  view.scale = s;
-  view.x = Math.floor((stage.clientWidth - PW * s) / 2);
-  view.y = Math.floor((H - PH * s) / 2);
+  // The strip is hidden on a phone, so it only steals height on a desk.
+  const H = stage.clientHeight - (isPhone() ? 8 : 34);
+  const raw = Math.min(stage.clientWidth / PW, H / PH);
+  // Integer scales keep the pixels honest, but a whole facility that fits
+  // the screen matters more than that on a phone: below 1 we keep the
+  // fraction and let the browser scale the art down.
+  view.scale = raw >= 1 ? Math.floor(raw) : Math.max(0.12, Math.round(raw * 100) / 100);
+  view.x = Math.round((stage.clientWidth - PW * view.scale) / 2);
+  view.y = Math.round((H - PH * view.scale) / 2);
 }
 /** Set a zoom, keeping the point under `cx,cy` (stage pixels) fixed; defaults to the centre. */
 function setZoom(mode, cx = stage.clientWidth / 2, cy = stage.clientHeight / 2) {
@@ -78,10 +84,16 @@ function setZoom(mode, cx = stage.clientWidth / 2, cy = stage.clientHeight / 2) 
   if (mode === 'fit') fit();
   else {
     const bx = (cx - view.x) / view.scale, by = (cy - view.y) / view.scale;
-    view.scale = Number(mode);
+    view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Number(mode)));
     view.x = Math.round(cx - bx * view.scale); view.y = Math.round(cy - by * view.scale);
   }
   for (const b of document.querySelectorAll('#hud button')) b.classList.toggle('on', b.dataset.zoom === String(mode));
+}
+const MIN_SCALE = 0.12, MAX_SCALE = 4;
+/** Zoom by a factor about a point — what a pinch and the ± buttons both do. */
+function zoomBy(factor, cx = stage.clientWidth / 2, cy = stage.clientHeight / 2) {
+  const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale * factor));
+  setZoom(String(next), cx, cy);
 }
 function centreOn(roomId) {
   const p = PLAN_BY_ID[roomId]; if (!p) return;
@@ -101,12 +113,27 @@ function resize() {
 const toBuffer = (e) => { const r = stage.getBoundingClientRect(); return { x: (e.clientX - r.left - view.x) / view.scale, y: (e.clientY - r.top - view.y) / view.scale }; };
 
 let drag = null;
+// Live pointers, so two fingers can pinch the floor.
+const touches = new Map();
+let pinch = null;
+const spread = () => { const [a, b] = [...touches.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; };
+
 stage.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (touches.size === 2) { const r = stage.getBoundingClientRect(); const s0 = spread(); pinch = { d: s0.d, scale: view.scale, cx: s0.cx - r.left, cy: s0.cy - r.top }; drag = null; tip.style.display = 'none'; return; }
+  if (touches.size > 2) return;
   drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false };
   stage.setPointerCapture(e.pointerId);
 });
 stage.addEventListener('pointermove', (e) => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && touches.size === 2) {
+    const s1 = spread();
+    if (pinch.d > 0) { const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinch.scale * (s1.d / pinch.d))); setZoom(String(next), pinch.cx, pinch.cy); }
+    return;
+  }
+  if (e.pointerType !== 'mouse' && !drag) return;   // no hover on a finger
   if (drag) {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 4) { drag.moved = true; stage.classList.add('dragging'); view.mode = 'pan'; view.x = drag.vx + dx; view.y = drag.vy + dy; for (const b of document.querySelectorAll('#hud button')) b.classList.remove('on'); }
@@ -119,10 +146,14 @@ stage.addEventListener('pointermove', (e) => {
   showTip(id, e);
 });
 stage.addEventListener('pointerleave', () => { tip.style.display = 'none'; if (state.hover) { state.hover = null; state.staticDirty = true; } });
+const endPointer = (e) => { touches.delete(e.pointerId); if (touches.size < 2) pinch = null; };
+stage.addEventListener('pointercancel', (e) => { endPointer(e); drag = null; stage.classList.remove('dragging'); });
 stage.addEventListener('pointerup', (e) => {
+  const wasPinching = pinch !== null;
+  endPointer(e);
   stage.classList.remove('dragging');
   const wasDrag = drag?.moved; drag = null;
-  if (wasDrag) return;
+  if (wasDrag || wasPinching) return;
   const p = toBuffer(e); const r = roomAt(p.x, p.y);
   if (r) { sim.command(r.id); go(ROOM_BY_ID[r.id].opens || `#room/${r.id}`); }
 });
@@ -135,9 +166,13 @@ stage.addEventListener('wheel', (e) => {
   if (next !== view.scale) setZoom(String(next), e.clientX - r.left, e.clientY - r.top);
 }, { passive: false });
 for (const b of document.querySelectorAll('#hud button')) b.addEventListener('click', () => setZoom(b.dataset.zoom));
+for (const b of document.querySelectorAll('#zoomer button')) b.addEventListener('click', () => {
+  const z = b.dataset.zoom;
+  if (z === 'fit') setZoom('fit'); else zoomBy(z === 'in' ? 1.5 : 1 / 1.5);
+});
 window.addEventListener('resize', () => { resize(); graph.resize(); });
 window.addEventListener('keydown', (e) => {
-  if (e.target.matches('input, select, textarea')) return;
+  if (e.target.matches('input, select, textarea') || navOpen()) return;
   if (e.key === 'Escape') { if (state.screen === 'beacon' && /^#beacon\/draft\//.test(location.hash)) go('#beacon'); else if (state.screen === 'library' && /^#library\//.test(location.hash)) go('#library'); else if (state.screen === 'lab' && /^#lab\//.test(location.hash)) go('#lab'); else if (['vault', 'sanctum', 'records'].includes(state.screen) && /^#[a-z]+\//.test(location.hash)) go(`#${state.screen}`); else if (state.screen !== 'floor') go('#'); return; }
   if (state.screen === 'floor' && !e.metaKey && !e.ctrlKey && !e.altKey) { if (e.key === 'b') return go('#bridge'); if (e.key === 'w') return go('#warroom'); if (e.key === 'l') return go('#library'); if (e.key === 'n') return go('#beacon'); if (e.key === 'p') return go('#lab'); if (e.key === 'v') return go('#vault'); if (e.key === 's') return go('#sanctum'); if (e.key === 'r') return go('#records'); if (e.key === 'j') return go('#journal'); if (e.key === 'i') return go('#intel'); if (e.key === 'c') return go('#control'); }
   if (state.screen === 'library') return libraryKey(e);
@@ -185,6 +220,7 @@ function route() {
   if (screen === 'graph') graph.show();
   else graph.hide();
   state.staticDirty = true;
+  markTabs(screen, h);
   barStatus();
 }
 window.addEventListener('hashchange', route);
@@ -192,8 +228,8 @@ for (const b of document.querySelectorAll('#views button')) b.addEventListener('
 bindDash(views.dash, { store, getRoom: () => state.selected, go, brain });
 bindJournal(views.journal, { store, go });
 bindLibrary(views.library, { go, brain });
-bindBeacon(views.beacon, { go, onCounts: (c) => { contentCounts = c; barStatus(); } });
-bindBridge(views.bridge, { store, go, brain, onCounts: (c) => { contentCounts = c; barStatus(); } });
+bindBeacon(views.beacon, { go, onCounts: (c) => { contentCounts = c; navCounts(c); barStatus(); } });
+bindBridge(views.bridge, { store, go, brain, onCounts: (c) => { contentCounts = c; navCounts(c); barStatus(); } });
 bindWarroom(views.warroom, { store, go, brain });
 bindLab(views.lab, { store, go });
 bindVault(views.vault, { store, go });
@@ -286,6 +322,15 @@ function loop(now) {
 }
 
 window.addEventListener('error', (e) => { $('bar-status').innerHTML = `<span class="breach">runtime error: ${e.message} (${e.filename?.split('/').pop()}:${e.lineno})</span>`; });
+
+installResponsive();
+installNav({ go, store });
+document.getElementById('go').addEventListener('click', toggleNav);
+for (const b of document.querySelectorAll('#tabs button')) b.addEventListener('click', () => {
+  const t = b.dataset.tab;
+  if (t === 'more') return toggleNav();
+  go(t === 'floor' ? '#' : `#${t}`);
+});
 
 // Deep links: ?zoom=2|3 and ?room=<id> still work; the hash carries the view.
 const params = new URLSearchParams(location.search);

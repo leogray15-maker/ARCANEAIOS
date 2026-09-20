@@ -2,13 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <meta name="theme-color" content="#07070d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ARCANE">
   <title>THE ARCANE</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/src/ui.css">
 </head>
 <body>
   <header id="bar">
+    <button id="go" class="go" title="Go to a room  (Cmd-K)" aria-label="Go to a room">≡</button>
     <div class="brand">THE ARCANE <span class="v">LEOOS v3</span></div>
     <div class="status" id="bar-status"></div>
     <nav id="views">
@@ -29,6 +34,7 @@
     <canvas id="floor"></canvas>
     <div id="tip"></div>
     <div id="strip"></div>
+    <div id="zoomer" class="zoomer"><button data-zoom="out" aria-label="Zoom out">−</button><button data-zoom="fit" aria-label="Fit the floor">⊡</button><button data-zoom="in" aria-label="Zoom in">+</button></div>
   </main>
   <section id="dash" class="view hidden"></section>
   <section id="bridge" class="view hidden"></section>
@@ -43,6 +49,14 @@
   <section id="beacon" class="view hidden"></section>
   <section id="journal" class="view hidden"></section>
   <section id="graph" class="view hidden"><canvas id="graph-canvas"></canvas><div class="legend" id="graph-legend"></div></section>
+  <nav id="tabs" aria-label="Rooms">
+    <button data-tab="floor">FLOOR</button>
+    <button data-tab="bridge">BRIDGE</button>
+    <button data-tab="beacon">BEACON</button>
+    <button data-tab="library">LIBRARY</button>
+    <button data-tab="more">MORE</button>
+  </nav>
+  <div id="nav" class="hidden" aria-hidden="true"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

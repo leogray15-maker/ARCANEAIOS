@@ -311,11 +311,24 @@ export function present(canvas, buf, view, { hover, selected } = {}, sim = null,
   g.textBaseline = 'top';
   for (const p of PLAN) {
     const room = ROOM_BY_ID[p.id];
-    const [x, y] = p.rect;
+    const [x, y, w] = p.rect;
     const px = view.x + (x + 12) * s, py = view.y + (y + WALL + 15) * s;
-    g.font = `${Math.max(9, 4.5 * s)}px ui-monospace, Menlo, monospace`;
+    // The name belongs to the room, so it never leaves it: on a phone the
+    // whole plan is a third of its size and a full name would run over the
+    // wall into the next wing. Shrink first, then clip.
+    const max = (w - 24) * s;
+    let size = Math.max(9, 4.5 * s);
+    g.font = `${size}px ui-monospace, Menlo, monospace`;
+    let text = room.name;
+    const width = g.measureText(text).width;
+    if (width > max) {
+      size = Math.max(7, size * (max / width));
+      g.font = `${size}px ui-monospace, Menlo, monospace`;
+      while (text.length > 4 && g.measureText(`${text}\u2026`).width > max) text = text.slice(0, -1);
+      if (text !== room.name) text += '\u2026';
+    }
     g.fillStyle = p.id === selected ? accent(room.accent) : p.id === hover ? PX.ink : PX.ash;
-    g.fillText(room.name, px, py);
+    g.fillText(text, px, py);
   }
   // Equipment labels at 2x and above: a dark plate and the name, like the signage in the references.
   if (s >= 2) {
