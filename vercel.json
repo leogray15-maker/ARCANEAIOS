@@ -12,7 +12,7 @@
     }
   },
   "crons": [
-    { "path": "/api/tick", "schedule": "*/15 * * * *" }
+    { "path": "/api/tick", "schedule": "0 3 * * *" }
   ],
   "headers": [
     { "source": "/(.*)", "headers": [{ "key": "X-Frame-Options", "value": "DENY" }, { "key": "X-Content-Type-Options", "value": "nosniff" }] },

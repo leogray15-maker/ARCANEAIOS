@@ -1,7 +1,7 @@
 ---
 type: system-card
-created: 2026-09-17 02:15
-updated: 2026-09-17 02:15
+created: 2026-09-21 00:12
+updated: 2026-09-21 00:12
 status: active
 agent: ORACLE
 generated: true
@@ -32,5 +32,5 @@ Twenty rooms in four wings around two service corridors and a central hall. Ever
 
 - Brief blocks: **VENTURES** → **MONEY** → **GOALS** → **ROOMS**
 - Verdicts: BUILD · DELAY · WATCH · KILL
-- Order states: open → active → blocked → review → done → killed
+- Order states: proposed → open → active → blocked → review → done → killed
 - Draft states: draft → review → approved → scheduled → posted → killed

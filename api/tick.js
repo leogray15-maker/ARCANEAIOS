@@ -11,12 +11,16 @@
  * (`x-vercel-cron`) or by the operator key for a manual/local trigger —
  * never open to the public internet undecorated.
  *
- * `vercel.json` asks for every 15 minutes; Vercel's Hobby plan runs a cron
- * at most once a day regardless of what the file says, so on that plan
- * this only actually fires nightly until the project is on Pro. Nothing
- * breaks either way — a stale run just waits longer to be reaped, and the
- * bar's own readiness check is unaffected, since it never depended on
- * this endpoint.
+ * `vercel.json` asks for once a day (03:00). A first attempt at every 15
+ * minutes was wrong, not just wasteful: on the Hobby plan a cron more
+ * frequent than daily does not get silently throttled, it fails the
+ * whole deployment (Vercel checks `vercel.json` at deploy time and
+ * rejects it — this is what actually broke the first push of this
+ * feature). Once a day means a stale run can wait up to 24 hours to be
+ * reaped; nothing else depends on this endpoint, so nothing breaks in
+ * the meantime — an agent shows as `stalled` on the Bridge and in THE
+ * CONTROL ROOM either way, reaped or not. Raise the frequency only on a
+ * plan that allows it.
  *
  * What it does, every time, cheaply:
  *   1. reap stalled runs — a `running` row whose heartbeat has gone quiet

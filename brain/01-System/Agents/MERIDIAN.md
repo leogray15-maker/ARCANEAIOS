@@ -1,7 +1,7 @@
 ---
 type: system-card
-created: 2026-09-16 22:11
-updated: 2026-09-16 22:11
+created: 2026-09-21 00:12
+updated: 2026-09-21 00:12
 status: active
 agent: MERIDIAN
 generated: true
@@ -28,6 +28,7 @@ Seated on [[The Council]], voice weight 3.
 - Shared memory — `live`
 - Store — `not wired`
 - Notion — `read-only`
+- Database — `live`
 
 ## Permissions
 
@@ -49,7 +50,7 @@ Full network in [[Permission Matrix]]. No agent holds `allow`; spend is `deny` f
 
 ## Skills
 
-- None registered yet.
+- **MERIDIAN — The Chain** — `POST /api/meridian` · production
 
 ## Sprite
 
