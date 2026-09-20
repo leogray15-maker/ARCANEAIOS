@@ -29,7 +29,8 @@ export default guard(['GET'], async (req, res) => {
     const names = ['archive_modules', 'products', 'stock_lots', 'dispatch', 'orders', 'content_drafts'];
     const got = await Promise.all(names.map((t) => count(d, t)));
     counts = Object.fromEntries(names.map((t, i) => [t, got[i]]));
-    try { const [r] = await runs.list(d, { limit: 1 }); lastRun = r || null; } catch {}
+    // The last run that reached the model — a dry reading proves nothing about it either way.
+    try { lastRun = (await runs.list(d, { limit: 20 })).find((r) => ['ok', 'failed', 'refused'].includes(r.status)) || null; } catch {}
   }
   const ready = readiness({ env, db: dbInfo, tables, counts, lastRun });
   return json(res, 200, { env, db: dbInfo, tables, sources: srcs, counts, ready, runtime: { vercel: process.env.VERCEL === '1', region: process.env.VERCEL_REGION || '', node: process.version, at: new Date().toISOString() } });

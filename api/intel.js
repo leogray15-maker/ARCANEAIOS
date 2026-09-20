@@ -22,6 +22,7 @@
 import { json, guard, db, client, systemContext, modelFailure, MODEL, ROOM_LIST } from './_lib.js';
 import { state } from '../packages/database/src/state.js';
 import { runs, nextId } from '../packages/database/src/content.js';
+import { propose } from './_agent.js';
 
 const KINDS = ['opportunity', 'threat', 'signal', 'action'];
 
@@ -63,37 +64,6 @@ function sourcesOf(content) {
   }
   return out;
 }
-
-/**
- * Write each item's proposal down as a `proposed` order, and hand back the
- * id it was given. Nothing is executed and nothing enters the queue: the
- * operator approves or kills it. A proposal whose words are already on the
- * board is skipped rather than repeated — a daily watch would otherwise
- * propose the same thing every morning.
- */
-async function propose(items, runId) {
-  const existing = await state.list(db(), 'orders').catch(() => []);
-  const seen = new Set(existing.filter((o) => !['done', 'killed'].includes(o.state)).map((o) => `${o.room}::${String(o.text).trim().toLowerCase()}`));
-  const out = [];
-  for (const item of items) {
-    const p = item?.proposal;
-    if (!p?.room || !p?.text) { out.push(null); continue; }
-    const key = `${p.room}::${String(p.text).trim().toLowerCase()}`;
-    if (seen.has(key)) { out.push(null); continue; }
-    try {
-      const row = await state.insert(db(), 'orders', {
-        room: p.room, text: p.text, priority: PRIORITY[p.priority] ?? 2,
-        state: 'proposed', actor: 'agent', agent: 'intel', holder: 'CIPHER',
-        source: 'agent', source_id: runId,
-        note: [item.headline, item.detail, item.source ? `Source: ${item.source}` : ''].filter(Boolean).join('\n\n'),
-      }, { actor: 'intel' });
-      seen.add(key);
-      out.push(row.id);
-    } catch { out.push(null); }   // a refused proposal is not a failed watch
-  }
-  return out;
-}
-const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
 
 export default guard(['POST'], async (req, res, auth) => {
   const { context = {}, question = '' } = req.body || {};
@@ -154,7 +124,7 @@ export default guard(['POST'], async (req, res, auth) => {
     // each one becomes an order in `proposed` — not work, not counted, not
     // pulling any crew, but on the Bridge under what needs an answer, and
     // carrying the run it came from so the reason survives the week.
-    const proposed = await propose(out.items || [], runId);
+    const proposed = await propose(db(), out.items || [], { agent: 'intel', holder: 'CIPHER', runId });
     for (const [i, p] of proposed.entries()) if (p) (out.items[i] || {}).order_id = p;
     // The run carries the watch itself: the room reads it back from here.
     await runs.finish(db(), runId, { status: 'ok', usage, output: { items: out.items || [], summary: out.summary || '', quiet: !!out.quiet, sources, terms, proposed: proposed.filter(Boolean) } });

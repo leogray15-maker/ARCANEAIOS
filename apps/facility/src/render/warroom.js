@@ -14,6 +14,7 @@
  */
 import { VENTURES, ROOMS, ROOM_BY_ID } from '@arcane/config';
 import { esc, chip, when, failed, handleKeyForm } from './ui.js';
+import { agentState, agentSection, agentClick, loadLastRun } from './agent.js';
 
 const PRIO = ['P0', 'P1', 'P2', 'P3'];
 const PRIO_TONE = ['deny', 'flare', 'arcane', 'ash'];
@@ -25,6 +26,7 @@ const ALLOC_NOTE = { push: 'the next hour and the next pound go here', maintain:
 const VERDICT_TONE = { BUILD: 'vital', DELAY: 'flare', WATCH: 'cyan', KILL: 'deny' };
 
 const st = { showDone: false, editing: '' };
+const vector = agentState();
 let el = null, go = null, store = null, brain = null;
 
 export function bindWarroom(view, ctx) {
@@ -37,7 +39,7 @@ export function bindWarroom(view, ctx) {
   el.addEventListener('keydown', (e) => { if (e.target.dataset.act === 'why' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
 }
 
-export function renderWarroom(view, ctx, hash = '#warroom', { keepScroll = false } = {}) { el = view; paint({ keepScroll }); }
+export function renderWarroom(view, ctx, hash = '#warroom', { keepScroll = false } = {}) { el = view; if (ctx.store?.server?.ready && !vector.result) loadLastRun('vector', vector).then(() => { if (el) paint({ keepScroll: true }); }); paint({ keepScroll }); }
 
 function moveRow(m, i, count) {
   return `<div class="order-row move ${m.done ? 'done' : ''}" data-id="${esc(m.id)}">
@@ -117,6 +119,7 @@ function paint({ keepScroll = false } = {}) {
           ${stop.length ? stop.map((s) => `<div class="order-row"><input type="checkbox" data-act="stop-done" data-id="${esc(s.id)}" title="stopped"><span class="text">${esc(s.text)}</span><span class="faint nowrap">${when(s.ts)}</span><span class="row-acts"><button class="tiny ghost" data-act="stop-remove" data-id="${esc(s.id)}">×</button></span></div>`).join('') : '<p class="empty">Nothing on the stop list. There is always something.</p>'}
           <form class="inline add-order" data-act="stop-add"><input name="text" placeholder="A thing to stop doing" style="flex:1;min-width:240px" autocomplete="off"><button type="submit">Add</button></form>
         </section>
+        ${agentSection('vector', vector, { store })}
       </div>
 
       <aside class="bridge-side">
@@ -142,6 +145,7 @@ const rankedIds = () => VENTURES.map((v) => ({ v, f: store.focusOf(v.id) })).sor
 const swap = (arr, i, j) => { const c = [...arr]; [c[i], c[j]] = [c[j], c[i]]; return c; };
 
 function onClick(e) {
+  if (agentClick(e, 'vector', vector, () => paint({ keepScroll: true }))) return;
   const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'INPUT' || b.tagName === 'FORM') return;
   const act = b.dataset.act, id = b.dataset.id;
   if (act === 'back') go('#');

@@ -69,6 +69,8 @@ export const api = {
   bridge: () => api.get('/api/bridge'),
   /** The machine's own state: keys held, database, migrations, imports, the last run — and the readiness the bar reads. */
   health: () => api.get('/api/health'),
+  /** A reader — TALLY, MERIDIAN or VECTOR — on the agent contract. `dry` returns what it read without the model. */
+  agent: (id, { question = '', dry = false } = {}) => api.post(`/api/${id}`, { question, dry }, { timeout: 300_000 }),
   /** CIPHER, the only call that reads outside the building. It takes a while: it is searching. */
   intel: (question = '', context = {}) => api.post('/api/intel', { question, context }, { timeout: 300_000 }),
 };

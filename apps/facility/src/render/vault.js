@@ -13,12 +13,14 @@
 import { VENTURES } from '@arcane/config';
 import { monthOf, prevMonth, monthLabel } from '../core/money.js';
 import { esc, chip, when, failed, handleKeyForm, keepFocus, proposalsBlock } from './ui.js';
+import { agentState, agentSection, agentClick, loadLastRun } from './agent.js';
 
 const gbp = (n, d = 0) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : `£${Number(n).toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d })}`);
 const pct = (x) => (x === null || x === undefined ? '—' : `${x >= 0 ? '+' : ''}${Math.round(x * 100)}%`);
 const today = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 
 const st = { month: monthOf(), adding: '' };
+const tally = agentState();
 let el = null, go = null, store = null;
 
 export function bindVault(view, ctx) {
@@ -29,6 +31,7 @@ export function bindVault(view, ctx) {
 }
 
 export function renderVault(view, ctx, hash = '#vault', { keepScroll = false } = {}) {
+  if (ctx.store?.server?.ready && !tally.result) loadLastRun('tally', tally).then(() => { if (el) paint({ keepScroll: true }); });
   el = view;
   const m = /^#vault\/(\d{4}-\d{2})$/.exec(hash);
   st.month = m ? m[1] : monthOf();
@@ -102,6 +105,7 @@ function paint({ keepScroll = false } = {}) {
             ${hist.map((h) => `<tr class="row" data-act="open-month" data-month="${h.month}"><td><a href="#vault/${h.month}">${esc(monthLabel(h.month))}</a></td>${VENTURES.map((v) => `<td class="r ash">${gbp(h.byVenture[v.id])}</td>`).join('')}<td class="r"><b>${gbp(h.revenue)}</b></td><td class="r ash">${gbp(h.fixed)}</td><td class="r ${h.net === null ? '' : h.net < 0 ? 'breach' : 'vital'}">${gbp(h.net)}</td></tr>`).join('')}
           </tbody></table><p class="src">Fixed is today's list applied to every month; the revenue is what was typed for that month.</p>` : '<p class="empty">No months typed yet. This month\'s figures above are the first row.</p>'}
         </section>
+        ${agentSection('tally', tally, { store })}
       </div>
 
       <aside class="bridge-side">
@@ -124,6 +128,7 @@ function paint({ keepScroll = false } = {}) {
 
 /* ---------- events ---------- */
 function onClick(e) {
+  if (agentClick(e, 'tally', tally, () => paint({ keepScroll: true }))) return;
   const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'INPUT' || b.tagName === 'FORM') return;
   const act = b.dataset.act, id = b.dataset.id;
   if (act === 'back') go('#');

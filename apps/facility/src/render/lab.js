@@ -12,6 +12,7 @@
  * here is copy for the public.
  */
 import { esc, chip, when, num, failed, handleKeyForm, keepFocus, proposalsBlock } from './ui.js';
+import { agentState, agentSection, agentClick, loadLastRun } from './agent.js';
 
 const COA = ['none', 'pending', 'published'];
 const COA_TONE = { none: 'deny', pending: 'flare', published: 'vital' };
@@ -22,6 +23,7 @@ const pct = (x) => (x === null || x === undefined ? '—' : `${Math.round(x * 10
 const marginTone = (m) => (m === null ? 'ash' : m < 0.6 ? 'deny' : m < 0.75 ? 'flare' : 'vital');
 
 const st = { q: '', view: 'listed', productId: '', editing: '' };
+const meridian = agentState();
 let el = null, go = null, store = null;
 
 export function bindLab(view, ctx) {
@@ -33,6 +35,7 @@ export function bindLab(view, ctx) {
 }
 
 export function renderLab(view, ctx, hash = '#lab', { keepScroll = false } = {}) {
+  if (ctx.store?.server?.ready && !meridian.result) loadLastRun('meridian', meridian).then(() => { if (el) paint({ keepScroll: true }); });
   el = view;
   const m = /^#lab\/(.+)$/.exec(hash);
   st.productId = m && m[1] !== 'dispatch' ? decodeURIComponent(m[1]) : '';
@@ -219,7 +222,8 @@ function dispatchView(lab) {
     ${queue.length ? queue.map(row).join('') : '<p class="empty">Nothing packing or ready.</p>'}
     ${done.length ? `<h2>Gone <span class="faint">${done.length}</span></h2>${done.map(row).join('')}` : ''}
     <h2>What has actually been made</h2>
-    ${realisedBlock(lab.realised)}`;
+    ${realisedBlock(lab.realised)}
+    ${agentSection('meridian', meridian, { store })}`;
 }
 
 /**
@@ -246,6 +250,7 @@ function realisedBlock(r) {
 
 /* ---------- events ---------- */
 function onClick(e) {
+  if (agentClick(e, 'meridian', meridian, () => paint({ keepScroll: true }))) return;
   const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'INPUT' || b.tagName === 'FORM') return;
   const act = b.dataset.act, id = b.dataset.id;
   if (act === 'back') go('#');

@@ -399,3 +399,11 @@ html.touch .zoomer { display: flex; }
 .dispatch-box .lines { margin: 4px 0 0 26px; }
 .dispatch-box .lines table.grid { margin: 4px 0; }
 .dispatch-box .lines form.inline { margin-top: 6px; }
+
+/* A reader in its room. */
+.reader { border-top: 1px solid var(--line-2); padding-top: 12px; margin-top: 20px; }
+.reader .reader-summary { font-size: var(--t1); color: var(--ink); white-space: pre-wrap; border-left: 2px solid var(--arcane); padding-left: 10px; }
+.reader details.read { margin-top: 10px; }
+.reader details.read summary { cursor: pointer; color: var(--ash); }
+.reader pre.evidence { max-height: 320px; overflow: auto; font-size: var(--t-1); }
+.reader tr.why-row td { font-size: var(--t-1); border-top: 0; padding-top: 0; }
