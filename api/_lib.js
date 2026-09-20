@@ -10,6 +10,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AGENTS, COUNCIL, ROOMS, ROOM_BY_ID, VENTURES, STANDING_RULES, BRIEF_BLOCKS, VERDICTS, OPERATOR } from '../packages/config/src/index.js';
 import { openDb } from '../packages/database/src/dev.js';
+import { classify, withRetry } from '../packages/database/src/resilience.js';
+export { classify, withRetry };
 export { json, guard, operator } from './_auth.js';
 
 export const MODEL = process.env.ARCANE_MODEL || 'claude-opus-5';
@@ -37,11 +39,12 @@ export function client() {
  */
 export function modelFailure(e) {
   const msg = e?.message || String(e);
-  if (/credit balance/i.test(msg)) return { status: 402, error: 'the Anthropic account has no API credits — top up at console.anthropic.com → Plans & Billing. API credits are bought separately from a Claude subscription, so a subscription limit resetting does not fund this.' };
-  if (e?.status === 401) return { status: 503, error: 'the ANTHROPIC_API_KEY is not valid — check it in the Vercel project settings' };
-  if (e?.status === 429) return { status: 429, error: 'the Anthropic account is rate limited — try again in a moment' };
-  if (e?.status === 529 || /overloaded/i.test(msg)) return { status: 503, error: 'the model is overloaded — try again in a moment' };
-  return { status: 502, error: msg };
+  const { kind, suggestion } = classify(e?.status, msg);
+  if (/credit balance/i.test(msg)) return { status: 402, error: 'the Anthropic account has no API credits — top up at console.anthropic.com → Plans & Billing. API credits are bought separately from a Claude subscription, so a subscription limit resetting does not fund this.', kind: 'ESCALATE', suggestion };
+  if (e?.status === 401) return { status: 503, error: 'the ANTHROPIC_API_KEY is not valid — check it in the Vercel project settings', kind: 'ESCALATE', suggestion };
+  if (e?.status === 429) return { status: 429, error: 'the Anthropic account is rate limited — try again in a moment', kind: 'RETRYABLE', suggestion };
+  if (e?.status === 529 || /overloaded/i.test(msg)) return { status: 503, error: 'the model is overloaded — try again in a moment', kind: 'RETRYABLE', suggestion };
+  return { status: 502, error: msg, kind, suggestion };
 }
 
 /** What every agent knows about the empire before it speaks. */

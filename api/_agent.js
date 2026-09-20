@@ -14,7 +14,7 @@
  * and still records: the agent's reading of the state is real whether or
  * not its reasoning ran, and the room shows it either way.
  */
-import { json, client, db as openDb, systemContext, modelFailure, MODEL } from './_lib.js';
+import { json, client, db as openDb, systemContext, modelFailure, MODEL, withRetry } from './_lib.js';
 import { state } from '../packages/database/src/state.js';
 import { runs, nextId } from '../packages/database/src/content.js';
 
@@ -90,7 +90,13 @@ export async function agentRun(req, res, auth, spec, { d = null, c = undefined, 
       { type: 'text', text: `${spec.instructions}\n\nStanding rules for every reading: every number you cite must appear in the evidence below, verbatim or as an arithmetic of figures that do; never invent a figure, a date or a cause. Where the evidence says the data cannot say something, say so rather than filling it in. A proposal is the smallest next action routed to one room, and it is a proposal only — nothing here executes. No medical, dosing or treatment claim about any compound, ever.` },
     ];
     const user = `${question ? `The operator asks: ${question}\n\n` : ''}What the tables say now:\n\n${ev.brief}`;
-    const r = await model.messages.create({ model: MODEL, max_tokens: spec.maxTokens || 6000, system, messages: [{ role: 'user', content: user }], thinking: { type: 'adaptive' }, output_config: { effort: spec.effort || 'medium', format: { type: 'json_schema', schema: spec.schema } } });
+    // A rate limit or a transient overload is retried, bounded, with
+    // backoff; anything else (no credits, a bad key, a bad request) is not
+    // — retrying those changes nothing (packages/database/src/resilience.js).
+    const r = await withRetry((attempt) => {
+      if (attempt) runs.heartbeat(dd, runId, `retrying after a transient failure (attempt ${attempt + 1})`).catch(() => {});
+      return model.messages.create({ model: MODEL, max_tokens: spec.maxTokens || 6000, system, messages: [{ role: 'user', content: user }], thinking: { type: 'adaptive' }, output_config: { effort: spec.effort || 'medium', format: { type: 'json_schema', schema: spec.schema } } });
+    }, { maxAttempts: 3, baseMs: 2000 });
     if (r.stop_reason === 'refusal') {
       await runs.finish(dd, runId, { status: 'refused', error: 'the model refused the reading' });
       return json(res, 200, { ...evidenceOnly('refused'), summary: `${spec.holder} will not read that one.` });

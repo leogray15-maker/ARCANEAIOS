@@ -25,6 +25,7 @@
  */
 import { stats, derive } from './journal.js';
 import { stockLines, settingsOf } from './lab.js';
+import { AGENT_BY_ID, STALE_RUN_MS } from '../../../../packages/config/src/index.js';
 
 const DAY = 86400000;
 const iso = (v) => (v ? new Date(v).toISOString() : null);
@@ -126,6 +127,44 @@ export function signals(state, brain, now = Date.now()) {
   const today = new Date(now).toISOString().slice(0, 10); const hour = new Date(now).getHours();
   const done = state.protocolTicks ? state.protocolTicks.filter((t) => t.day === today && t.done).length : Object.values(state.protocol?.[today] || {}).filter(Boolean).length;
   if (hour >= 20 && done === 0) add({ id: `protocol.untouched:${today}`, kind: 'protocol', severity: 'info', room: 'sanctum', text: 'Nothing ticked on the protocol today', clear: 'tick what was done in SANCTUM', evidence: { day: today, ticked: 0 } });
+
+  // The agents. Runs and budgets are only on the server-backed state
+  // (0012); a state built from the blob alone has no `runs` array and the
+  // rules are simply not asked, the same way the brief is not asked when
+  // there is no vault.
+  if (state.runs) for (const sg of governanceSignals(state.runs, state.agentBudgets || [], now)) add(sg);
+  return out;
+}
+
+/**
+ * The runtime layer's own signals — VIGIL observes, it never acts. A
+ * stalled run (no heartbeat past the reap window) is a breach: the
+ * operator's agent looks busy and is not. A budget at its ceiling is a
+ * warning: the agent stops taking new work, not a crisis, but worth
+ * seeing before it is mistaken for the agent having nothing to do.
+ * Shared by the floor (`signals`) and the server (`signalsFromTables`) so
+ * the two never compute a different answer to "is anything stalled?".
+ */
+function governanceSignals(runRows = [], budgetRows = [], now = Date.now()) {
+  const out = [];
+  const byAgent = {};
+  for (const r of runRows) (byAgent[r.agent] || (byAgent[r.agent] = [])).push(r);
+  for (const [agentName, list] of Object.entries(byAgent)) {
+    const agent = Object.values(AGENT_BY_ID).find((a) => a.name === agentName); if (!agent) continue;
+    const running = list.find((r) => r.status === 'running');
+    if (running) {
+      const age = now - new Date(running.heartbeat_at || running.started_at).getTime();
+      if (age > STALE_RUN_MS) out.push({ id: `agent.stalled:${running.id}`, kind: 'agent', severity: 'breach', room: agent.room, text: `${agentName} has not reported activity for ${Math.floor(age / 60000)} minutes`, clear: 'it recovers on its own next reap, or open THE CONTROL ROOM to look at the run', evidence: { run: running.id, last_heartbeat: running.heartbeat_at || running.started_at, minutes: Math.floor(age / 60000) }, since: new Date(running.heartbeat_at || running.started_at).toISOString() });
+    }
+    const budget = budgetRows.find((b) => b.agent === agent.id);
+    if (budget?.active) {
+      const today = new Date(now).toISOString().slice(0, 10);
+      const todays = list.filter((r) => String(r.started_at || '').slice(0, 10) === today);
+      const tokensToday = todays.reduce((n, r) => n + (Number(r.usage?.in) || 0) + (Number(r.usage?.out) || 0), 0);
+      if (budget.runs_daily && todays.length >= budget.runs_daily) out.push({ id: `agent.budget:${agent.id}:${today}`, kind: 'agent', severity: 'warn', room: agent.room, text: `${agentName} has reached its daily run budget (${todays.length}/${budget.runs_daily})`, clear: 'raises tomorrow on its own, or raise the ceiling in THE CONTROL ROOM', evidence: { agent: agent.id, runs_today: todays.length, ceiling: budget.runs_daily } });
+      else if (budget.tokens_daily && tokensToday >= budget.tokens_daily) out.push({ id: `agent.budget:${agent.id}:${today}`, kind: 'agent', severity: 'warn', room: agent.room, text: `${agentName} has reached its daily token budget`, clear: 'raises tomorrow on its own, or raise the ceiling in THE CONTROL ROOM', evidence: { agent: agent.id, tokens_today: tokensToday, ceiling: budget.tokens_daily } });
+    }
+  }
   return out;
 }
 
@@ -146,6 +185,7 @@ export function signalsFromTables(t = {}, { draftCounts = null, now = Date.now()
     drafts: {},
     // The drafts table counts by status; the rules want three numbers.
     draftCounts: draftCounts ? { total: Object.values(draftCounts).reduce((a, b) => a + (Number(b) || 0), 0), waiting: (draftCounts.draft || 0) + (draftCounts.review || 0), posted: draftCounts.posted || 0 } : null,
+    runs: t.agent_runs || [], agentBudgets: t.agent_budgets || [],
   };
   // null: the server has no vault export, so it does not judge the brief.
   return signals(state, null, now);

@@ -205,6 +205,51 @@ in the config's vocabulary; an orphan task is flagged, never refused; the
 `goals` table is the truth and `05-Knowledge/Goals.md` becomes a generated
 mirror, as Orders.md did; nothing here moves money or executes a trade.
 
+## Done 2026-09-20 (night) — the OpenJarvis port
+
+`docs/OPENJARVIS_PORT.md` is the audit and the record. ARCANE's rooms,
+agents, orders and grades are unchanged; a runtime layer was added
+underneath them:
+
+- `0012_governance.sql` — permission memory, agent and room budgets,
+  heartbeats and a reserved checkpoint column on `agent_runs`, a hash
+  chain on `system_events`.
+- `packages/config/src/governance.js` — the tool registry's policy
+  (capability, floor grade, risk tier), `resolvePermission()`: fail-closed
+  on the unknown, deny always wins, a high-tier action is never
+  remembered. `tools/validate-config.mjs` checks every tool is policed and
+  no agent's own declared tools exceed its own ceiling.
+- `packages/database/src/resilience.js` — the error taxonomy
+  (RETRYABLE/FATAL/ESCALATE), bounded exponential retry (wired into the
+  one shared model call, `api/_agent.js`), loop detection and bounded
+  checkpoints — the last two tested and waiting for the Orchestrator,
+  which does not exist yet.
+- `packages/database/src/audit.js` — the hash chain; `verifyAuditChain()`
+  is read live in THE CONTROL ROOM.
+- `packages/database/src/workflow.js` — a pure DAG step runner (agent /
+  condition / approval steps, pause-and-resume), scaffolded ahead of its
+  first real caller.
+- `core/agents.js` extended — `stalled` and `budget_exceeded` join the
+  derived agent status; a real level (√ completed runs), a real streak,
+  and achievements computed from thresholds actually crossed.
+- `api/tick.js` + Vercel Cron — the one process that runs between
+  requests: it reaps a stalled run atomically (`status=eq.running` in the
+  filter, never read-then-write).
+- The bar: the Order Bell (every proposal waiting, from anywhere, not
+  only the Bridge) and an ambient system pulse.
+- THE CONTROL ROOM: agent runtime (status, level, streak), the audit
+  chain's verdict, room budgets.
+- Five new test files (governance, resilience, audit, workflow, runtime —
+  111 checks), the whole loop verified in a real browser: a proposal
+  raised by TALLY appeared in the bell from the floor view, approved, and
+  became an open order.
+
+Deliberately not ported, and why: `docs/OPENJARVIS_PORT.md`'s last
+section — configuration profiles, a hand-rolled WebSocket server, P0
+preemption, taint labels, a workflow UI. None has a real caller or a real
+gap in ARCANE's actual shape yet; each is one paragraph of reasoning
+rather than a page with nothing behind it.
+
 ## Next
 
 1. Run 0009 and 0010 against the live database, then deploy — in that order (the deployed code writes the new columns).

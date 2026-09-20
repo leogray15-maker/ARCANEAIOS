@@ -5,3 +5,4 @@ export * from './agents.js';
 export * from './ventures.js';
 export * from './loop.js';
 export * from './skills.js';
+export * from './governance.js';

@@ -12,7 +12,7 @@
  * maps them to what the floor draws.
  */
 import { randomUUID } from 'node:crypto';
-import { ROOM_BY_ID, VENTURE_BY_ID, AGENT_BY_ID, ORDER_STATES, ORDER_PRIORITY, ORDER_SOURCES, ORDER_FROM_PROPOSED, VERDICTS, HORIZON_IDS, GOAL_STATES, PROJECT_STATES, REVIEW_KINDS, BOTTLENECK_STATES, RECURRENCES } from '../../config/src/index.js';
+import { ROOM_BY_ID, VENTURE_BY_ID, AGENT_BY_ID, ORDER_STATES, ORDER_PRIORITY, ORDER_SOURCES, ORDER_FROM_PROPOSED, VERDICTS, HORIZON_IDS, GOAL_STATES, PROJECT_STATES, REVIEW_KINDS, BOTTLENECK_STATES, RECURRENCES, TOOL_BY_ID, RISK_LEVELS } from '../../config/src/index.js';
 import { METRIC_IDS } from '../../../apps/facility/src/core/goals.js';
 import { pctsValid } from '../../../apps/facility/src/core/capital.js';
 import { DatabaseError } from './index.js';
@@ -259,6 +259,27 @@ export const TABLES = {
     fields: { id: (v) => { const s = String(v ?? ''); if (!/^\d{4}-\d{2}$/.test(s)) throw bad('id must be YYYY-MM'); return s; }, month: (v) => { if (!/^\d{4}-\d{2}$/.test(String(v))) throw bad('month must be YYYY-MM'); return String(v); }, available: numOrNull(), rule_id: str(40), proposed: (v) => (v && typeof v === 'object' ? v : {}), confirmed: (v) => (v && typeof v === 'object' ? v : {}), note: str(500), confirmed_at: dateOrNull() },
     check(row, { current } = {}) { if (current?.confirmed_at && row.confirmed !== undefined) throw bad(`${current.month} is confirmed — it is a record now; note a correction instead`); },
   },
+  /* ---- GOVERNANCE (0012): permission memory, agent and room budgets ---- */
+  permission_memory: {
+    key: 'permission_key', natural: true, order: 'updated_at.desc', event: 'permission',
+    required: ['permission_key', 'decision', 'tier'],
+    defaults: { times_approved: 0, times_denied: 0, notes: '' },
+    fields: { permission_key: str(300), decision: oneOf(['always_allow', 'always_deny']), tier: oneOf(RISK_LEVELS), times_approved: int(0, 1000000), times_denied: int(0, 1000000), notes: str(1000) },
+    // A high-tier action is asked every time, by design — it can never be remembered.
+    check(row, { current } = {}) { if ((row.tier ?? current?.tier) === 'high') throw bad('a high-tier permission is never remembered'); },
+  },
+  agent_budgets: {
+    key: 'agent', natural: true, order: 'agent.asc', event: 'budget',
+    required: ['agent'],
+    defaults: { tokens_daily: null, tokens_monthly: null, runs_daily: null, max_turns: null, active: true, note: '' },
+    fields: { agent: (v) => { const s = String(v ?? ''); if (!AGENT_BY_ID[s]) throw bad(`unknown agent "${s}"`); return s; }, tokens_daily: intOrNull(0), tokens_monthly: intOrNull(0), runs_daily: intOrNull(0), max_turns: intOrNull(0), active: bool(), note: str(300) },
+  },
+  room_budgets: {
+    key: 'room', natural: true, order: 'room.asc', event: 'room-budget',
+    required: ['room'],
+    defaults: { budget_gbp: null, period: 'month', goal_metric: '', goal_target: null, note: '' },
+    fields: { room: room(), budget_gbp: numOrNull(0), period: oneOf(['month', 'quarter', 'year']), goal_metric: str(40), goal_target: numOrNull(), note: str(300) },
+  },
 };
 export const TABLE_IDS = Object.keys(TABLES);
 
@@ -456,6 +477,9 @@ function summarise(table, r) {
     case 'trades': return `${r.id} ${r.instrument} ${r.direction}${r.exit !== null && r.exit !== undefined ? ' closed' : ' open'}`;
     case 'setups': return `setup ${r.name} (${r.status})`;
     case 'checkins': return `check-in: ${r.type}${r.mood ? ` · ${r.mood}` : ''}`;
+    case 'permission_memory': return `${r.decision} (${r.tier}): ${r.permission_key}`;
+    case 'agent_budgets': return `${AGENT_BY_ID[r.agent]?.name || r.agent} budget: ${r.tokens_daily ?? '—'} tokens/day${r.active === false ? ' (off)' : ''}`;
+    case 'room_budgets': return `${ROOM_BY_ID[r.room]?.name || r.room} budget: ${r.budget_gbp === null ? '—' : `£${r.budget_gbp}`}/${r.period}`;
     case 'goals': return `[${r.horizon}] ${r.title}${r.target !== null && r.target !== undefined ? ` → ${r.target}${r.unit ? ` ${r.unit}` : ''}` : ''}${r.status !== 'active' ? ` (${r.status})` : ''}`;
     case 'projects': return `${r.name}${r.venture ? ` · ${VENTURE_BY_ID[r.venture]?.name || r.venture}` : ''} (${r.status})`;
     case 'reviews': return `${r.kind} review ${r.period}${r.status === 'kept' ? ' kept' : ''}`;

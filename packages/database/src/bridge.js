@@ -13,6 +13,7 @@ import { state } from './state.js';
 import { labSummary } from '../../../apps/facility/src/core/lab.js';
 import { moneySummary, monthOf } from '../../../apps/facility/src/core/money.js';
 import { signalsFromTables } from '../../../apps/facility/src/core/vigil.js';
+import { verifyAuditChain } from './audit.js';
 import { targets as goalTargets, behind, goalTree } from '../../../apps/facility/src/core/goals.js';
 import { projectsSummary } from '../../../apps/facility/src/core/projects.js';
 import { rosterStatus } from '../../../apps/facility/src/core/agents.js';
@@ -51,9 +52,14 @@ export async function aggregate(db, { now = new Date() } = {}) {
   try { reviewRows = await state.list(db, 'reviews', { limit: 40 }); } catch {}
   try { ruleRows = await state.list(db, 'capital_rules'); } catch {}
   try { allocationRows = await state.list(db, 'capital_allocations', { limit: 36 }); } catch {}
+  let agentBudgetRows = [], roomBudgetRows = [], auditRows = [];
+  try { agentBudgetRows = await state.list(db, 'agent_budgets'); } catch {}
+  try { roomBudgetRows = await state.list(db, 'room_budgets'); } catch {}
+  try { auditRows = await events.all(db); } catch {}
   Object.assign(tables, { goals: goalsRows, projects: projectRows, capital_rules: ruleRows, capital_allocations: allocationRows, draftCounts: draftCounts ? { total: Object.values(draftCounts).reduce((a, b) => a + (Number(b) || 0), 0), waiting: (draftCounts.draft || 0) + (draftCounts.review || 0), posted: draftCounts.posted || 0 } : null });
   let allRuns = recentRuns;
   try { allRuns = await runs.list(db, { limit: 200 }); } catch {}
+  Object.assign(tables, { agent_runs: allRuns, agent_budgets: agentBudgetRows });
 
   const open = orders.filter((o) => OPEN.includes(o.state));
   // What an agent has put forward and nobody has answered yet. Each one
@@ -87,7 +93,8 @@ export async function aggregate(db, { now = new Date() } = {}) {
   const annual = tgts.filter((g) => g.horizon === 'year');
   const projects = projectsSummary(projectRows.filter((p) => !['done', 'dropped'].includes(p.status)), orders, { now });
   const bottlenecks = bottleneckRows.filter((b) => b.status !== 'cleared').sort((a, b) => ['breach', 'warn', 'info'].indexOf(a.severity) - ['breach', 'warn', 'info'].indexOf(b.severity));
-  const roster = rosterStatus({ runs: allRuns, orders, now: t });
+  const roster = rosterStatus({ runs: allRuns, orders, budgets: agentBudgetRows, now: t });
+  const audit = auditRows.length ? verifyAuditChain(auditRows) : { ok: true, checked: 0, brokenAt: null };
   const reviewsDue = ['day', 'week', 'month', 'quarter'].map((kind) => { const period = periodOf(kind, now); const r = reviewRows.find((x) => x.kind === kind && x.period === period); return { kind, period, status: r ? r.status : 'none', id: r?.id || null }; });
   let capital = null;
   try { capital = waterfall(tables, monthOf(now)); } catch {}
@@ -102,7 +109,9 @@ export async function aggregate(db, { now = new Date() } = {}) {
     projects: projects.map((p) => ({ id: p.id, name: p.name, venture: p.venture, goal_id: p.goal_id, status: p.status, due: p.due, owner: p.owner, ...p.summary })),
     bottlenecks: bottlenecks.map((b) => ({ id: b.id, text: b.text, area: b.area, severity: b.severity, venture: b.venture, owner: b.owner, status: b.status, evidence: b.evidence, since: b.created_at })),
     reviews: reviewsDue,
-    agents: { counts: roster.counts, list: roster.agents.map((a) => ({ id: a.id, name: a.name, status: a.status, wired: a.wired, job: a.job, proposals: a.proposals.length, queue: a.queue.length, runs: a.runs, lastAt: a.lastAt })) },
+    agents: { counts: roster.counts, list: roster.agents.map((a) => ({ id: a.id, name: a.name, status: a.status, wired: a.wired, job: a.job, proposals: a.proposals.length, queue: a.queue.length, runs: a.runs, lastAt: a.lastAt, level: a.level, streak: a.streak })) },
+    room_budgets: roomBudgetRows,
+    audit,
     capital: capital ? { month: capital.month, revenue: capital.revenue, cogs: capital.cogs, gross: capital.gross, fixed: capital.fixed, net: capital.net, tax: capital.tax, available: capital.available, rule: capital.rule?.name || '', buckets: capital.buckets, confirmed: !!capital.existing?.confirmed_at } : null,
     today: {
       focus: today.focus,

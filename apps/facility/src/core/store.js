@@ -36,7 +36,7 @@ const LOG_MAX = 80;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
 /** The parts of the state that live on the server; never written into the blob. */
-const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'dispatchItems', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal', 'goalsTable', 'projects', 'reviews', 'bottlenecks', 'capitalRules', 'capitalAllocations', 'runs'];
+const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'dispatchItems', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal', 'goalsTable', 'projects', 'reviews', 'bottlenecks', 'capitalRules', 'capitalAllocations', 'runs', 'agentBudgets', 'roomBudgets', 'permissionMemory'];
 const OPEN_STATES = ORDER_OPEN_STATES;   // a proposal is not open work: it is waiting to be answered
 const ts = (iso) => (iso ? new Date(iso).getTime() : 0);
 
@@ -56,7 +56,7 @@ function seedState(brain) {
   }
   const goals = {};
   for (const g of brain?.goals?.length ? brain.goals : GOALS_FALLBACK) goals[g.id] = { progress: Number(String(g.progress).replace(/[^\d.]/g, '')) || 0 };
-  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], dispatchItems: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] }, goalsTable: [], projects: [], reviews: [], bottlenecks: [], capitalRules: [], capitalAllocations: [], runs: [] };
+  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], dispatchItems: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] }, goalsTable: [], projects: [], reviews: [], bottlenecks: [], capitalRules: [], capitalAllocations: [], runs: [], agentBudgets: [], roomBudgets: [], permissionMemory: [] };
 }
 
 export class Store {
@@ -143,6 +143,7 @@ export class Store {
     s.protocolItems = saved.protocolItems || []; s.protocolTicks = saved.protocolTicks || []; s.entries = saved.entries || [];
     s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups || [], checkins: saved.journal?.checkins || [] };
     s.goalsTable = saved.goalsTable || []; s.projects = saved.projects || []; s.reviews = saved.reviews || []; s.bottlenecks = saved.bottlenecks || []; s.capitalRules = saved.capitalRules || []; s.capitalAllocations = saved.capitalAllocations || []; s.runs = saved.runs || [];
+    s.agentBudgets = saved.agentBudgets || []; s.roomBudgets = saved.roomBudgets || []; s.permissionMemory = saved.permissionMemory || [];
     // Once the server has answered, its rows are the truth for its keys; a blob or cache never overwrites them.
     if (this.server?.ready) for (const k of SERVER_KEYS) s[k] = fresh[k];
     this.state = s;
@@ -211,6 +212,7 @@ export class Store {
     s.journal = { trades: (t.trades || []).map(fromTradeRow), setups: t.setups || [], checkins: (t.checkins || []).map((c) => ({ ...c, ts: ts(c.created_at) })) };
     // The operating system's tables are kept as their rows: the pure modules read them as they are.
     s.goalsTable = t.goals || []; s.projects = t.projects || []; s.reviews = t.reviews || []; s.bottlenecks = t.bottlenecks || []; s.capitalRules = t.capital_rules || []; s.capitalAllocations = t.capital_allocations || [];
+    s.agentBudgets = t.agent_budgets || []; s.roomBudgets = t.room_budgets || []; s.permissionMemory = t.permission_memory || [];
     this.save();
   }
   /** The first time the server answers empty, what this device kept in its blob goes up once, so nothing typed before the tables existed is lost. */
@@ -669,10 +671,26 @@ export class Store {
       'allocation');
   }
 
-  /** Every agent's derived status, from the runs the Bridge loaded and the orders in hand. */
-  roster() { return rosterStatus({ runs: this.state.runs, orders: this.tables().orders }); }
-  agentStatus(id) { const a = AGENT_BY_ID[id]; return a ? agentStatus(a, { runs: this.state.runs, orders: this.tables().orders }) : null; }
+  /** Every agent's derived status, from the runs the Bridge loaded, the orders in hand, and any budget ceiling set. */
+  roster() { return rosterStatus({ runs: this.state.runs, orders: this.tables().orders, budgets: this.state.agentBudgets }); }
+  agentStatus(id) { const a = AGENT_BY_ID[id]; return a ? agentStatus(a, { runs: this.state.runs, orders: this.tables().orders, budgets: this.state.agentBudgets }) : null; }
   setRuns(runs) { this.state.runs = runs || []; }
+
+  /* ---------- governance: budgets, permission memory ---------- */
+  agentBudget(id) { return this.state.agentBudgets.find((b) => b.agent === id) || null; }
+  setAgentBudget(id, patch) {
+    const cur = this.agentBudget(id);
+    const next = { ...(cur || { agent: id, tokens_daily: null, tokens_monthly: null, runs_daily: null, max_turns: null, active: true, note: '' }), ...patch };
+    return this.commit(() => { const i = this.state.agentBudgets.findIndex((b) => b.agent === id); if (i >= 0) this.state.agentBudgets[i] = next; else this.state.agentBudgets.push(next); }, () => api.state.insert('agent_budgets', next), 'budget');
+  }
+  roomBudget(id) { return this.state.roomBudgets.find((b) => b.room === id) || null; }
+  setRoomBudget(id, patch) {
+    const cur = this.roomBudget(id);
+    const next = { ...(cur || { room: id, budget_gbp: null, period: 'month', goal_metric: '', goal_target: null, note: '' }), ...patch };
+    return this.commit(() => { const i = this.state.roomBudgets.findIndex((b) => b.room === id); if (i >= 0) this.state.roomBudgets[i] = next; else this.state.roomBudgets.push(next); }, () => api.state.insert('room_budgets', next), 'room budget');
+  }
+  permissionMemory() { return this.state.permissionMemory; }
+  forgetPermission(key) { return this.commit(() => { this.state.permissionMemory = this.state.permissionMemory.filter((p) => p.permission_key !== key); }, () => api.state.remove('permission_memory', key), 'permission'); }
 
   /* ---------- counsel and the council ---------- */
   counsel() { return this.state.counsel; }

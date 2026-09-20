@@ -11,6 +11,7 @@ import {
   ROOMS, WINGS, roomsInWing,
   GRADES, CAPS, CAP_IDS, SKILLS, AGENT_BY_ID, ROOM_BY_ID, VENTURES,
   DRAFT_STATES, DRAFT_TRANSITIONS, DRAFT_VIEWS,
+  TOOL_POLICY, RISK_LEVELS, resolvePermission,
 } from '../packages/config/src/index.js';
 
 const fails = [];
@@ -77,6 +78,27 @@ for (const s of SKILLS) {
     for (const t of s.reads) {
       if (TOOL_BY_ID[t]) ok(a.tools.includes(t), `skill ${s.id} reads tool "${t}" its agent does not carry`);
     }
+  }
+}
+
+/* ---- governance: every tool is policed, no agent exceeds its ceiling, deny always wins ---- */
+for (const t of TOOLS) {
+  const p = TOOL_POLICY[t.id];
+  ok(p, `tool "${t.id}" has no entry in TOOL_POLICY — an unregistered policy must fail closed, and cannot if it does not exist`);
+  if (p) {
+    ok(CAP_IDS.includes(p.requiresCap), `${t.id}'s policy requires unknown capability "${p.requiresCap}"`);
+    ok(GRADES.includes(p.minGrade), `${t.id}'s policy floor "${p.minGrade}" is not a grade`);
+    ok(RISK_LEVELS.includes(p.risk), `${t.id}'s policy risk "${p.risk}" is not a risk level`);
+  }
+}
+// Every tool an agent lists is one its brief says it uses, so its own
+// ceiling denying that tool outright is always a config mistake, not a
+// legitimate "not yet" — resolvePermission is the single place that
+// decides this, so the validator asks it rather than re-deriving the rule.
+for (const a of AGENTS) {
+  for (const t of a.tools) {
+    const r = resolvePermission(a, t, { room: a.room });
+    ok(r.level !== 'deny', `${a.name} carries the tool "${t}" but its own ceiling denies it: ${r.reason}`);
   }
 }
 

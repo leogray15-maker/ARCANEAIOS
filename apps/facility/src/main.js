@@ -48,6 +48,7 @@ const buf = createBuffer();
 const sprites = bakeSprites(AGENTS);
 const view = { scale: 2, x: 0, y: 0, mode: 'fit' };
 const state = { hover: null, selected: null, staticDirty: true, screen: 'floor' };
+const bellState = { open: false };
 
 // The brain export is baked into the site at build time; without it the
 // store still works from its seeds, and the dashboards say so.
@@ -267,6 +268,46 @@ sync.onChange(() => { store.loadCloud().then((ok) => { if (ok) { route(); store.
  * The device control in the bar: the sync code (state across devices) and
  * the operator key (the API). Click to open; nothing is shown until asked.
  */
+/**
+ * The Order Bell — every proposal waiting for a decision, from anywhere on
+ * the floor, not only the Bridge. An agent's proposal is not work until
+ * approved (packages/config/src/loop.js `ORDER_FROM_PROPOSED`); this is
+ * the one place that is always true no matter which room is open.
+ */
+function renderBell() {
+  const el = $('bell'); if (!el) return;
+  const list = store.proposals();
+  const was = el.querySelector('.bell-drop');
+  if (!list.length) { bellState.open = false; el.innerHTML = ''; return; }
+  const PRIO = ['P0', 'P1', 'P2', 'P3'], TONE = ['deny', 'flare', 'arcane', 'ash'];
+  el.innerHTML = `<button class="tiny ghost bell-btn ${list.some((o) => o.p === 0) ? 'breach' : ''}" id="bell-btn" title="${list.length} proposal${list.length === 1 ? '' : 's'} waiting for a decision">🔔 ${list.length}</button>
+    ${bellState.open ? `<div class="bell-drop">
+      <h3>Needs an answer <span class="faint">nothing here has happened yet</span></h3>
+      ${list.slice(0, 8).map((o) => `<div class="proposal">
+        <span class="chip arcane">${esc(store.agentName(o.agent) || 'agent')}</span>
+        <span class="chip ${TONE[o.p]}">${PRIO[o.p]}</span>
+        <span class="text">${esc(o.t)}</span>
+        <a class="room" href="#room/${esc(o.room)}">${esc(o.room)}</a>
+        <button class="tiny" data-bell-act="approve" data-room="${esc(o.room)}" data-id="${esc(o.id)}">approve</button>
+        <button class="tiny ghost" data-bell-act="reject" data-room="${esc(o.room)}" data-id="${esc(o.id)}">reject</button>
+      </div>`).join('')}
+      ${list.length > 8 ? `<p class="faint">+${list.length - 8} more — see <a href="#bridge">BRIDGE</a></p>` : ''}
+    </div>` : ''}`;
+  // stopPropagation: the toggle replaces #bell's own children (including
+  // the button just clicked), so by the time this click bubbles to the
+  // document's close-on-outside-click listener below, its target is a
+  // detached node whose `closest('#bell')` would wrongly say "outside" —
+  // closing the drop the same click just opened. Never let it bubble.
+  $('bell-btn').onclick = (e) => { e.stopPropagation(); bellState.open = !bellState.open; renderBell(); };
+  if (bellState.open) el.querySelector('.bell-drop').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const b = e.target.closest('[data-bell-act]'); if (!b) return;
+    if (b.dataset.bellAct === 'approve') store.approveProposal(b.dataset.room, b.dataset.id);
+    else if (confirm('Reject this proposal? It stays in the record as killed.')) store.rejectProposal(b.dataset.room, b.dataset.id);
+  });
+}
+document.addEventListener('click', (e) => { if (bellState.open && !e.target.closest('#bell')) { bellState.open = false; renderBell(); } });
+
 function renderSync() {
   const el = $('auth');
   const dot = `<span class="${operator.present ? 'vital' : 'flare'}" title="${operator.present ? 'operator key on this device' : 'no operator key — the Library and BEACON will ask for one'}">●</span>`;
@@ -288,6 +329,7 @@ function renderSync() {
 renderSync();
 
 function barStatus() {
+  renderBell();
   const away = sim.agents.filter((a) => a.id !== 'arcane' && a.room !== a.home).length;
   const sig = signals(store.state, brain); const worst = sig.some((s) => s.severity === 'breach') ? 'breach' : sig.some((s) => s.severity === 'warn') ? 'flare' : 'ash';
   const waiting = contentCounts ? (contentCounts.draft || 0) + (contentCounts.review || 0) : store.drafts().filter((d) => d.status === 'draft').length;
@@ -303,7 +345,11 @@ function barStatus() {
   // detail to find later in THE CONTROL ROOM.
   const sys = store.systemStatus();
   const sysChip = sys ? `<a href="#control" class="${sys.tone}" title="${esc(sys.blocked ? `${sys.blocked} blocking, ${sys.degraded} degraded` : `${sys.degraded} degraded`)} — THE CONTROL ROOM">${sys.blocked ? `<b>${sys.blocked}</b> blocking` : `<b>${sys.degraded}</b> degraded`}: ${esc(sys.text)}</a> · ` : '';
-  paintBar(`<span class="line"><span class="${sv.tone}" title="${sv.text}">●</span> ${sysChip}${brain?.brief?.date ? `<a href="#bridge">brief <b>${brain.brief.date}</b></a> · ` : ''}<a href="#bridge"><b>${store.totalOpen()}</b> open orders</a> · <a href="#beacon"><b>${waiting}</b> draft${waiting === 1 ? '' : 's'} waiting</a> · <a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}${sv.tone !== 'vital' ? ` · <span class="${sv.tone}">${sv.text}</span>` : ''}</span>`);
+  // The system pulse: ambient, not a dashboard — one dot that says whether
+  // anything needs the operator, without adding a word to read.
+  const pulse = sig.some((s) => s.severity === 'breach') || store.proposals().length ? 'attention' : store.totalOpen() > 0 ? 'active' : 'idle';
+  document.title = pulse === 'attention' ? '● THE ARCANE' : 'THE ARCANE';
+  paintBar(`<span class="line"><span class="pulse ${pulse}" title="system pulse: ${pulse}"></span><span class="${sv.tone}" title="${sv.text}">●</span> ${sysChip}${brain?.brief?.date ? `<a href="#bridge">brief <b>${brain.brief.date}</b></a> · ` : ''}<a href="#bridge"><b>${store.totalOpen()}</b> open orders</a> · <a href="#beacon"><b>${waiting}</b> draft${waiting === 1 ? '' : 's'} waiting</a> · <a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}${sv.tone !== 'vital' ? ` · <span class="${sv.tone}">${sv.text}</span>` : ''}</span>`);
 }
 
 

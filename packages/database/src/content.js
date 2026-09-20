@@ -9,6 +9,7 @@
  */
 import { DRAFT_STATES, DRAFT_TRANSITIONS } from '../../config/src/loop.js';
 import { DatabaseError } from './index.js';
+import { nextHash } from './audit.js';
 
 const pad = (n, w = 3) => String(n).padStart(w, '0');
 export const compactDay = (d = new Date()) => `${d.getFullYear()}${pad(d.getMonth() + 1, 2)}${pad(d.getDate(), 2)}`;
@@ -141,11 +142,12 @@ export const drafts = {
 
 export const runs = {
   async start(db, { id, agent, skill = '', objective = '', model = '', input = {}, sources = [], device = '' }) {
-    const [row] = await db.post('agent_runs', { id, agent, skill, objective, model, input, sources, device, status: 'running', started_at: new Date().toISOString() });
+    const now = new Date().toISOString();
+    const [row] = await db.post('agent_runs', { id, agent, skill, objective, model, input, sources, device, status: 'running', started_at: now, heartbeat_at: now, current_activity: 'starting' });
     return row;
   },
   async finish(db, id, { status = 'ok', output = {}, usage = {}, error = '' } = {}) {
-    const [row] = await db.patch('agent_runs', { id: `eq.${id}` }, { status, output, usage, error, finished_at: new Date().toISOString() });
+    const [row] = await db.patch('agent_runs', { id: `eq.${id}` }, { status, output, usage, error, finished_at: new Date().toISOString(), current_activity: '' });
     await events.add(db, { kind: `run.${status}`, actor: row?.agent || '', subject_type: 'run', subject_id: id, summary: `${row?.agent || 'agent'} run ${id}: ${status}${error ? ` — ${error}` : ''}`, data: { output, usage } });
     return row;
   },
@@ -154,15 +156,78 @@ export const runs = {
     if (agent) params.agent = `eq.${agent}`;
     return db.get('agent_runs', params);
   },
+  /**
+   * A sign of life while a run is in flight. Only the current activity
+   * changes on every call — `started_at` never moves, so age is always
+   * measured from when the work actually began.
+   */
+  async heartbeat(db, id, activity = '') {
+    const [row] = await db.patch('agent_runs', { id: `eq.${id}`, status: 'eq.running' }, { heartbeat_at: new Date().toISOString(), current_activity: activity }, { returning: true });
+    return row || null;
+  },
+  /**
+   * Zombie recovery. A single conditional PATCH — `status=eq.running` in
+   * the filter, not read-then-write — so a second caller racing the same
+   * reap matches zero rows once the first has already turned it to
+   * failed: two processes can never both believe they still own it.
+   * Returns the runs it recovered.
+   */
+  async reap(db, { staleMs = 15 * 60_000, now = new Date() } = {}) {
+    const cutoff = new Date(now.getTime() - staleMs).toISOString();
+    // Two plain queries rather than one OR-of-AND filter: a run with a
+    // heartbeat is stale once it is old; a run from before heartbeats
+    // existed (heartbeat_at null) is stale once its start is old. Kept
+    // as separate reads so the same filter grammar works against the
+    // in-memory twin and real PostgREST without a nested `and()` inside
+    // an `or()`, which the twin's parser does not need to grow just for this.
+    const withHeartbeat = await db.get('agent_runs', { select: 'id,agent,heartbeat_at,started_at', status: 'eq.running', heartbeat_at: `lt.${cutoff}` });
+    const withoutHeartbeat = await db.get('agent_runs', { select: 'id,agent,heartbeat_at,started_at', status: 'eq.running', heartbeat_at: 'is.null', started_at: `lt.${cutoff}` });
+    const stale = [...withHeartbeat, ...withoutHeartbeat.filter((r) => !withHeartbeat.some((h) => h.id === r.id))];
+    const recovered = [];
+    for (const r of stale) {
+      const [row] = await db.patch('agent_runs', { id: `eq.${r.id}`, status: 'eq.running' }, { status: 'failed', error: 'stalled — no heartbeat', finished_at: now.toISOString(), current_activity: '' });
+      if (row) { recovered.push(row); await events.add(db, { kind: 'agent.stalled', actor: r.agent, subject_type: 'run', subject_id: r.id, summary: `${r.agent} run ${r.id}: no heartbeat since ${r.heartbeat_at || r.started_at} — marked failed`, data: { last_heartbeat: r.heartbeat_at } }); }
+    }
+    return recovered;
+  },
 };
 
 /* ---------- records ---------- */
 
 export const events = {
-  async add(db, rows) { const at = new Date().toISOString(); return db.post('system_events', (Array.isArray(rows) ? rows : [rows]).map((r) => ({ at, ...r })), { returning: false }); },
+  /**
+   * Append one or more rows, each chained to the one before it —
+   * `prev_hash`/`row_hash` from `packages/database/src/audit.js`, computed
+   * here because this is the one place every write in the system passes
+   * through. A batch chains within itself as well as to what came before.
+   *
+   * This reads the latest hash, then writes: two calls landing in the same
+   * instant could both read the same "latest" and fork the chain.
+   * `verifyAuditChain()` would show that as a break at whichever row lost
+   * the race. At this system's write volume (one operator's actions, a
+   * handful of agent runs) that has not happened in practice; a Postgres
+   * trigger would close the race properly and is the right fix if it ever
+   * does — noted rather than built now, since nothing else in this schema
+   * computes anything in SQL beyond `updated_at`.
+   */
+  async add(db, rows) {
+    const at = new Date().toISOString();
+    let prev = null, chaining = true;
+    try { const [last] = await db.get('system_events', { select: 'row_hash', order: 'id.desc', limit: 1 }); prev = last?.row_hash ?? null; }
+    catch { chaining = false; }   // 0012 has not run yet: write the old shape rather than fail every write in the system on it
+    const out = [];
+    for (const r of (Array.isArray(rows) ? rows : [rows])) {
+      const row = { at, ...r };
+      if (chaining) { const hash = nextHash(prev, row); row.prev_hash = prev; row.row_hash = hash; prev = hash; }
+      out.push(row);
+    }
+    return db.post('system_events', out, { returning: false });
+  },
   async list(db, { limit = 50, kind = '' } = {}) {
     const params = { select: '*', order: 'at.desc', limit: Math.min(500, Number(limit) || 50) };
     if (kind) params.kind = `like.${kind}*`;
     return db.get('system_events', params);
   },
+  /** Every row, oldest first, for `verifyAuditChain()`. Bounded: a chain this long is already a lot of history to check in one call. */
+  async all(db, { limit = 20000 } = {}) { return db.get('system_events', { select: '*', order: 'id.asc', limit }); },
 };

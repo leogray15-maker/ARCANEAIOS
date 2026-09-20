@@ -9,18 +9,19 @@
  * is edited: agents are configured in packages/config, migrations in
  * supabase/migrations, keys in the environment.
  */
-import { AGENTS, CAPS, GRADES } from '@arcane/config';
+import { AGENTS, AGENT_BY_ID, CAPS, GRADES } from '@arcane/config';
 import { api } from '../core/api.js';
 import { esc, chip, when, stampFull, loading, failed, handleKeyForm } from './ui.js';
+import { STATUS_TONE, STATUS_NAME } from '../core/agents.js';
 
-const st = { health: null, runs: null, error: null, loadedAt: 0 };
+const st = { health: null, runs: null, bridge: null, error: null, loadedAt: 0 };
 let el = null, go = null, store = null;
 
 export function bindControl(view, ctx) { el = view; go = ctx.go; store = ctx.store; el.addEventListener('click', onClick); el.addEventListener('submit', (e) => { if (e.target.dataset.act) { e.preventDefault(); handleKeyForm(e.target, load); } }); }
 export function renderControl(view, ctx, hash = '#control', { keepScroll = false } = {}) { el = view; if ((!st.health && !st.error) || Date.now() - st.loadedAt > 60_000) load(); paint({ keepScroll }); }
 async function load() {
   st.loadedAt = Date.now();
-  try { const [h, r] = await Promise.all([api.get('/api/health'), api.runs.list({ limit: 15 })]); st.health = h; st.runs = r.runs; st.error = null; }
+  try { const [h, r, b] = await Promise.all([api.get('/api/health'), api.runs.list({ limit: 15 }), api.bridge().catch(() => null)]); st.health = h; st.runs = r.runs; st.bridge = b; st.error = null; }
   catch (e) { st.error = e; }
   paint({ keepScroll: true });
 }
@@ -64,6 +65,20 @@ function paint({ keepScroll = false } = {}) {
           <h2>Knowledge sources</h2>
           ${h.sources.length ? `<table class="grid"><thead><tr><th>Source</th><th>Kind</th><th>State</th><th class="r">Modules</th><th>Last sync</th><th>Error</th></tr></thead><tbody>${h.sources.map((s) => `<tr><td><b>${esc(s.id)}</b></td><td class="ash">${esc(s.kind)}</td><td>${chip(s.status, s.status === 'ok' ? 'vital' : s.status === 'error' ? 'deny' : 'ash')}</td><td class="r">${s.module_count}</td><td class="ash">${s.last_synced_at ? esc(stampFull(s.last_synced_at)) : '—'}</td><td class="breach">${esc(s.last_error || '')}</td></tr>`).join('')}</tbody></table>` : '<p class="empty">No sources recorded — run npm run archives:sync.</p>'}
           <p class="src">The Archives come from the Obsidian vault on the Mac (npm run herald:index && npm run archives:sync). A Notion source would appear here the same way.</p>
+        </section>
+        <section>
+          <h2>Agent runtime <span class="faint">status, level, streak — derived, never typed</span></h2>
+          ${st.bridge ? `<table class="grid"><thead><tr><th>Agent</th><th>Status</th><th class="r">Level</th><th class="r">Streak</th><th>Job</th></tr></thead><tbody>${st.bridge.agents.list.map((a) => `<tr><td><span class="dot" style="background:${AGENT_BY_ID[a.id]?.colour || '#8a889e'}"></span>${esc(a.name)}</td><td>${chip(STATUS_NAME[a.status] || a.status, STATUS_TONE[a.status] || 'ash')}</td><td class="r">${a.level}</td><td class="r">${a.streak ? `${a.streak}d` : '—'}</td><td class="ash">${a.job ? esc(a.job.text || '') : ''}</td></tr>`).join('')}</tbody></table>
+          <p><a class="button-link" href="#room/garage">THE AGENT GARAGE →</a></p>` : loading('agent runtime')}
+        </section>
+        <section>
+          <h2>Audit chain <span class="faint">system_events, hash-chained</span></h2>
+          ${st.bridge?.audit ? `<p class="${st.bridge.audit.ok ? 'vital' : 'breach'}">${st.bridge.audit.ok ? `✓ verified — ${st.bridge.audit.checked} chained events` : `✗ broken at record #${st.bridge.audit.brokenAt}`}</p>` : ''}
+          <p class="src">Every write leaves a system event; each carries the hash of the one before it (packages/database/src/audit.js). Rows written before this pass have no hash — that is a genesis boundary, not a break.</p>
+        </section>
+        <section>
+          <h2>Room budgets</h2>
+          ${st.bridge?.room_budgets?.length ? `<table class="grid"><thead><tr><th>Room</th><th class="r">Budget</th><th>Period</th><th>Goal</th></tr></thead><tbody>${st.bridge.room_budgets.map((b) => `<tr><td>${esc(b.room)}</td><td class="r">${b.budget_gbp === null ? '—' : `£${b.budget_gbp}`}</td><td class="ash">${esc(b.period)}</td><td class="ash">${b.goal_metric ? `${esc(b.goal_metric)} → ${b.goal_target ?? '—'}` : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="empty">No room has a budget set yet.</p>'}
         </section>
         <section>
           <h2>Last runs</h2>

@@ -414,3 +414,16 @@ html.touch .zoomer { display: flex; }
 .stat.explain:hover { border-color: var(--arcane); }
 .how { border-left: 2px solid var(--arcane); padding: 6px 10px; margin: -6px 0 14px; color: var(--ash); font-size: var(--t-1); }
 .how b { color: var(--ink); text-transform: uppercase; letter-spacing: .08em; font-size: var(--t-1); font-weight: 500; }
+
+/* ---------- the Order Bell and the system pulse ---------- */
+.bell { position: relative; }
+.bell-btn { font-size: var(--t0); }
+.bell-btn.breach { border-color: rgba(244,77,82,.5); color: var(--breach); }
+.bell-drop { position: absolute; top: 34px; right: 0; width: 380px; max-height: 60vh; overflow: auto; background: var(--panel); border: 1px solid var(--line-2); box-shadow: 0 8px 24px rgba(0,0,0,.4); padding: 10px 12px; z-index: 30; }
+.bell-drop h3 { margin: 0 0 8px; font-size: var(--t-1); letter-spacing: .1em; text-transform: uppercase; color: var(--ash); font-weight: 500; }
+.bell-drop .proposal { padding: 6px 0; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bell-drop .proposal .text { flex-basis: 100%; color: var(--ink); }
+.pulse { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--faint); }
+.pulse.active { background: var(--cyan); }
+.pulse.attention { background: var(--breach); animation: pulse-attn 1.6s ease-in-out infinite; }
+@keyframes pulse-attn { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(244,77,82,.5); } 50% { opacity: .55; box-shadow: 0 0 0 4px rgba(244,77,82,0); } }

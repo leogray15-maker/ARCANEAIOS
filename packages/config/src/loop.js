@@ -156,7 +156,9 @@ export const BOTTLENECK_STATES = ['open', 'easing', 'cleared'];
  * is NEEDS APPROVAL; a blocked or review order in its hands is WAITING;
  * an agent with no endpoint is OFFLINE; otherwise IDLE.
  */
-export const AGENT_STATUSES = ['idle', 'working', 'waiting', 'blocked', 'needs_approval', 'error', 'offline'];
+export const AGENT_STATUSES = ['idle', 'working', 'waiting', 'blocked', 'needs_approval', 'error', 'stalled', 'budget_exceeded', 'offline'];
+/** How long a run may go without a heartbeat before it is stalled — the same window `runs.reap()` uses to recover it for real. */
+export const STALE_RUN_MS = 15 * 60_000;
 
 /**
  * The three modes every sensitive capability declares. Read against the
