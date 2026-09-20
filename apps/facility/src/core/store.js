@@ -63,6 +63,12 @@ export class Store {
     this.saveTimer = null;
     // The server rung: ready once /api/state has answered; `error` is the last refusal, shown in the bar.
     this.server = { ready: false, error: '', reason: operator.present ? 'loading' : 'no operator key', loading: false };
+    // What the machine itself says is wrong (migrations, imports, the model).
+    // From /api/health, which computes it from the tables — never from here.
+    this.system = { ready: null, counts: null, at: 0, error: '', loading: false };
+    // The last write the server refused, kept whole so it can be tried
+    // again instead of retyped. Cleared by a success or by the operator.
+    this.failed = null;
     this.loadLocal();
   }
 
@@ -218,9 +224,54 @@ export class Store {
    */
   async commit(apply, send, note) {
     if (!this.server.ready) { this.server.error = `${note}: not saved — ${this.server.needsKey || this.server.reason === 'no operator key' ? 'enter the operator key (DEVICE in the bar)' : this.server.reason}`; this.emit(); return null; }
-    apply(); this.server.error = ''; this.emit();
+    apply(); this.server.error = ''; this.failed = null; this.emit();
     try { const r = await send(); this.save(); this.emit(); return r; }   // emit again: send() may have given the row its real id
-    catch (e) { this.server.error = `${note}: ${e.message}`; await this.loadServer({ quiet: true }); this.emit(); return null; }
+    catch (e) {
+      this.server.error = `${note}: ${e.message}`;
+      // The rollback is the reload below — it throws away the optimistic
+      // change because the server is the truth. What it must not throw
+      // away is what Leo meant: that is kept here, whole, so the bar can
+      // offer a retry instead of asking him to type it again.
+      this.failed = { note, message: e.message, at: Date.now(), apply, send, tries: (this.failed?.note === note ? this.failed.tries : 0) + 1 };
+      await this.loadServer({ quiet: true });
+      this.emit();
+      return null;
+    }
+  }
+  /** The refused write, while it is still worth offering back (ten minutes). */
+  lastFailure() { return this.failed && Date.now() - this.failed.at < 600_000 ? this.failed : null; }
+  /** Try it again, exactly as it was meant. On success the tables are re-read, because the rollback moved on without it. */
+  async retry() {
+    const f = this.lastFailure(); if (!f) return null;
+    this.failed = null;
+    const r = await this.commit(f.apply, f.send, f.note);
+    if (r !== null) { this.say(`${f.note}: saved`, 'vital'); await this.loadServer({ quiet: true }); }
+    return r;
+  }
+  /** Let it go: the change is gone, and the bar stops offering it. */
+  dismissFailure() { this.failed = null; this.server.error = ''; this.emit(); }
+  /**
+   * Ask the machine what is wrong with it. The answer is computed
+   * server-side from the tables (packages/database/src/readiness.js), so
+   * the bar, THE CONTROL ROOM and a test all read the same judgement.
+   */
+  async loadSystem({ force = false } = {}) {
+    if (!operator.present) { this.system = { ready: null, counts: null, at: Date.now(), error: 'no operator key', loading: false }; return null; }
+    if (this.system.loading) return this.system.ready;
+    if (!force && this.system.at && Date.now() - this.system.at < 120_000) return this.system.ready;
+    this.system.loading = true;
+    try { const h = await api.health(); this.system = { ready: h.ready, counts: h.counts, at: Date.now(), error: '', loading: false }; }
+    catch (e) { this.system = { ready: null, counts: null, at: Date.now(), error: e.message, loading: false }; }
+    this.emit();
+    return this.system.ready;
+  }
+  /** One line for the bar: the worst thing the machine says about itself, or nothing when it is ready. */
+  systemStatus() {
+    const r = this.system.ready;
+    if (!r) return null;
+    if (r.level === 'ok') return null;
+    const n = r.blocked || r.degraded;
+    return { tone: r.level === 'blocked' ? 'breach' : 'flare', level: r.level, count: n, text: r.summary, blocked: r.blocked, degraded: r.degraded };
   }
   startServerRefresh(every = 60_000) {
     clearInterval(this.serverTimer);

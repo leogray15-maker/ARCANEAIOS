@@ -42,6 +42,7 @@ function paint({ keepScroll = false } = {}) {
       <button class="tiny ghost" data-act="reload">refresh</button>
     </div>
     ${st.error ? failed(st.error, { retry: 'reload' }) : !h ? loading('the machine') : `
+    ${readyBlock(h.ready)}
     <div class="bridge-grid">
       <div class="bridge-main">
         <section>
@@ -79,4 +80,25 @@ function paint({ keepScroll = false } = {}) {
   </div>`;
   el.scrollTop = scroll;
 }
+/**
+ * What the machine says is wrong with it, in the order it matters, each
+ * line carrying the evidence it was judged on and the exact thing to do.
+ * The same judgement the bar shows — computed once, server-side.
+ */
+function readyBlock(r) {
+  if (!r) return '';
+  const tone = { blocked: 'deny', degraded: 'flare', ok: 'vital' };
+  const rank = { blocked: 0, degraded: 1, ok: 2 };
+  const items = [...r.items].sort((a, b) => rank[a.level] - rank[b.level]);
+  return `<section class="ready">
+    <h2>Readiness ${r.level === 'ok' ? '<span class="vital">everything the machine needs is here</span>' : `<span class="${r.level === 'blocked' ? 'breach' : 'flare'}">${r.blocked ? `${r.blocked} blocking` : ''}${r.blocked && r.degraded ? ' · ' : ''}${r.degraded ? `${r.degraded} degraded` : ''}</span>`}</h2>
+    <table class="grid"><tbody>${items.map((i) => `<tr class="ready-${i.level}">
+      <td>${chip(i.level === 'ok' ? 'ok' : i.level, tone[i.level])}</td>
+      <td><b>${esc(i.title)}</b><br><span class="ash">${esc(i.detail)}</span>${i.fix ? `<br><span class="flare">→ ${esc(i.fix)}</span>` : ''}</td>
+      <td class="nowrap"><a href="#${i.room === 'control' ? 'control' : `room/${i.room}`}" class="faint">${esc(i.room)}</a></td>
+    </tr>`).join('')}</tbody></table>
+    <p class="src">Computed from the tables themselves (packages/database/src/readiness.js), not from a setting. A check that cannot be made is never reported as ok.</p>
+  </section>`;
+}
+
 function onClick(e) { const b = e.target.closest('[data-act]'); if (!b) return; if (b.dataset.act === 'back') go('#'); else if (b.dataset.act === 'reload') load(); }

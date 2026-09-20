@@ -27,6 +27,7 @@ import { renderRecords, bindRecords } from './render/records.js';
 import { renderControl, bindControl } from './render/control.js';
 import { renderIntel, bindIntel } from './render/intel.js';
 import { installNav, navCounts, toggle as toggleNav, isOpen as navOpen } from './render/nav.js';
+import { esc } from './render/ui.js';
 import { installResponsive, markTabs, isPhone, isTouch } from './render/responsive.js';
 import { BrainGraph } from './render/graph.js';
 import { Strip } from './render/strip.js';
@@ -58,6 +59,11 @@ const sim = new Sim(store);
 const ctx = { sim, store, brain };
 window.arcane = { store, sim, brain };   // for the console; nothing reads it
 let contentCounts = null;   // BEACON's counts by status, once it has loaded them; the bar reads them
+// The bar repaints on every store change and every counts callback; writing
+// the same HTML again would detach a button mid-click, so it is only written
+// when it actually differs.
+let barHtml = '';
+const paintBar = (html) => { if (html === barHtml) return; barHtml = html; document.getElementById('bar-status').innerHTML = html; };
 const graph = new BrainGraph($('graph-canvas'), $('graph-legend'), ctx, (roomId) => go(`#room/${roomId}`));
 const strip = new Strip($('strip'), ctx);
 
@@ -252,8 +258,9 @@ store.onChange(() => {
 });
 store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } });
 // The server rung: orders, moves, decisions, counsel, focus, goals, the day. Loads now, again when the key changes, and every minute.
-store.loadServer().then(() => { route(); store.startServerRefresh(); });
-operator.onChange(() => { store.loadServer().then(() => route()); });
+store.loadServer().then(() => { route(); store.startServerRefresh(); store.loadSystem().then(barStatus); });
+setInterval(() => { if (!document.hidden) store.loadSystem().then(barStatus); }, 300_000);
+operator.onChange(() => { store.loadServer().then(() => route()); store.loadSystem({ force: true }).then(barStatus); });
 sync.onChange(() => { store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } }); renderSync(); });
 
 /**
@@ -286,9 +293,19 @@ function barStatus() {
   const waiting = contentCounts ? (contentCounts.draft || 0) + (contentCounts.review || 0) : store.drafts().filter((d) => d.status === 'draft').length;
   const sv = store.serverStatus();
   const notice = store.noticeNow();
-  if (notice) { $('bar-status').innerHTML = `<span class="${notice.tone}">${notice.text}</span>`; return; }
-  $('bar-status').innerHTML = `<span class="${sv.tone}" title="${sv.text}">●</span> ${brain?.brief?.date ? `<a href="#bridge">brief <b>${brain.brief.date}</b></a> · ` : ''}<a href="#bridge"><b>${store.totalOpen()}</b> open orders</a> · <a href="#beacon"><b>${waiting}</b> draft${waiting === 1 ? '' : 's'} waiting</a> · <a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}${sv.tone !== 'vital' ? ` · <span class="${sv.tone}">${sv.text}</span>` : ''}`;
+  // A refused write outranks everything: it is the one thing on screen that
+  // is not true yet. It stays until it is retried or let go.
+  const failed = store.lastFailure();
+  if (failed) return paintBar(`<span class="line breach">not saved — ${esc(failed.note)}: ${esc(failed.message)}</span><button class="tiny" data-act="retry">retry</button><button class="tiny ghost" data-act="drop">let it go</button>`);
+  if (notice) return paintBar(`<span class="line ${notice.tone}">${notice.text}</span>`);
+  // What the machine says about itself comes first: a room that cannot save,
+  // a migration that has not run or an agent that cannot think is not a
+  // detail to find later in THE CONTROL ROOM.
+  const sys = store.systemStatus();
+  const sysChip = sys ? `<a href="#control" class="${sys.tone}" title="${esc(sys.blocked ? `${sys.blocked} blocking, ${sys.degraded} degraded` : `${sys.degraded} degraded`)} — THE CONTROL ROOM">${sys.blocked ? `<b>${sys.blocked}</b> blocking` : `<b>${sys.degraded}</b> degraded`}: ${esc(sys.text)}</a> · ` : '';
+  paintBar(`<span class="line"><span class="${sv.tone}" title="${sv.text}">●</span> ${sysChip}${brain?.brief?.date ? `<a href="#bridge">brief <b>${brain.brief.date}</b></a> · ` : ''}<a href="#bridge"><b>${store.totalOpen()}</b> open orders</a> · <a href="#beacon"><b>${waiting}</b> draft${waiting === 1 ? '' : 's'} waiting</a> · <a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}${sv.tone !== 'vital' ? ` · <span class="${sv.tone}">${sv.text}</span>` : ''}</span>`);
 }
+
 
 /* ============================================================
    LOOP
@@ -325,6 +342,12 @@ window.addEventListener('error', (e) => { $('bar-status').innerHTML = `<span cla
 
 installResponsive();
 installNav({ go, store });
+// The bar's own buttons: retry or drop the write the server refused.
+$('bar-status').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'retry') { b.disabled = true; b.textContent = 'retrying…'; store.retry().then(barStatus); }
+  else if (b.dataset.act === 'drop') { store.dismissFailure(); barStatus(); }
+});
 document.getElementById('go').addEventListener('click', toggleNav);
 for (const b of document.querySelectorAll('#tabs button')) b.addEventListener('click', () => {
   const t = b.dataset.tab;

@@ -24,7 +24,9 @@ code { color: var(--cyan); font-size: var(--t-1); }
 #bar { position: fixed; inset: 0 0 auto 0; height: var(--bar); display: flex; align-items: center; gap: 24px; padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 20; }
 #bar .brand { font-size: var(--t1); letter-spacing: .14em; font-weight: 600; }
 #bar .brand .v { color: var(--faint); font-weight: 400; letter-spacing: .06em; margin-left: 8px; }
-#bar .status { color: var(--ash); font-size: var(--t-1); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The line clips; the buttons beside it never do, or a refusal could not be retried. */
+#bar .status { color: var(--ash); font-size: var(--t-1); flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+#bar .status .line { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #bar .status b { color: var(--ink); font-weight: 500; }
 #bar nav, #bar .zoom, #bar .auth { display: flex; gap: 2px; align-items: center; }
 #bar .auth form { display: flex; gap: 4px; } #bar .auth input { width: 200px; padding: 3px 8px; font-size: var(--t-1); }
@@ -378,3 +380,8 @@ html.touch .zoomer { display: flex; }
   .tscroll > table.grid { font-size: var(--t-1); }
   .tscroll > table.grid td, .tscroll > table.grid th { padding-right: 10px; }
 }
+
+/* Readiness — the machine's own verdict, in THE CONTROL ROOM. */
+.ready table.grid td { vertical-align: top; }
+.ready-blocked td:first-child, .ready-degraded td:first-child { white-space: nowrap; }
+.ready tr.ready-ok td b { color: var(--ash); font-weight: 500; }

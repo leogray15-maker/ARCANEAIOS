@@ -67,6 +67,8 @@ export const api = {
     remove: (table, id) => call('DELETE', '/api/state', { body: { table, id } }),
   },
   bridge: () => api.get('/api/bridge'),
+  /** The machine's own state: keys held, database, migrations, imports, the last run — and the readiness the bar reads. */
+  health: () => api.get('/api/health'),
   /** CIPHER, the only call that reads outside the building. It takes a while: it is searching. */
   intel: (question = '', context = {}) => api.post('/api/intel', { question, context }, { timeout: 300_000 }),
 };
