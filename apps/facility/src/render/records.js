@@ -74,9 +74,15 @@ function runs() {
   if (st.error) return failed(st.error, { retry: 'reload' });
   if (!st.runs) return loading('runs');
   if (!st.runs.length) return empty('No agent has run yet. HERALD runs from the Library.');
-  const tone = (s) => (s === 'ok' ? 'vital' : s === 'running' ? 'cyan' : 'deny');
+  const tone = (s) => (s === 'ok' ? 'vital' : s === 'running' ? 'cyan' : s === 'evidence' ? 'ash' : 'deny');
   return `<table class="grid"><thead><tr><th>Run</th><th>Agent</th><th>Status</th><th>Objective</th><th>Model</th><th class="r">Tokens</th><th>Started</th><th>Took</th></tr></thead><tbody>
-    ${st.runs.map((r) => { const took = r.finished_at ? Math.round((new Date(r.finished_at) - new Date(r.started_at)) / 1000) : null; return `<tr><td><code>${esc(r.id)}</code></td><td>${chip(r.agent, 'arcane')}</td><td>${chip(r.status, tone(r.status))}</td><td>${esc(r.objective)}${r.error ? `<br><span class="breach">${esc(r.error).slice(0, 160)}</span>` : ''}${r.output?.drafts?.length ? `<br><span class="faint">${r.output.drafts.map((d) => `<a href="#beacon/draft/${esc(d)}">${esc(d)}</a>`).join(' ')}</span>` : ''}</td><td class="ash">${esc(r.model || '')}</td><td class="r ash">${r.usage?.in ? `${num(r.usage.in)} / ${num(r.usage.out)}` : '—'}</td><td class="ash nowrap" title="${esc(stampFull(r.started_at))}">${when(r.started_at)}</td><td class="ash">${took === null ? '—' : `${took}s`}</td></tr>`; }).join('')}
+    ${st.runs.map((r) => { const took = r.finished_at ? Math.round((new Date(r.finished_at) - new Date(r.started_at)) / 1000) : null;
+      // What the run caused: every order that names it. The answer to "why
+      // does this order exist?" and to "what came of that run?" is the same row.
+      const caused = store.allOrders().filter((o) => o.sourceId === r.id);
+      const read = r.sources?.length ? `read ${r.sources.length} source${r.sources.length === 1 ? '' : 's'}` : '';
+      const problems = r.input?.problems?.length ? `${r.input.problems.length} gap${r.input.problems.length === 1 ? '' : 's'} in the data` : '';
+      return `<tr><td><code>${esc(r.id)}</code></td><td>${chip(r.agent, 'arcane')}</td><td>${chip(r.status, tone(r.status))}</td><td>${esc(r.objective)}${r.error ? `<br><span class="breach">${esc(r.error).slice(0, 160)}</span>` : ''}${r.output?.drafts?.length ? `<br><span class="faint">${r.output.drafts.map((d) => `<a href="#beacon/draft/${esc(d)}">${esc(d)}</a>`).join(' ')}</span>` : ''}${caused.length ? `<br><span class="faint">caused: ${caused.map((o) => `<a href="#room/${esc(o.room)}" title="${esc(o.t)}">${esc(o.id)}</a> ${chip(o.state, o.state === 'proposed' ? 'arcane' : o.done ? 'ash' : 'vital')}`).join(' ')}</span>` : ''}${read || problems ? `<br><span class="faint">${[read, problems].filter(Boolean).join(' · ')}</span>` : ''}</td><td class="ash">${esc(r.model || '')}</td><td class="r ash">${r.usage?.in ? `${num(r.usage.in)} / ${num(r.usage.out)}` : '—'}</td><td class="ash nowrap" title="${esc(stampFull(r.started_at))}">${when(r.started_at)}</td><td class="ash">${took === null ? '—' : `${took}s`}</td></tr>`; }).join('')}
   </tbody></table>`;
 }
 function decisions() {

@@ -134,6 +134,8 @@ function paint({ keepScroll = false } = {}) {
             <span class="wait"><b>${blocked.length}</b><span>blocked orders</span></span>
             <span class="wait ${proposals.length ? 'lit' : ''}"><b>${proposals.length}</b><span>agent proposals</span></span>
           </div>
+          ${(() => { const r = store.system?.ready; const items = r ? r.items.filter((i) => i.level !== 'ok') : []; return items.length ? `<h3 class="${r.blocked ? 'breach' : 'flare'}">The machine <span class="faint">${r.blocked ? `${r.blocked} blocking` : ''}${r.blocked && r.degraded ? ' · ' : ''}${r.degraded ? `${r.degraded} degraded` : ''} — <a href="#control">THE CONTROL ROOM</a></span></h3>
+            ${items.map((i) => `<div class="order-row"><span>${chip(i.level, i.level === 'blocked' ? 'deny' : 'flare')}</span><span class="text"><b>${esc(i.title)}</b> <span class="ash">${esc(i.detail)}</span>${i.fix ? `<br><span class="flare">→ ${esc(i.fix)}</span>` : ''}</span><a class="room" href="#${i.room === 'control' ? 'control' : `room/${esc(i.room)}`}">${esc(i.room)}</a></div>`).join('')}` : ''; })()}
           ${proposals.length ? `<h3>Needs an answer <span class="faint">proposed by an agent — nothing has been done</span></h3>
             <div class="proposals">${proposals.map((o) => `<div class="proposal">
               <span class="chip arcane">${esc(store.agentName(o.agent) || 'agent')}</span>
@@ -185,8 +187,13 @@ function paint({ keepScroll = false } = {}) {
             ${top ? `<p class="ash">${chip(PRIO[top.p], PRIO_TONE[top.p])} ${esc(top.t)}</p>` : ''}
           </div>`; }).join('')}
 
-        <h2>Signals <span class="faint">VIGIL</span></h2>
-        ${sig.length ? sig.map((s) => `<p class="signal ${s.severity}"><a href="#room/${esc(s.room)}">${chip(s.severity, s.severity === 'breach' ? 'deny' : s.severity === 'warn' ? 'flare' : 'ash')}</a> ${esc(s.text)} <span class="faint">— ${esc(s.clear)}</span></p>`).join('') : '<p class="vital">Nothing moved that needs you.</p>'}
+        <h2>Signals <span class="faint">VIGIL · ${sig.filter((s) => !store.signalAnswered(s.id)).length} unanswered</span></h2>
+        ${sig.length ? sig.map((s, i) => { const work = store.workFor(s.id).filter((o) => !o.done); return `<div class="signal ${s.severity}">
+            <a href="#room/${esc(s.room)}">${chip(s.severity, s.severity === 'breach' ? 'deny' : s.severity === 'warn' ? 'flare' : 'ash')}</a> ${esc(s.text)}
+            <span class="faint">— ${esc(s.clear)}</span>
+            ${work.length ? `<span class="vital nowrap">answered · ${esc(work.map((o) => o.id).join(', '))}</span>` : `<button class="tiny ghost" data-act="signal-work" data-i="${i}">open work</button>`}
+          </div>`; }).join('') : '<p class="vital">Nothing moved that needs you.</p>'}
+        <p class="src">A signal is computed from the state, never stored; it is answered by work that names it, and it clears when the state changes.</p>
 
         <h2>Goals</h2>
         <table class="grid goals">${store.goalList().map((g) => { const gp = store.goalProgress(g.id); const v = store.goalValue(g); const pct = store.goalPct(g); return `<tr><td>${esc(g.goal)}<br><span class="faint">${esc(g.target)} · ${esc(g.room)}</span></td><td class="r nowrap">${['g-coa', 'g-mrr', 'g-posts'].includes(g.id) ? `<b>${esc(String(v))}</b> <span class="faint">computed</span>` : `<input class="num" type="number" min="0" step="any" data-act="goal" data-id="${esc(g.id)}" value="${esc(gp?.value ?? '')}" placeholder="—" style="width:70px" ${store.server.ready ? '' : 'disabled'}>`}<br><span class="bar"><span class="bar-fill ${g.kind === 'money' ? 'gold' : 'arcane'}" style="width:${pct}%"></span></span> <span class="faint">${pct}%</span></td></tr>`; }).join('')}</table>
@@ -222,6 +229,7 @@ function onClick(e) {
   else if (act === 'order-kill') { if (confirm('Kill this order? It stays in the record as killed.')) store.setOrderState(room, id, 'killed'); }
   else if (act === 'order-block') { const why = prompt('Blocked on what?'); if (why !== null) store.setOrderState(room, id, 'blocked', why.trim() || 'unspecified'); }
   else if (act === 'order-unblock') store.setOrderState(room, id, 'open');
+  else if (act === 'signal-work') { const sg = signals(store.state, brain)[Number(b.dataset.i)]; if (sg) store.openFromSignal(sg); }
   else if (act === 'proposal-approve') store.approveProposal(room, id);
   else if (act === 'proposal-reject') { if (confirm('Reject this proposal? It stays in the record as killed.')) store.rejectProposal(room, id); }
   else if (act === 'counsel-order') store.addOrder(room, b.dataset.text, Number(b.dataset.p), { actor: b.dataset.actor, source: 'counsel' });

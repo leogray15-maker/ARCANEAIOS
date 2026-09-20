@@ -407,3 +407,4 @@ html.touch .zoomer { display: flex; }
 .reader details.read summary { cursor: pointer; color: var(--ash); }
 .reader pre.evidence { max-height: 320px; overflow: auto; font-size: var(--t-1); }
 .reader tr.why-row td { font-size: var(--t-1); border-top: 0; padding-top: 0; }
+.bridge .signal { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: var(--t-1); }
