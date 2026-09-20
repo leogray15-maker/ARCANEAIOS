@@ -170,6 +170,7 @@ export class Store {
     try {
       const t = await api.state.all();
       this.applyServer(t);
+      this.stampAt = Date.now();
       this.server = { ready: true, error: '', reason: '', loading: false };
       await this.importLocalOnce(t);
       this.emit();
@@ -274,9 +275,24 @@ export class Store {
     const n = r.blocked || r.degraded;
     return { tone: r.level === 'blocked' ? 'breach' : 'flare', level: r.level, count: n, text: r.summary, blocked: r.blocked, degraded: r.degraded };
   }
-  startServerRefresh(every = 60_000) {
+  /**
+   * Keep up with the other devices. Every fifteen seconds ask for the stamp
+   * of the last system event — one row — and re-read the tables only when
+   * it has moved. A state transition is the reason the screen changes; a
+   * timer is only how it finds out. A full re-read every five minutes
+   * covers a stamp that was missed.
+   */
+  startServerRefresh(every = 15_000) {
     clearInterval(this.serverTimer);
-    this.serverTimer = setInterval(() => { if (this.server.ready && !document.hidden) this.loadServer({ quiet: true }); }, every);
+    this.stamp = this.stamp || '';
+    this.serverTimer = setInterval(async () => {
+      if (!this.server.ready || document.hidden) return;
+      try {
+        const { stamp } = await api.state.stamp();
+        const stale = !this.stampAt || Date.now() - this.stampAt > 300_000;
+        if (stamp !== this.stamp || stale) { this.stamp = stamp; this.stampAt = Date.now(); await this.loadServer({ quiet: true }); }
+      } catch { /* the next tick asks again; a refused write says its own piece */ }
+    }, every);
   }
 
   /* ---------- orders ---------- */

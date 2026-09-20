@@ -62,6 +62,8 @@ export const api = {
   /** The floor's operating state: orders, list items, decisions, counsel, venture focus, goal progress, days. */
   state: {
     all: (tables) => api.get('/api/state', tables ? { tables: tables.join(',') } : {}),
+    /** The time of the last change anywhere — one row, so it can be asked often. */
+    stamp: () => api.get('/api/state', { stamp: 1 }, { timeout: 10_000 }),
     insert: (table, row) => api.post('/api/state', { table, row }),
     update: (table, id, patch) => api.patch('/api/state', { table, id, patch }),
     remove: (table, id) => call('DELETE', '/api/state', { body: { table, id } }),

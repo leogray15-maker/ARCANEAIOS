@@ -12,8 +12,17 @@
  */
 import { json, guard, db } from './_lib.js';
 import { state, TABLE_IDS } from '../packages/database/src/state.js';
+import { events } from '../packages/database/src/content.js';
 
 export default guard(['GET', 'POST', 'PATCH', 'DELETE'], async (req, res, auth) => {
+  // GET /api/state?stamp=1 → { stamp } — the time of the last system event.
+  // Every write leaves one, so this one small row is enough for a device to
+  // know whether another device has changed anything since it last looked.
+  // No table data crosses; the device then reloads through the same gate.
+  if (req.method === 'GET' && req.query?.stamp) {
+    const [last] = await events.list(db(), { limit: 1 });
+    return json(res, 200, { stamp: last?.at || '', id: last?.id ?? null });
+  }
   if (req.method === 'GET') {
     const asked = String(req.query?.tables || '').split(',').map((s) => s.trim()).filter(Boolean);
     const tables = asked.length ? asked.filter((t) => TABLE_IDS.includes(t)) : TABLE_IDS;
