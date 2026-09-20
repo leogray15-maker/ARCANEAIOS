@@ -12,7 +12,7 @@
  * maps them to what the floor draws.
  */
 import { randomUUID } from 'node:crypto';
-import { ROOM_BY_ID, VENTURE_BY_ID, ORDER_STATES, ORDER_PRIORITY, VERDICTS } from '../../config/src/index.js';
+import { ROOM_BY_ID, VENTURE_BY_ID, AGENT_BY_ID, ORDER_STATES, ORDER_PRIORITY, ORDER_SOURCES, ORDER_FROM_PROPOSED, VERDICTS } from '../../config/src/index.js';
 import { DatabaseError } from './index.js';
 import { nextId } from './content.js';
 import { events } from './content.js';
@@ -37,6 +37,7 @@ const dayOrNull = () => (v) => { if (v === null || v === '' || v === undefined) 
 const jsonArr = () => (v) => (Array.isArray(v) ? v : []);
 const jsonObjOrNull = () => (v) => (v && typeof v === 'object' ? v : null);
 const room = () => (v) => { const s = String(v ?? ''); if (!ROOM_BY_ID[s]) throw bad(`unknown room "${s}"`); return s; };
+const agentOrEmpty = () => (v) => { const s = String(v ?? ''); if (s && !AGENT_BY_ID[s]) throw bad(`unknown agent "${s}"`); return s; };
 const ventureOrEmpty = () => (v) => { const s = String(v ?? ''); if (s && !VENTURE_BY_ID[s]) throw bad(`unknown venture "${s}"`); return s; };
 const bad = (m) => new DatabaseError(m, { status: 400 });
 
@@ -50,8 +51,24 @@ export const TABLES = {
   orders: {
     key: 'id', mint: (db, now) => nextId(db, 'orders', 'ORD', now), order: 'priority.asc,created_at.desc', event: 'order',
     required: ['room', 'text'],
-    defaults: { priority: 2, state: 'open', holder: 'Leo', actor: 'human', venture: '', blocked_on: '', due: null, note: '', source: 'floor', brain_n: null, done_at: null },
-    fields: { room: room(), text: str(500), priority: int(0, 3), state: oneOf(ORDER_STATES), holder: str(60), actor: oneOf(['human', 'agent']), venture: ventureOrEmpty(), blocked_on: str(300), due: dayOrNull(), note: str(2000), source: oneOf(['floor', 'brain', 'counsel', 'council']), brain_n: (v) => (v === null || v === undefined || v === '' ? null : int(0, 100000)(v)), done_at: dateOrNull() },
+    defaults: { priority: 2, state: 'open', holder: 'Leo', actor: 'human', venture: '', blocked_on: '', due: null, note: '', source: 'floor', source_id: '', agent: '', brain_n: null, done_at: null },
+    fields: { room: room(), text: str(500), priority: int(0, 3), state: oneOf(ORDER_STATES), holder: str(60), actor: oneOf(['human', 'agent']), venture: ventureOrEmpty(), blocked_on: str(300), due: dayOrNull(), note: str(2000), source: oneOf(ORDER_SOURCES), source_id: str(80), agent: agentOrEmpty(), brain_n: (v) => (v === null || v === undefined || v === '' ? null : int(0, 100000)(v)), done_at: dateOrNull() },
+    // A proposal must say who made it and what it came from, or it cannot
+    // be answered for later; and it may only be approved or killed, never
+    // marked done, because nobody did it.
+    check(row, { insert, current } = {}) {
+      const state = row.state ?? current?.state;
+      if (state === 'proposed') {
+        const agent = row.agent ?? current?.agent;
+        const source = row.source ?? current?.source;
+        if (!agent) throw bad('a proposed order must name the agent that proposed it');
+        if (!source || source === 'floor') throw bad('a proposed order must say what it came from (source: agent, signal, counsel, council)');
+      }
+      if (!insert && current?.state === 'proposed' && row.state && row.state !== 'proposed' && !ORDER_FROM_PROPOSED.includes(row.state)) {
+        throw bad(`a proposed order can only be approved (open) or killed — not ${row.state}`);
+      }
+      if ((row.source_id ?? '') && (row.source ?? current?.source ?? 'floor') === 'floor') throw bad('source_id needs a source that is not the floor');
+    },
   },
   list_items: {
     key: 'id', mint: () => randomUUID(), order: 'position.asc,created_at.desc', event: 'item',
@@ -183,7 +200,7 @@ export const TABLE_IDS = Object.keys(TABLES);
 function spec(table) { const t = TABLES[table]; if (!t) throw new DatabaseError(`no such table "${table}"`, { status: 404 }); return t; }
 
 /** Validate a patch against the registry: unknown columns are refused, known ones are coerced. */
-export function clean(table, input, { insert = false } = {}) {
+export function clean(table, input, { insert = false, current = null } = {}) {
   const t = spec(table); const out = {};
   for (const [k, v] of Object.entries(input || {})) {
     if (k === t.key && t.natural) { out[k] = t.fields[k] ? t.fields[k](v) : String(v); continue; }
@@ -195,6 +212,9 @@ export function clean(table, input, { insert = false } = {}) {
     // The defaults live here as well as in the schema so the in-memory twin and Postgres agree row for row.
     for (const [k, v] of Object.entries(t.defaults || {})) if (out[k] === undefined) out[k] = v;
   }
+  // A rule that spans columns (a proposal must name its agent) belongs here,
+  // once, rather than in whichever surface happens to write the row.
+  if (t.check) t.check(out, { insert, current });
   return out;
 }
 
@@ -225,11 +245,12 @@ export const state = {
   },
   async update(db, table, id, input, { actor = 'leo', now = new Date() } = {}) {
     const t = spec(table);
-    const patch = clean(table, input);
+    const cur0 = await db.get(table, { select: '*', [t.key]: `eq.${id}` }, { single: true });
+    if (!cur0) throw new DatabaseError(`no ${table} ${id}`, { status: 404 });
+    const patch = clean(table, input, { current: cur0 });
     delete patch[t.key];
     if (!Object.keys(patch).length) throw bad('nothing to change');
-    const cur = await db.get(table, { select: '*', [t.key]: `eq.${id}` }, { single: true });
-    if (!cur) throw new DatabaseError(`no ${table} ${id}`, { status: 404 });
+    const cur = cur0;
     if (table === 'orders' && patch.state && patch.state !== cur.state) patch.done_at = ['done', 'killed'].includes(patch.state) ? now.toISOString() : null;
     if (table === 'list_items' && patch.done !== undefined && patch.done !== cur.done) patch.done_at = patch.done ? now.toISOString() : null;
     if (table === 'decisions' && patch.outcome !== undefined && patch.outcome !== cur.outcome) patch.reviewed_at = patch.outcome ? now.toISOString() : null;

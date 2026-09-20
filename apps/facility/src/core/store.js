@@ -19,6 +19,7 @@
  * the server rows take over once they load.
  */
 import { VENTURES, ROOMS, ROOM_BY_ID, GOALS_FALLBACK } from './seeds.js';
+import { ORDER_OPEN_STATES, AGENT_BY_ID } from '@arcane/config';
 import { stockLines, labSummary, settingsOf, stockOf } from './lab.js';
 import { moneySummary, monthOf, ventureRow, history as moneyHistory } from './money.js';
 import { cloud } from './cloud.js';
@@ -32,7 +33,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
 /** The parts of the state that live on the server; never written into the blob. */
 const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal'];
-const OPEN_STATES = ['open', 'active', 'blocked', 'review'];
+const OPEN_STATES = ORDER_OPEN_STATES;   // a proposal is not open work: it is waiting to be answered
 const ts = (iso) => (iso ? new Date(iso).getTime() : 0);
 
 function seedState(brain) {
@@ -184,7 +185,7 @@ export class Store {
     const s = this.state;
     const orders = {}; for (const r of ROOMS) orders[r.id] = [];
     const imported = new Set((t.orders || []).filter((o) => o.brain_n !== null && o.brain_n !== undefined).map((o) => o.brain_n));
-    for (const o of t.orders || []) (orders[o.room] || (orders[o.room] = [])).push({ id: o.id, t: o.text, p: o.priority, state: o.state, done: ['done', 'killed'].includes(o.state), holder: o.holder, actor: o.actor, blocked: o.blocked_on, venture: o.venture, due: o.due, note: o.note, source: o.source, brain_n: o.brain_n, ts: ts(o.created_at), doneTs: ts(o.done_at) });
+    for (const o of t.orders || []) (orders[o.room] || (orders[o.room] = [])).push({ id: o.id, t: o.text, p: o.priority, state: o.state, done: ['done', 'killed'].includes(o.state), proposed: o.state === 'proposed', holder: o.holder, actor: o.actor, agent: o.agent || '', blocked: o.blocked_on, venture: o.venture, due: o.due, note: o.note, source: o.source, sourceId: o.source_id || '', brain_n: o.brain_n, ts: ts(o.created_at), doneTs: ts(o.done_at) });
     for (const r of ROOMS) for (const o of s.orders[r.id] || []) if (o.fromBrain && !imported.has(o.brain_n)) orders[r.id].push(o);
     s.orders = orders;
     const lists = {};
@@ -280,7 +281,20 @@ export class Store {
 
   /* ---------- orders ---------- */
   orders(roomId) { return this.state.orders[roomId] || []; }
-  openOrders(roomId) { return this.orders(roomId).filter((o) => !o.done).sort((a, b) => a.p - b.p); }
+  /** The work in a room. A proposal is not in here until it has been approved. */
+  openOrders(roomId) { return this.orders(roomId).filter((o) => !o.done && !o.proposed).sort((a, b) => a.p - b.p); }
+  /** What an agent has put forward in this room and nobody has answered. */
+  proposals(roomId = null) {
+    const list = roomId ? this.orders(roomId).map((o) => ({ ...o, room: roomId })) : ROOMS.flatMap((r) => this.orders(r.id).map((o) => ({ ...o, room: r.id })));
+    return list.filter((o) => o.proposed).sort((a, b) => a.p - b.p || b.ts - a.ts);
+  }
+  proposalCount() { return this.proposals().length; }
+  /** Approve a proposal: it becomes work, and the event records who let it in. */
+  approveProposal(roomId, id) { return this.setOrderState(roomId, id, 'open'); }
+  /** Refuse one: killed, never deleted, so the record still says it was put forward. */
+  rejectProposal(roomId, id) { return this.setOrderState(roomId, id, 'killed'); }
+  /** The agent's name for a proposal, for a UI that has to say who. */
+  agentName(id) { return AGENT_BY_ID[id]?.name || id || ''; }
   openCount(roomId) { return this.openOrders(roomId).length; }
   /** Attention: P0 weighs 8, P1 4, P2 2, P3 1. */
   attention(roomId) { return this.openOrders(roomId).reduce((n, o) => n + [8, 4, 2, 1][o.p], 0); }
@@ -305,7 +319,7 @@ export class Store {
       'order');
     const was = o.state;
     return this.commit(
-      () => { o.state = state; o.done = ['done', 'killed'].includes(state); o.blocked = state === 'blocked' ? blockedOn : ''; if (o.done) o.doneTs = Date.now(); this.log(`${o.done ? (state === 'killed' ? 'Killed' : 'Done') : state === 'open' && was ? 'Reopened' : state}: ${o.t}`, 'order'); },
+      () => { o.state = state; o.done = ['done', 'killed'].includes(state); o.proposed = state === 'proposed'; o.blocked = state === 'blocked' ? blockedOn : ''; if (o.done) o.doneTs = Date.now(); this.log(`${was === 'proposed' && state === 'open' ? 'Approved' : o.done ? (state === 'killed' ? 'Killed' : 'Done') : state === 'open' && was ? 'Reopened' : state}: ${o.t}`, 'order'); },
       () => api.state.update('orders', id, { state, blocked_on: state === 'blocked' ? blockedOn : '' }),
       'order');
   }

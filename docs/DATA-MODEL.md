@@ -31,8 +31,17 @@ gateway `api/state.js` and the tools go through its verbs — `list`,
 `system_events` row.
 
 ### orders
-`id` (`ORD-YYYYMMDD-NNN`) · `room` · `text` · `priority` (0–3) · `state` (open | active | blocked | review | done | killed — `ORDER_STATES`) · `holder` · `actor` (human | agent) · `venture` · `blocked_on` · `due` · `note` · `source` (floor | brain | counsel | council) · `brain_n` (its number in 06-Orders/Orders.md) · `done_at`.
+`id` (`ORD-YYYYMMDD-NNN`) · `room` · `text` · `priority` (0–3) · `state` (proposed | open | active | blocked | review | done | killed — `ORDER_STATES`) · `holder` · `actor` (human | agent) · `agent` (who proposed it) · `venture` · `blocked_on` · `due` · `note` · `source` (floor | brain | counsel | council | signal | agent) · `source_id` (the run, signal or decision it came from) · `brain_n` (its number in 06-Orders/Orders.md) · `done_at`.
 Never deleted: `killed` is a state. The unit of routed work; crew on the floor walk toward rooms with open ones.
+
+**`proposed` is the approval step.** An agent may put something forward, but a
+proposal is not work: it is not counted open, it pulls no crew, it is not
+mirrored into the vault, and it can only become `open` (approved) or `killed`
+(refused) — never `done`, because nobody did it. A proposal must name the
+`agent` that made it and a `source` other than the floor; the registry refuses
+one that does not. `source_id` is what makes the chain readable in both
+directions: an order can say which run or signal produced it, and THE RECORDS
+can show what a run caused.
 
 ### list_items
 `id` · `list` (moves | stop | watch | pipeline | ideas) · `text` · `tag` · `venture` · `position` · `done` · `outcome` · `done_at`.

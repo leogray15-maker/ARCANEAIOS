@@ -34,9 +34,27 @@ export const DELIBERATION = [
 
 export const VERDICTS = ['BUILD', 'DELAY', 'WATCH', 'KILL'];
 
-/** An order is a unit of routed work. Rooms with open orders attract crew. */
-export const ORDER_STATES = ['open', 'active', 'blocked', 'review', 'done', 'killed'];
+/**
+ * An order is a unit of routed work. Rooms with open orders attract crew.
+ *
+ * `proposed` comes before all of it: an agent may find something and say
+ * so, but a proposal is not work and pulls nobody. Only the operator moves
+ * it into `open`. That is the approval step the whole loop turns on, so it
+ * is vocabulary, not a flag — every surface reads the same word.
+ */
+export const ORDER_STATES = ['proposed', 'open', 'active', 'blocked', 'review', 'done', 'killed'];
 export const ORDER_PRIORITY = ['P0', 'P1', 'P2', 'P3'];
+/** The states that are work: what counts as open, pulls crew and lands on the Bridge. */
+export const ORDER_OPEN_STATES = ['open', 'active', 'blocked', 'review'];
+/** The states an order is finished in. */
+export const ORDER_CLOSED_STATES = ['done', 'killed'];
+/** Where an order came from. `source_id` names the one thing of that kind. */
+export const ORDER_SOURCES = ['floor', 'brain', 'counsel', 'council', 'signal', 'agent'];
+/**
+ * What may follow `proposed`: approve it, or kill it. Nothing else — a
+ * proposal cannot be marked done, because nobody did it.
+ */
+export const ORDER_FROM_PROPOSED = ['open', 'killed'];
 
 /** A content draft's life, from HERALD's hand to the public. Only a human moves it past `draft`. */
 export const DRAFT_STATES = ['draft', 'review', 'approved', 'scheduled', 'posted', 'killed'];

@@ -7,14 +7,14 @@
  * line. `api/bridge.js` serves it to the floor; `tools/brief.mjs` writes
  * the brief from it. One function, two readers, no second copy.
  */
-import { ROOMS, ROOM_BY_ID, VENTURES, AGENT_BY_ID } from '../../config/src/index.js';
+import { ROOMS, ROOM_BY_ID, VENTURES, AGENT_BY_ID, ORDER_OPEN_STATES } from '../../config/src/index.js';
 import { drafts, runs, events } from './content.js';
 import { state } from './state.js';
 import { labSummary } from '../../../apps/facility/src/core/lab.js';
 import { moneySummary, monthOf } from '../../../apps/facility/src/core/money.js';
 
 const DAY = 86400000;
-const OPEN = ['open', 'active', 'blocked', 'review'];
+const OPEN = ORDER_OPEN_STATES;   // a proposal is not work: it waits for the operator
 
 export async function aggregate(db, { now = new Date() } = {}) {
   const t = now.getTime();
@@ -34,6 +34,11 @@ export async function aggregate(db, { now = new Date() } = {}) {
   try { recentEvents = await events.list(db, { limit: 25 }); } catch {}
 
   const open = orders.filter((o) => OPEN.includes(o.state));
+  // What an agent has put forward and nobody has answered yet. Each one
+  // names what proposed it and what it came from, so it can be traced.
+  const proposals = orders.filter((o) => o.state === 'proposed')
+    .sort((a, b) => a.priority - b.priority || new Date(b.created_at) - new Date(a.created_at))
+    .map((o) => ({ ...withAge0(o, t), agent_name: AGENT_BY_ID[o.agent]?.name || o.agent, source: o.source, source_id: o.source_id }));
   const age = (o) => Math.floor((t - new Date(o.created_at).getTime()) / DAY);
   const withAge = (o) => ({ ...o, age_days: age(o), room_name: ROOM_BY_ID[o.room]?.name || o.room, holder_name: o.actor === 'agent' ? (AGENT_BY_ID[ROOM_BY_ID[o.room]?.agent]?.name || o.holder) : o.holder });
   const byRoom = {};
@@ -67,6 +72,7 @@ export async function aggregate(db, { now = new Date() } = {}) {
       review: open.filter((o) => o.state === 'review').map(withAge),
       decisions: awaiting.map((d) => ({ id: d.id, question: d.question, verdict: d.verdict, age_days: Math.floor((t - new Date(d.created_at).getTime()) / DAY), conditions: d.conditions })),
       stale: open.filter((o) => o.priority === 0 && age(o) > 2).map(withAge),
+      proposals,
     },
     active: {
       running: recentRuns.filter((r) => r.status === 'running'),
@@ -84,6 +90,11 @@ export async function aggregate(db, { now = new Date() } = {}) {
     lab, money, protocol,
     events: recentEvents,
   };
+}
+
+/** An order with its age and the names a reader needs, without the closure. */
+function withAge0(o, t) {
+  return { ...o, age_days: Math.floor((t - new Date(o.created_at).getTime()) / DAY), room_name: ROOM_BY_ID[o.room]?.name || o.room, holder_name: o.holder };
 }
 
 export function localDay(d = new Date()) {

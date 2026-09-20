@@ -91,7 +91,10 @@ function paint({ keepScroll = false } = {}) {
   const sig = signals(store.state, brain);
   const byRoom = {}; for (const o of open) byRoom[o.room] = (byRoom[o.room] || 0) + 1;
   const rooms = ROOMS.filter((r) => byRoom[r.id]).map((r) => ({ r, n: byRoom[r.id], top: open.filter((o) => o.room === r.id).sort((a, b) => a.p - b.p)[0] })).sort((a, b) => b.n - a.n);
-  const waitingCount = (x?.drafts ? (x.drafts.draft || 0) + (x.drafts.review || 0) : 0) + blocked.length + review.length + awaiting.length;
+  // What an agent has put forward across the whole floor. Nothing here has
+  // happened; each one is waiting for a yes or a no.
+  const proposals = store.proposals();
+  const waitingCount = (x?.drafts ? (x.drafts.draft || 0) + (x.drafts.review || 0) : 0) + blocked.length + review.length + awaiting.length + proposals.length;
   const sv = store.serverStatus();
 
   el.innerHTML = `<div class="wrap app bridge">
@@ -129,12 +132,24 @@ function paint({ keepScroll = false } = {}) {
             <a class="wait" href="#beacon/approved"><b>${x?.drafts ? num(x.drafts.approved || 0) : '—'}</b><span>approved, unscheduled</span></a>
             <a class="wait" href="#room/council"><b>${awaiting.length}</b><span>verdicts without an outcome</span></a>
             <span class="wait"><b>${blocked.length}</b><span>blocked orders</span></span>
+            <span class="wait ${proposals.length ? 'lit' : ''}"><b>${proposals.length}</b><span>agent proposals</span></span>
           </div>
+          ${proposals.length ? `<h3>Needs an answer <span class="faint">proposed by an agent — nothing has been done</span></h3>
+            <div class="proposals">${proposals.map((o) => `<div class="proposal">
+              <span class="chip arcane">${esc(store.agentName(o.agent) || 'agent')}</span>
+              <span class="chip ${['deny', 'flare', 'arcane', 'ash'][o.p]}">${['P0', 'P1', 'P2', 'P3'][o.p]}</span>
+              <span class="text">${esc(o.t)}</span>
+              <a class="room" href="#room/${esc(o.room)}">${esc(ROOM_BY_ID[o.room]?.name || o.room)}</a>
+              <button class="tiny" data-act="proposal-approve" data-id="${esc(o.id)}" data-room="${esc(o.room)}">approve</button>
+              <button class="tiny ghost" data-act="proposal-reject" data-id="${esc(o.id)}" data-room="${esc(o.room)}">reject</button>
+              ${o.note ? `<div class="why ash">${esc(o.note)}</div>` : ''}
+              ${o.sourceId ? `<div class="why faint">from <a href="#records/runs">${esc(o.sourceId)}</a> · ${esc(o.source)}</div>` : ''}
+            </div>`).join('')}</div>` : ''}
           ${blocked.length ? `<h3>Blocked</h3>${blocked.map((o) => orderRow(o)).join('')}` : ''}
           ${review.length ? `<h3>For review</h3>${review.map((o) => orderRow(o)).join('')}` : ''}
           ${stale.length ? `<h3 class="flare">P0 open for more than two days</h3>${stale.map((o) => orderRow(o)).join('')}` : ''}
           ${awaiting.length ? `<h3>Verdicts waiting for an outcome</h3>${awaiting.map((dcs) => `<div class="order-row"><span>${chip(dcs.verdict, VERDICT_TONE[dcs.verdict])}</span><span class="text">${esc(dcs.question)}</span><span class="faint nowrap">${when(dcs.ts)}</span><form class="inline row-form" data-act="decision-outcome" data-id="${esc(dcs.id)}"><input name="outcome" placeholder="What actually happened" style="width:220px"><button class="tiny" type="submit">record</button></form></div>`).join('')}` : ''}
-          ${!blocked.length && !review.length && !stale.length && !awaiting.length ? '<p class="empty">Nothing waiting on the floor. The queue in BEACON is the rest.</p>' : ''}
+          ${!blocked.length && !review.length && !stale.length && !awaiting.length && !proposals.length ? '<p class="empty">Nothing waiting on the floor. The queue in BEACON is the rest.</p>' : ''}
         </section>
 
         <section>
@@ -207,6 +222,8 @@ function onClick(e) {
   else if (act === 'order-kill') { if (confirm('Kill this order? It stays in the record as killed.')) store.setOrderState(room, id, 'killed'); }
   else if (act === 'order-block') { const why = prompt('Blocked on what?'); if (why !== null) store.setOrderState(room, id, 'blocked', why.trim() || 'unspecified'); }
   else if (act === 'order-unblock') store.setOrderState(room, id, 'open');
+  else if (act === 'proposal-approve') store.approveProposal(room, id);
+  else if (act === 'proposal-reject') { if (confirm('Reject this proposal? It stays in the record as killed.')) store.rejectProposal(room, id); }
   else if (act === 'counsel-order') store.addOrder(room, b.dataset.text, Number(b.dataset.p), { actor: b.dataset.actor, source: 'counsel' });
   else if (act === 'counsel-clear') store.clearCounsel();
 }

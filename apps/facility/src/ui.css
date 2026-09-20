@@ -385,3 +385,11 @@ html.touch .zoomer { display: flex; }
 .ready table.grid td { vertical-align: top; }
 .ready-blocked td:first-child, .ready-degraded td:first-child { white-space: nowrap; }
 .ready tr.ready-ok td b { color: var(--ash); font-weight: 500; }
+
+/* A proposal: put forward, not yet work. It reads as pending, never as done. */
+.proposals { border-left: 2px solid var(--arcane); padding-left: 10px; margin-bottom: 12px; }
+.proposals h3 { margin: 0 0 6px; font-size: var(--t-1); letter-spacing: .12em; text-transform: uppercase; color: var(--arcaneLt); font-weight: 500; }
+.proposal { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.proposal .text { flex: 1 1 200px; min-width: 0; }
+.proposal .why { flex-basis: 100%; font-size: var(--t-1); white-space: pre-wrap; }
+.wait.lit b { color: var(--arcaneLt); }

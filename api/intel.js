@@ -64,6 +64,37 @@ function sourcesOf(content) {
   return out;
 }
 
+/**
+ * Write each item's proposal down as a `proposed` order, and hand back the
+ * id it was given. Nothing is executed and nothing enters the queue: the
+ * operator approves or kills it. A proposal whose words are already on the
+ * board is skipped rather than repeated — a daily watch would otherwise
+ * propose the same thing every morning.
+ */
+async function propose(items, runId) {
+  const existing = await state.list(db(), 'orders').catch(() => []);
+  const seen = new Set(existing.filter((o) => !['done', 'killed'].includes(o.state)).map((o) => `${o.room}::${String(o.text).trim().toLowerCase()}`));
+  const out = [];
+  for (const item of items) {
+    const p = item?.proposal;
+    if (!p?.room || !p?.text) { out.push(null); continue; }
+    const key = `${p.room}::${String(p.text).trim().toLowerCase()}`;
+    if (seen.has(key)) { out.push(null); continue; }
+    try {
+      const row = await state.insert(db(), 'orders', {
+        room: p.room, text: p.text, priority: PRIORITY[p.priority] ?? 2,
+        state: 'proposed', actor: 'agent', agent: 'intel', holder: 'CIPHER',
+        source: 'agent', source_id: runId,
+        note: [item.headline, item.detail, item.source ? `Source: ${item.source}` : ''].filter(Boolean).join('\n\n'),
+      }, { actor: 'intel' });
+      seen.add(key);
+      out.push(row.id);
+    } catch { out.push(null); }   // a refused proposal is not a failed watch
+  }
+  return out;
+}
+const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
+
 export default guard(['POST'], async (req, res, auth) => {
   const { context = {}, question = '' } = req.body || {};
   // The watchlist is read from the table, not from the caller: one source of truth.
@@ -118,9 +149,16 @@ export default guard(['POST'], async (req, res, auth) => {
     const out = JSON.parse(r.content.find((b) => b.type === 'text')?.text || '{}');
     const sources = sourcesOf(r.content);
     const usage = { in: r.usage.input_tokens, out: r.usage.output_tokens, cached: r.usage.cache_read_input_tokens || 0, searches: r.usage.server_tool_use?.web_search_requests || 0 };
+    // A proposal is written down. Until now CIPHER's suggestions lived in
+    // the run's output and were gone the moment the room was closed; now
+    // each one becomes an order in `proposed` — not work, not counted, not
+    // pulling any crew, but on the Bridge under what needs an answer, and
+    // carrying the run it came from so the reason survives the week.
+    const proposed = await propose(out.items || [], runId);
+    for (const [i, p] of proposed.entries()) if (p) (out.items[i] || {}).order_id = p;
     // The run carries the watch itself: the room reads it back from here.
-    await runs.finish(db(), runId, { status: 'ok', usage, output: { items: out.items || [], summary: out.summary || '', quiet: !!out.quiet, sources, terms } });
-    return json(res, 200, { run: runId, ...out, sources, asOf: now.toISOString(), usage });
+    await runs.finish(db(), runId, { status: 'ok', usage, output: { items: out.items || [], summary: out.summary || '', quiet: !!out.quiet, sources, terms, proposed: proposed.filter(Boolean) } });
+    return json(res, 200, { run: runId, ...out, sources, proposed: proposed.filter(Boolean), asOf: now.toISOString(), usage });
   } catch (e) {
     const { status, error } = modelFailure(e);
     await runs.finish(db(), runId, { status: 'failed', error }).catch(() => {});

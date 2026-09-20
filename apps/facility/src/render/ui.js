@@ -61,3 +61,29 @@ export function keepFocus(el, selector) {
 
 /** Copy text; returns a promise that resolves when done or rejects if the clipboard is unavailable. */
 export const copy = (text) => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('no clipboard')));
+
+/**
+ * What an agent has put forward in this room and nobody has answered.
+ *
+ * Shared, because a proposal must look and behave the same in a dashboard
+ * room and in a room that is its own application. Nothing here has
+ * happened: it is over the work, never in it, and it carries the reason
+ * and the run it came from so the answer can be an informed one.
+ */
+export function proposalsBlock(store, roomId) {
+  const list = store.proposals(roomId);
+  if (!list.length) return '';
+  const PRIO = ['P0', 'P1', 'P2', 'P3'], TONE = ['deny', 'flare', 'arcane', 'ash'];
+  return `<div class="proposals">
+    <h3>${list.length} proposed — nothing here has happened yet</h3>
+    ${list.map((o) => `<div class="proposal">
+      <span class="chip arcane">${esc(store.agentName(o.agent) || 'agent')}</span>
+      <span class="chip ${TONE[o.p]}">${PRIO[o.p]}</span>
+      <span class="text">${esc(o.t)}</span>
+      <button class="tiny" data-act="proposal-approve" data-id="${esc(o.id)}" data-room="${esc(roomId)}">approve</button>
+      <button class="tiny ghost" data-act="proposal-reject" data-id="${esc(o.id)}" data-room="${esc(roomId)}">reject</button>
+      ${o.note ? `<div class="why ash">${esc(o.note)}</div>` : ''}
+      ${o.sourceId ? `<div class="why faint">from <a href="#records/runs">${esc(o.sourceId)}</a> · ${esc(o.source)}</div>` : ''}
+    </div>`).join('')}
+  </div>`;
+}

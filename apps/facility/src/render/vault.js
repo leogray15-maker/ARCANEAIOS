@@ -12,7 +12,7 @@
  */
 import { VENTURES } from '@arcane/config';
 import { monthOf, prevMonth, monthLabel } from '../core/money.js';
-import { esc, chip, when, failed, handleKeyForm, keepFocus } from './ui.js';
+import { esc, chip, when, failed, handleKeyForm, keepFocus, proposalsBlock } from './ui.js';
 
 const gbp = (n, d = 0) => (n === null || n === undefined || !Number.isFinite(n) ? '—' : `£${Number(n).toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d })}`);
 const pct = (x) => (x === null || x === undefined ? '—' : `${x >= 0 ? '+' : ''}${Math.round(x * 100)}%`);
@@ -60,6 +60,7 @@ function paint({ keepScroll = false } = {}) {
     </div>
     ${sv.tone === 'breach' ? `<p class="flash breach">${esc(sv.text)}</p>` : ''}
     ${store.server.needsKey || (!store.server.ready && store.server.reason === 'no operator key') ? failed({ needsKey: true, status: 401 }) : ''}
+    ${proposalsBlock(store, 'vault')}
     <div class="stat-row">
       <div class="stat"><b>${gbp(m.revenue)}</b><span>revenue ${esc(monthLabel(month))}${m.change !== null ? ` · <span class="${m.change >= 0 ? 'vital' : 'breach'}">${pct(m.change)}</span> vs ${esc(monthLabel(prevMonth(month)))}` : ''}</span></div>
       <div class="stat"><b>${gbp(m.fixed)}</b><span>fixed / month</span></div>
@@ -125,6 +126,8 @@ function onClick(e) {
   const act = b.dataset.act, id = b.dataset.id;
   if (act === 'back') go('#');
   else if (act === 'open-month' && !e.target.closest('a')) go(`#vault/${b.dataset.month}`);
+  else if (act === 'proposal-approve') store.approveProposal('vault', id);
+  else if (act === 'proposal-reject') { if (confirm('Reject this proposal? It stays in the record as killed.')) store.rejectProposal('vault', id); }
   else if (act === 'fixed-retire') store.setFixed(id, { active: false });
   else if (act === 'fixed-restore') store.setFixed(id, { active: true });
 }

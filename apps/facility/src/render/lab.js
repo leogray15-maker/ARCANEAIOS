@@ -11,7 +11,7 @@
  * Operations only — nothing here says what a compound does, and nothing
  * here is copy for the public.
  */
-import { esc, chip, when, num, failed, handleKeyForm, keepFocus } from './ui.js';
+import { esc, chip, when, num, failed, handleKeyForm, keepFocus, proposalsBlock } from './ui.js';
 
 const COA = ['none', 'pending', 'published'];
 const COA_TONE = { none: 'deny', pending: 'flare', published: 'vital' };
@@ -55,7 +55,8 @@ function paint({ keepScroll = false } = {}) {
       <span class="${sv.tone}" title="${esc(sv.text)}">● ${esc(sv.tone === 'vital' ? 'state on the server' : sv.text)}</span>
     </div>
     ${sv.tone === 'breach' ? `<p class="flash breach">${esc(sv.text)}</p>` : ''}
-    ${store.server.needsKey || (!store.server.ready && store.server.reason === 'no operator key') ? failed({ needsKey: true, status: 401 }) : ''}`;
+    ${store.server.needsKey || (!store.server.ready && store.server.reason === 'no operator key') ? failed({ needsKey: true, status: 401 }) : ''}
+    ${proposalsBlock(store, 'apothecary')}`;
   el.innerHTML = `<div class="wrap app lab">${head}${st.view === 'product' ? productView(lab) : st.view === 'dispatch' ? dispatchView(lab) : catalogueView(lab)}</div>`;
   el.scrollTop = scroll; restore();
 }
@@ -193,6 +194,8 @@ function onClick(e) {
   const act = b.dataset.act, id = b.dataset.id;
   if (act === 'back') go('#');
   else if (act === 'lab') go('#lab');
+  else if (act === 'proposal-approve') store.approveProposal('apothecary', id);
+  else if (act === 'proposal-reject') { if (confirm('Reject this proposal? It stays in the record as killed.')) store.rejectProposal('apothecary', id); }
   else if (act === 'view') { st.view = b.dataset.view; st.editing = ''; go(b.dataset.view === 'dispatch' ? '#lab/dispatch' : '#lab'); paint(); }
   else if (act === 'open' && !e.target.closest('a')) go(`#lab/${encodeURIComponent(id)}`);
   else if (act === 'new-product') { st.editing = 'new'; paint({ keepScroll: true }); el.querySelector('form[data-act=product-add] input[name=name]')?.focus(); }

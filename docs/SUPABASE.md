@@ -27,6 +27,7 @@ Open the project → SQL Editor → paste each migration → Run, in order:
 | `0006_vault.sql` | `ledger_months`, `fixed_costs`, `cash_snapshots`, `pots` | THE VAULT, THE MARKET, VITALS, the brief's MONEY block, the goals |
 | `0007_sanctum.sql` | `protocol_items`, `protocol_ticks`, `entries` | SANCTUM, the strip's protocol count, VIGIL |
 | `0008_trading.sql` | `trades`, `setups`, `checkins` | THE TRADING FLOOR, VIGIL's drawdown and rule-break signals |
+| `0009_proposals.sql` | `orders.source_id`, `orders.agent`, the `proposed` state | An agent may propose; only the operator approves. Every order can name what caused it. |
 
 All seven are idempotent. The dashboard's "Last migration" card only counts
 migrations pushed by the Supabase CLI, so it says "No migrations" even

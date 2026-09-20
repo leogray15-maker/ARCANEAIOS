@@ -99,6 +99,13 @@ ok(newRow && newRow.priority === 0 && newRow.n > 0, 'the floor\'s order landed w
 ok(after.closed.some((r) => r.n === md.open[0].n), 'the done row moved to Closed');
 ok((await state.list(db2, 'orders')).find((o) => o.id === fresh.id).brain_n === newRow.n, 'the number went back to the database');
 ok((await mirrorOrders(db2, scratch, now)) === 'unchanged', 'a second mirror changes nothing');
+// A proposal is not on the board: no number, not in Orders.md, until it is approved.
+const prop = await state.insert(db2, 'orders', { room: 'apothecary', text: 'Proposed, not yet approved', state: 'proposed', actor: 'agent', agent: 'intel', source: 'agent', source_id: 'CIP-R-1' });
+ok((await mirrorOrders(db2, scratch, now)) === 'unchanged', 'a proposal does not change Orders.md');
+ok((await state.list(db2, 'orders')).find((o) => o.id === prop.id).brain_n === null, 'and it is given no number');
+await state.update(db2, 'orders', prop.id, { state: 'open' });
+ok((await mirrorOrders(db2, scratch, now)) === 'updated', 'once approved it reaches the vault');
+ok(readOrdersMd(scratch).open.some((r) => r.text === 'Proposed, not yet approved'), 'as a numbered row on the board');
 await state.insert(db2, 'list_items', { list: 'moves', text: 'Ship it', tag: 'now' });
 await state.insert(db2, 'venture_focus', { venture: 'archives', rank: 1, allocation: 'push', why: 'x' });
 ok((await mirrorLists(db2, scratch, now)) !== 'kept' && (await mirrorFocus(db2, scratch, now)) !== 'kept', 'lists and focus written as generated files');
@@ -170,4 +177,4 @@ const a4 = await aggregate(db4, { now: new Date('2026-09-19T12:00:00') });
 ok(a4.money.revenue === M.revenue && a4.protocol.done === 1 && a4.protocol.items === 1, 'the Bridge aggregate carries money and the protocol');
 
 if (fails.length) { console.error(`✗ operating state — ${fails.length} failed:\n  ${fails.join('\n  ')}`); process.exit(1); }
-console.log(`✓ operating state — registry, orders, lists, focus, decisions, the Lab, the Vault, Sanctum, the Journal, the Bridge aggregate and the vault mirror behave (${9 + 6 + 9 + 10 + 9 + 14 + 14} checks)`);
+console.log(`✓ operating state — registry, orders, lists, focus, decisions, the Lab, the Vault, Sanctum, the Journal, the Bridge aggregate and the vault mirror behave (${9 + 6 + 9 + 10 + 9 + 14 + 14 + 5} checks)`);

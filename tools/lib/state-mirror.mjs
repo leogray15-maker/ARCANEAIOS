@@ -57,7 +57,10 @@ export async function importOrders(db, brain) {
 /** Database → vault: rebuild the Open and Closed tables. The prose above them is kept as it is. */
 export async function mirrorOrders(db, brain, now = new Date()) {
   const md = readOrdersMd(brain);
-  const rows = await state.list(db, 'orders');
+  // A proposal is not on the board: it has no number and does not appear in
+  // Orders.md until the operator has approved it. The vault is a mirror of
+  // the work, not of what an agent has suggested.
+  const rows = (await state.list(db, 'orders')).filter((o) => o.state !== 'proposed');
   let n = Math.max(0, ...rows.map((o) => o.brain_n || 0), ...md.open.map((o) => o.n), ...md.closed.map((o) => o.n));
   const numbered = rows.map((o) => ({ ...o, n: o.brain_n ?? ++n }));
   // Numbers minted here go back to the database so the next sync matches by number, not by text.

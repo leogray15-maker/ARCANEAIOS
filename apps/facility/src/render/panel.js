@@ -10,6 +10,7 @@
  */
 import { ROOM_BY_ID, AGENT_BY_ID, WING_BY_ID, VENTURE_BY_ID, CAPS, SKILL_BY_ID } from '@arcane/config';
 import { WIDGETS, esc } from './widgets.js';
+import { proposalsBlock } from './ui.js';
 import { reason } from '../core/reason.js';
 
 const PRIO = ['P0', 'P1', 'P2', 'P3'];
@@ -59,12 +60,15 @@ function ordersBoard(store, roomId) {
   const done = store.orders(roomId).filter((o) => o.done).slice(0, 5);
   const row = (o) => `<label class="order ${o.done ? 'done' : ''}"><input type="checkbox" data-act="order-toggle" data-id="${o.id}" ${o.done ? 'checked' : ''}> <span class="chip ${PRIO_TONE[o.p]}">${PRIO[o.p]}</span> ${esc(o.t)}${o.state && !['open', 'done'].includes(o.state) ? ` <span class="chip ${o.state === 'blocked' ? 'deny' : 'flare'}">${esc(o.state)}</span>` : ''}${o.holder ? ` <span class="faint">· ${esc(o.holder)}</span>` : ''}${o.blocked ? ` <span class="flare">· blocked: ${esc(o.blocked)}</span>` : ''}${o.done ? '' : ` <button class="tiny ghost" data-act="${o.state === 'blocked' ? 'order-unblock' : 'order-block'}" data-id="${o.id}">${o.state === 'blocked' ? 'unblock' : 'block'}</button> <button class="tiny ghost" data-act="order-remove" data-id="${o.id}" title="kill">×</button>`}</label>`;
   const sv = store.serverStatus();
+  // What an agent has put forward here and nobody has answered, from the
+  // same block a room that is its own application shows.
   return `
+    ${proposalsBlock(store, roomId)}
     ${open.map(row).join('') || '<p class="empty">No open orders here.</p>'}
     <form class="inline" data-act="order-add"><input name="text" placeholder="New order for this room" style="flex:1;min-width:160px"><select name="p"><option value="0">P0</option><option value="1">P1</option><option value="2" selected>P2</option><option value="3">P3</option></select><button type="submit">Add</button></form>
     ${done.length ? `<details><summary>${done.length} done</summary>${done.map(row).join('')}</details>` : ''}
     ${sv.tone !== 'vital' ? `<p class="${sv.tone}">${esc(sv.text)}</p>` : ''}
-    <p class="src">Orders are the unit of routed work: open · active · blocked · review · done · killed. Crew are drawn to rooms with open orders — P0 pulls hardest. The Bridge shows every P0 and P1 across the floor.</p>`;
+    <p class="src">Orders are the unit of routed work: proposed · open · active · blocked · review · done · killed. An agent may propose; only you approve. Crew are drawn to rooms with open orders — P0 pulls hardest. The Bridge shows every P0 and P1 across the floor.</p>`;
 }
 
 function crewBlock(agent, here, roomId, sim) {
@@ -94,6 +98,8 @@ export function bindDash(el, { store, getRoom, go, brain }) {
     if (act === 'back') go('#');
     else if (act === 'order-remove') { if (confirm('Kill this order? It stays in the record as killed.')) store.removeOrder(room, id); }
     else if (act === 'order-block') { const why = prompt('Blocked on what?'); if (why !== null) store.setOrderState(room, id, 'blocked', why.trim() || 'unspecified'); }
+    else if (act === 'proposal-approve') store.approveProposal(room, id);
+    else if (act === 'proposal-reject') { if (confirm('Reject this proposal? It stays in the record as killed.')) store.rejectProposal(room, id); }
     else if (act === 'order-unblock') store.setOrderState(room, id, 'open');
     else if (act === 'draft') store.markDraft(id, b.dataset.status);
     else if (act === 'draft-open') { const pre = el.querySelector(`#draft-${CSS.escape(id)}`); if (pre) pre.classList.toggle('hidden'); }
