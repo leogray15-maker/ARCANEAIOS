@@ -72,12 +72,35 @@ const garage = () => AGENTS.map((a) => `<div class="card"><div class="card-head"
 const observatory = (store, brain) => {
   const live = signals(store.state, brain);
   const tone = (sv) => (sv === 'breach' ? 'deny' : sv === 'warn' ? 'flare' : 'ash');
-  return `<h3>Live signals <span class="faint">computed now, by VIGIL</span></h3>
-    ${live.length ? table(['Severity', 'Room', 'Signal', 'Clears when'], live.map((s) => `<tr><td>${chip(s.severity, tone(s.severity))}</td><td>${esc(ROOM_BY_ID[s.room]?.name || s.room)}</td><td>${esc(s.text)}</td><td class="ash">${esc(s.clear)}</td></tr>`)) : '<p class="vital">Nothing moved that needs you. Quiet is a signal too.</p>'}
+  // A signal is not ticked off: it is answered by work that names it, and it
+  // stops being true when the state it was computed from changes. So each
+  // row shows what it was computed from, and offers the one order that
+  // would answer it.
+  const row = (s, i) => {
+    const work = store.workFor(s.id);
+    const live_ = work.filter((o) => !o.done);
+    return `<tr class="sig ${s.severity}">
+      <td>${chip(s.severity, tone(s.severity))}</td>
+      <td><a href="#room/${esc(s.room)}">${esc(ROOM_BY_ID[s.room]?.name || s.room)}</a></td>
+      <td><b>${esc(s.text)}</b><br><span class="ash">clears when: ${esc(s.clear)}</span>${s.evidence ? `<br><span class="faint mono">${esc(evidenceLine(s.evidence))}</span>` : ''}${s.since ? `<br><span class="faint">since ${esc(String(s.since).slice(0, 10))}</span>` : ''}</td>
+      <td class="nowrap">${live_.length
+        ? `${chip('answered', 'vital')}<br><a class="faint" href="#room/${esc(s.room)}">${esc(live_.map((o) => o.id).join(', '))}</a>`
+        : work.length ? `${chip('was answered', 'ash')}<br><span class="faint">${esc(work.map((o) => o.id).join(', '))}</span>`
+        : `<button class="tiny" data-act="signal-work" data-id="${esc(String(i))}">open work</button>`}</td>
+    </tr>`;
+  };
+  return `<h3>Live signals <span class="faint">computed now, by VIGIL — from the state, never stored</span></h3>
+    ${live.length ? table(['Severity', 'Room', 'Signal · evidence', 'Work'], live.map(row)) : '<p class="vital">Nothing moved that needs you. Quiet is a signal too.</p>'}
     ${brain?.signals?.length ? `<h3>From the vault</h3>${table(['When', 'Who', 'Signal', 'Severity', 'State'], brain.signals.map((s) => `<tr><td class="ash">${esc(s.when)}</td><td>${esc(s.who)}</td><td>${esc(s.signal)}</td><td>${chip(s.severity, tone(s.severity))}</td><td class="ash">${esc(s.state)}</td></tr>`))}` : ''}`;
 };
 const inventor = (store, brain) => `${listBoard(store, 'ideas', { placeholder: 'An idea, before it gets lost', tags: ['BUILD', 'WATCH', 'KILL'], toneOf: (t) => (t === 'BUILD' ? 'vital' : t === 'KILL' ? 'deny' : 'flare'), hint: 'SPARK takes an idea through market, competition, economics, MVP, cost and risk, then returns BUILD, WATCH or KILL. A BUILD becomes an order; a KILL gets one line on why.' })}
   <p class="ash">${Math.max(0, (brain?.files?.['00-Inbox'] || []).length - 1)} item(s) in the brain's inbox.</p>`;
+
+/** The evidence a signal was computed from, in one readable line. */
+function evidenceLine(e) {
+  if (!e || typeof e !== 'object') return '';
+  return Object.entries(e).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.map((x) => (typeof x === 'object' ? (x.code || x.id || JSON.stringify(x)) : x)).join(', ') : typeof v === 'object' && v ? JSON.stringify(v) : v}`).join(' · ');
+}
 
 /** How long ago a run was, in the register the rest of the floor uses. */
 

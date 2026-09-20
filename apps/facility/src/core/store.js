@@ -295,6 +295,24 @@ export class Store {
   rejectProposal(roomId, id) { return this.setOrderState(roomId, id, 'killed'); }
   /** The agent's name for a proposal, for a UI that has to say who. */
   agentName(id) { return AGENT_BY_ID[id]?.name || id || ''; }
+
+  /* ---------- signals become work ---------- */
+  /**
+   * Open the order a signal proposes. The order carries the signal's id, so
+   * the signal can say it has been answered and THE RECORDS can say what
+   * the signal caused. A signal is never ticked off: it stops being true
+   * when the state it was computed from changes.
+   */
+  openFromSignal(sig) {
+    if (!sig?.id) return null;
+    const p = sig.proposal || { room: sig.room, text: sig.text, priority: 2 };
+    return this.addOrder(p.room || sig.room, p.text, p.priority ?? 2, { source: 'signal', sourceId: sig.id, note: `Opened from the signal "${sig.text}".${sig.clear ? ` What clears it: ${sig.clear}.` : ''}` });
+  }
+  /** The orders that name this signal, newest first. */
+  workFor(signalId) { return this.allOrders().filter((o) => o.source === 'signal' && o.sourceId === signalId).sort((a, b) => b.ts - a.ts); }
+  /** Answered means there is work open that names it — not that anyone said so. */
+  signalAnswered(signalId) { return this.workFor(signalId).some((o) => !o.done); }
+  allOrders() { return ROOMS.flatMap((r) => this.orders(r.id).map((o) => ({ ...o, room: r.id }))); }
   openCount(roomId) { return this.openOrders(roomId).length; }
   /** Attention: P0 weighs 8, P1 4, P2 2, P3 1. */
   attention(roomId) { return this.openOrders(roomId).reduce((n, o) => n + [8, 4, 2, 1][o.p], 0); }
@@ -303,10 +321,10 @@ export class Store {
   addOrder(roomId, text, p = 2, extra = {}) {
     const t = String(text).trim(); if (!t || !ROOM_BY_ID[roomId]) return null;
     const actor = extra.actor || 'human';
-    const local = { id: `tmp-${uid()}`, t, p, state: 'open', done: false, holder: extra.holder || (actor === 'agent' ? '' : 'Leo'), actor, blocked: '', venture: extra.venture || '', source: extra.source || 'floor', ts: Date.now() };
+    const local = { id: `tmp-${uid()}`, t, p, state: 'open', done: false, holder: extra.holder || (actor === 'agent' ? '' : 'Leo'), actor, agent: extra.agent || '', blocked: '', venture: extra.venture || '', source: extra.source || 'floor', sourceId: extra.sourceId || '', note: extra.note || '', ts: Date.now() };
     return this.commit(
       () => { this.state.orders[roomId].unshift(local); this.log(`Order in ${ROOM_BY_ID[roomId].name}: ${t}`, 'order'); },
-      async () => { const { row } = await api.state.insert('orders', { room: roomId, text: t, priority: p, actor, holder: local.holder || undefined, venture: local.venture, source: local.source, note: extra.note || '' }); Object.assign(local, { id: row.id, holder: row.holder, ts: ts(row.created_at) }); return local; },
+      async () => { const { row } = await api.state.insert('orders', { room: roomId, text: t, priority: p, actor, holder: local.holder || undefined, venture: local.venture, source: local.source, source_id: local.sourceId, agent: local.agent, note: extra.note || '' }); Object.assign(local, { id: row.id, holder: row.holder, ts: ts(row.created_at) }); return local; },
       'order');
   }
   /** Move an order along its life: open · active · blocked · review · done · killed. */

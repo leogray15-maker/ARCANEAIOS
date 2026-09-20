@@ -11,6 +11,7 @@
 import { ROOM_BY_ID, AGENT_BY_ID, WING_BY_ID, VENTURE_BY_ID, CAPS, SKILL_BY_ID } from '@arcane/config';
 import { WIDGETS, esc } from './widgets.js';
 import { proposalsBlock } from './ui.js';
+import { signals } from '../core/vigil.js';
 import { reason } from '../core/reason.js';
 
 const PRIO = ['P0', 'P1', 'P2', 'P3'];
@@ -99,6 +100,9 @@ export function bindDash(el, { store, getRoom, go, brain }) {
     else if (act === 'order-remove') { if (confirm('Kill this order? It stays in the record as killed.')) store.removeOrder(room, id); }
     else if (act === 'order-block') { const why = prompt('Blocked on what?'); if (why !== null) store.setOrderState(room, id, 'blocked', why.trim() || 'unspecified'); }
     else if (act === 'proposal-approve') store.approveProposal(room, id);
+    // The Observatory's rows are computed at paint time, so the button
+    // carries the index and the click re-computes the same list.
+    else if (act === 'signal-work') { const sig = signals(store.state, brain)[Number(id)]; if (sig) store.openFromSignal(sig); }
     else if (act === 'proposal-reject') { if (confirm('Reject this proposal? It stays in the record as killed.')) store.rejectProposal(room, id); }
     else if (act === 'order-unblock') store.setOrderState(room, id, 'open');
     else if (act === 'draft') store.markDraft(id, b.dataset.status);

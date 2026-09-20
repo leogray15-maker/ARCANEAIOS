@@ -12,6 +12,7 @@ import { drafts, runs, events } from './content.js';
 import { state } from './state.js';
 import { labSummary } from '../../../apps/facility/src/core/lab.js';
 import { moneySummary, monthOf } from '../../../apps/facility/src/core/money.js';
+import { signalsFromTables } from '../../../apps/facility/src/core/vigil.js';
 
 const DAY = 86400000;
 const OPEN = ORDER_OPEN_STATES;   // a proposal is not work: it waits for the operator
@@ -23,11 +24,12 @@ export async function aggregate(db, { now = new Date() } = {}) {
     state.list(db, 'orders'), state.list(db, 'list_items'), state.list(db, 'decisions', { limit: 50 }), state.list(db, 'counsel_turns', { limit: 40 }),
     state.list(db, 'venture_focus'), state.list(db, 'goal_progress'), state.list(db, 'days', { limit: 14 }),
   ]);
-  let lab = null;
-  try { const [products, lots, settings, dispatch] = await Promise.all([state.list(db, 'products'), state.list(db, 'stock_lots'), state.list(db, 'settings'), state.list(db, 'dispatch')]); lab = labSummary(products, lots, settings, dispatch); } catch {}
+  let lab = null, tables = { orders };
+  try { const [products, lots, settings, dispatch] = await Promise.all([state.list(db, 'products'), state.list(db, 'stock_lots'), state.list(db, 'settings'), state.list(db, 'dispatch')]); lab = labSummary(products, lots, settings, dispatch); Object.assign(tables, { products, stock_lots: lots, settings, dispatch }); } catch {}
   let money = null, protocol = null;
-  try { const [ledger, fixed, cash, pots] = await Promise.all([state.list(db, 'ledger_months'), state.list(db, 'fixed_costs'), state.list(db, 'cash_snapshots'), state.list(db, 'pots')]); money = moneySummary({ ledger, fixed, cash, pots }, monthOf(now)); } catch {}
-  try { const [items, ticks] = await Promise.all([state.list(db, 'protocol_items'), state.list(db, 'protocol_ticks', { limit: 400 })]); const active = items.filter((i) => i.active !== false); protocol = { items: active.length, done: ticks.filter((k) => k.day === day && k.done).length, week: ticks.filter((k) => k.done && (t - new Date(k.day).getTime()) < 7 * DAY).length }; } catch {}
+  try { const [ledger, fixed, cash, pots] = await Promise.all([state.list(db, 'ledger_months'), state.list(db, 'fixed_costs'), state.list(db, 'cash_snapshots'), state.list(db, 'pots')]); money = moneySummary({ ledger, fixed, cash, pots }, monthOf(now)); Object.assign(tables, { ledger_months: ledger, fixed_costs: fixed, cash_snapshots: cash, pots }); } catch {}
+  try { Object.assign(tables, { trades: await state.list(db, 'trades', { limit: 500 }) }); } catch {}
+  try { const [items, ticks] = await Promise.all([state.list(db, 'protocol_items'), state.list(db, 'protocol_ticks', { limit: 400 })]); const active = items.filter((i) => i.active !== false); protocol = { items: active.length, done: ticks.filter((k) => k.day === day && k.done).length, week: ticks.filter((k) => k.done && (t - new Date(k.day).getTime()) < 7 * DAY).length }; Object.assign(tables, { protocol_ticks: ticks }); } catch {}
   let draftCounts = null, recentRuns = [], recentEvents = [];
   try { draftCounts = await drafts.counts(db); } catch {}
   try { recentRuns = await runs.list(db, { limit: 20 }); } catch {}
@@ -88,6 +90,15 @@ export async function aggregate(db, { now = new Date() } = {}) {
     counsel: counsel.slice(-16),
     drafts: draftCounts,
     lab, money, protocol,
+    // The same rules the floor runs, over the same rows — so the brief and
+    // the Bridge cannot disagree about what is wrong. Each one says whether
+    // an order already points at it, which is the only way a signal is
+    // answered: by work that names it.
+    signals: signalsFromTables(tables, { draftCounts, now: t }).map((sg) => {
+      const work = orders.filter((o) => o.source === 'signal' && o.source_id === sg.id);
+      const live = work.filter((o) => !['done', 'killed'].includes(o.state));
+      return { ...sg, orders: work.map((o) => o.id), answered: live.length > 0 };
+    }),
     events: recentEvents,
   };
 }
