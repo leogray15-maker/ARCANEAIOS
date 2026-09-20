@@ -139,10 +139,31 @@ A cloud session's PR (Notion as an Archives source; CIPHER reading the open web)
 - [x] Kept the PR's good work as it stands: the Notion indexer and its stub tests, `docs/ARCHIVES.md`, the archives fixture test
 - [x] `npm test` green again (the suite now also runs the archives and API-gate tests); the room walked in headless Chromium — a run with no credits fails visibly and lands as a failed run in all three rooms
 
+## Also done 2026-09-20 — the operating loop, made real
+
+Audit first (`ARCANE_IMPLEMENTATION_AUDIT.md`), which found the live
+database further along than the docs said: migrations 0003–0008 applied,
+1,342 modules and 138 products imported; only the API credits missing.
+Then, in order, each committed on its own:
+
+- **The machine says what is wrong with it.** `packages/database/src/readiness.js` judges the tables (migrations by table *and by column*, the imports, stock, the model by its last real run) and the bar and THE CONTROL ROOM show the verdict.
+- **A refused write keeps the operator's intent** and offers a retry in the bar.
+- **`proposed` is an order state** (0009): an agent proposes, the operator approves; `source` / `source_id` on every order say what caused it.
+- **Signals are addressable, evidenced and answerable**, computed by the same rules on the floor and the server; a signal is answered by work that names it.
+- **The sale draws from its lot** (0010): dispatch lines close supplier → lot → cost → product → sale → revenue → realised margin; THE LAB shows what was actually made, THE VAULT shows realised profit beside typed revenue.
+- **TALLY, MERIDIAN and VECTOR** run on the one agent contract (`api/_agent.js`), read deterministic evidence, record every run, and propose; a dry reading works without the model.
+- **The Bridge is the decision surface**: the machine's blockers, then proposals, then signals that become work. THE RECORDS says what a run caused.
+- **Every number in the Vault shows its working.**
+- **Devices keep up** by asking for the stamp of the last change and re-reading only when it moves.
+
+`ARCANE_IMPLEMENTATION_REPORT.md` is the account.
+
 ## Next
 
-1. THE LAB, second pass: sales recorded against lots (stock counts down from a dispatched order), gross margin realised in the Vault from those sales, a reorder point from the sell-through.
-2. Realtime instead of the store's 60-second refresh, once two devices are actually in use at once.
-3. Agents beyond HERALD only where a workflow needs one: VECTOR proposing the ranking from the numbers is the first candidate; MERIDIAN watching the Lab's reorder points the second; TALLY reading the Vault into the brief's MONEY prose the third.
-4. A Notion API source for `archives:sync` (rows through the same `moduleRows → upsert` path, incremental by `last_edited_time`), on an Edge Function schedule.
-5. Command palette (Cmd/Ctrl-K): rooms, modules, drafts, orders.
+1. Run 0009 and 0010 against the live database, then deploy — in that order (the deployed code writes the new columns).
+2. Fund the Anthropic API account; then the readers, CIPHER, HERALD and the Council all work as tested.
+3. Book real stock into THE LAB and record dispatch lines: from then on the margin is realised, cover is measurable, and MERIDIAN has a chain to read.
+4. A reorder point per product from measured cover (MERIDIAN's `reorder` output, once there is a rate), and a `stock.cover` signal that proposes it.
+5. Supabase Realtime Broadcast (no table policies: the API publishes "something changed", devices subscribe with the anon key) if the 15-second stamp proves too slow with two devices in use.
+6. A Notion API source for `archives:sync` on an Edge Function schedule.
+7. Retire the per-device `drafts` overlay in the store's blob (BEACON reads the server; VIGIL's content rules now read counts) — the last duplicate-truth risk from the audit.

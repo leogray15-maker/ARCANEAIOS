@@ -191,20 +191,55 @@ result back in the brain as the record.
 
 ## The reasoning layer
 
-Four functions under `api/`, all behind the operator key (`api/_auth.js`):
+Seven functions under `api/`, all behind the operator key (`api/_auth.js`):
 a request carries `ARCANE_OPERATOR_KEY` as a bearer token, so the public
 site cannot be made to spend Leo's tokens by anyone who finds the URL.
 `tools/api.test.mjs` asserts that gate on every endpoint without calling
-the model. All four share `_lib.js`: the roster and doctrine from
+the model. All share `_lib.js`: the roster and doctrine from
 `packages/config`, the system context built from the brief, the floor's
-numbers and shared memory, and one database client.
+numbers and shared memory, one database client, and one translation of a
+model failure into a sentence that says what to do.
 
 | Endpoint | Who | Reads | Returns |
 | --- | --- | --- | --- |
 | `/api/counsel` | ARCANE | the brief, memory, orders, the ranking, the moves, the money | an answer, the specialist it concerns, at most one proposed order |
 | `/api/council` | nine seats | the same | nine positions, one verdict, the conditions, the dissent |
 | `/api/herald` | HERALD | one Archives module | up to five linted drafts, landed in `content_drafts` |
-| `/api/intel` | CIPHER | the operator's watchlist **and the open web** | up to eight items — opportunity, threat, signal, action — each with a source and a confidence |
+| `/api/intel` | CIPHER | the operator's watchlist **and the open web** | up to eight items — opportunity, threat, signal, action — each with a source and a confidence; proposals written as `proposed` orders |
+| `/api/tally` | TALLY | the ledger, fixed costs, cash, the split, what shipped and what it made, stock and margins, the journal, the money events of the fortnight | what changed, why, what it means, what to check; proposals |
+| `/api/meridian` | MERIDIAN | lots, stock, cover, the dispatch queue, what shipped and what it cost | where the chain binds, what to reorder; proposals |
+| `/api/vector` | VECTOR | the Bridge aggregate — ranking, money, moves, blockers, verdicts, signals, proposals waiting | the position, risks, opportunities, one Council question or none; proposals |
+
+### The agent contract
+
+TALLY, MERIDIAN and VECTOR run through `api/_agent.js`, which is the
+contract CIPHER established, written once:
+
+1. read authoritative state from the tables — never from the caller;
+2. say what the data cannot say (`problems`);
+3. open a run in `agent_runs` with what was read on it (`input.facts`, `sources`);
+4. reason, in a structured shape;
+5. write every proposal down as an order in the `proposed` state, naming
+   the agent and the run (`source: 'agent'`, `source_id: <run>`) — never act;
+6. close the run with the result, or the failure.
+
+The evidence step is deterministic and lives in
+`packages/database/src/evidence.js`. A request with `dry: true` returns
+it without the model and records the run as a *reading*; a day the
+account has no credits still reads, still records a failed run with the
+reason, and still hands the reading back. The room shows what the agent
+read either way.
+
+### Proposals and approval
+
+`proposed` is an order state (`ORDER_STATES` in `packages/config`). A
+proposal is not work: it is not counted open, pulls no crew, is not
+mirrored into the vault, and can only become `open` (approved) or
+`killed`. The registry refuses a proposal that does not name its agent
+and its source. Approval is the operator's act on the Bridge or in the
+room, and the system event says so. `source` / `source_id` on every
+order make the chain readable in both directions: an order says which
+run or signal produced it; a run in THE RECORDS says what it caused.
 
 `/api/intel` is the only outward-facing reasoning in the system, and it is
 deliberately narrow: it researches the watchlist Leo keeps in THE

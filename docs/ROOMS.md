@@ -48,7 +48,10 @@ live. Click a note to open it in Obsidian.
 - **Active** — agent runs in the last two days (status, objective, error), rooms with open work and the top order in each.
 - **Counsel** — Leo ↔ ARCANE. ARCANE answers from the brief, the numbers, today's focus, the ranking and the moves; names the specialist it concerns; may propose one order, which you add with a click. Turns persist.
 - **Right rail** — doctrine (current intent and the five decision principles, from `01-System/Doctrine.md`); the four ventures in the order set in the War Room, each with allocation, open/P0/blocked counts and its top order; VIGIL's live signals; goals with typed progress (the computed ones — COA, MRR, posts — are read-only); the last events from the record.
-*Where it lives.* `orders`, `list_items`, `decisions`, `counsel_turns`, `venture_focus`, `goal_progress`, `days` through the store; drafts, runs and events from `/api/bridge`. The same aggregate writes `03-Memory/Brief.md` (`npm run brief`).
+- **The machine** — what the readiness check says is wrong (a migration to run, an empty import, a model that cannot answer), first under *Waiting on you*, each with the fix and a link to THE CONTROL ROOM.
+- **Needs an answer** — every order an agent has proposed, across the floor: who proposed it, why, the run it came from; approve or reject. A proposal is not work until it is approved.
+- **Signals** (right rail) — each with the work that answers it, or an *open work* button that writes an order naming the signal.
+*Where it lives.* `orders`, `list_items`, `decisions`, `counsel_turns`, `venture_focus`, `goal_progress`, `days` through the store; drafts, runs, events and the signals from `/api/bridge`. The same aggregate writes `03-Memory/Brief.md` (`npm run brief`).
 
 ### THE WAR ROOM — REAL · `#warroom`
 *What it is for.* Which venture gets the next hour, the next pound, the next quarter.
@@ -57,7 +60,8 @@ live. Click a note to open it in Obsidian.
 - **The ranking** — the four ventures in rank order (↑↓), each set to push / maintain / starve with one line of why. The Bridge, the brief and Counsel read this.
 - **Stop doing** — the list of what to stop; done means stopped.
 - **Where the work is** — open orders by room with the top one; **Verdicts** — the last Council decisions and their outcomes; doctrine.
-*Where it lives.* `list_items` (lists `moves`, `stop`), `venture_focus`, `orders`, `decisions`. Mirrored to `05-Knowledge/Lists.md` and `Focus.md`.
+- **VECTOR** — reads the position (the ranking, the money, the moves, what is blocked, the verdicts, the signals) and returns where the ventures stand, the risks and opportunities with their evidence, and at most one question for the Council — which waits in THE COUNCIL as a proposal. *Just the reading* shows what VECTOR read without the model.
+*Where it lives.* `list_items` (lists `moves`, `stop`), `venture_focus`, `orders`, `decisions`; VECTOR's runs in `agent_runs`. Mirrored to `05-Knowledge/Lists.md` and `Focus.md`.
 
 ### THE COUNCIL — WORKING (decisions REAL)
 *What it is for.* A real decision put to nine seated agents; one verdict.
@@ -67,7 +71,9 @@ live. Click a note to open it in Obsidian.
 ### THE VAULT — REAL · `#vault`
 *What it is for.* The treasury, with a history: revenue, fixed costs, cash, runway, the split.
 *What it does.* One month at a time (this month by default; `#vault/2026-08` for another). Revenue by venture — members or orders for a priced venture (×£128, ×£11.99 …) or a typed £ figure; fixed costs as a list you add to, edit and retire; cash as dated snapshots (runway is cash over the monthly shortfall); the split into pots with the pound amounts for this month, flagged when it is not 100%; the history table of every month typed, revenue by venture, fixed, net; the Lab's stock value at cost and at price; the link to the Journal. Empty means not typed, never zero.
-*Where it lives.* `ledger_months`, `fixed_costs`, `cash_snapshots`, `pots` (0006). The brief's MONEY block, the goals (members, Track subscribers, MRR), the Bridge's ventures and VIGIL read the same rows. Mirrored to `05-Knowledge/Money.md`. Nothing here moves money.
+- **Realised profit** — what the boxes shipped this month actually made (sold less the lot cost captured at shipping), beside the typed revenue; the two answer different questions and are never added. Every stat in the row is clickable and shows its working: which rows made the revenue and how each was read, which costs make the fixed figure, the runway arithmetic.
+- **TALLY** — reads the books and answers what changed, why (only where the record shows a cause), what it means and what to check; proposals wait on the Bridge.
+*Where it lives.* `ledger_months`, `fixed_costs`, `cash_snapshots`, `pots` (0006); `dispatch` and `dispatch_items` for the realised figures. The brief's MONEY block, the goals (members, Track subscribers, MRR), the Bridge's ventures and VIGIL read the same rows. Mirrored to `05-Knowledge/Money.md`. Nothing here moves money.
 
 ### SCRIPTORIUM — WORKING (list REAL)
 *What it is for.* The Codex: books, masterclasses, long-form writing.
@@ -85,9 +91,11 @@ live. Click a note to open it in Obsidian.
 *What it does.*
 - **The catalogue** — ON THE STORE (64 lines) · EVERY LINE (the supplier's whole sheet, 138) · IN STOCK · DISPATCH. Each line: supplier code, kit cost in dollars, landed cost per vial in pounds, your price, profit and margin per vial (red under 60%, amber under 75%), vials on hand, COA. Search; the rate, the landed overhead and the low-stock line are typed at the top and every margin recomputes. A `?` chip carries the doubt from the margin sheet (blend ratios, units, uncertain matches).
 - **A product** — the figures (price, kit cost, vials per kit, code, size, category, note; saved on leaving the field), on/off the store, retire. Its lots: stock in with a batch, a count, the COA state and link, the date, a kit cost if this lot differed; count vials up and down; set the COA none → pending → published. Stock, COA and value are the sum of the lots.
-- **Dispatch** — add an order ref and its items; packing → ready (tracking) → shipped → delivered, or cancelled. The Market shows the same queue.
+- **Dispatch** — add an order ref, then its **lines**: a product, the lot it is picked from, the count. Packing → ready (tracking) → shipped → delivered. **Shipping is the moment the chain closes**: every line is checked (the lot must hold enough and must be the line's product), then the lots are drawn down and each line keeps the price it sold at and the landed cost of its lot at that moment. A shipped dispatch cannot be cancelled or unshipped. The Market shows the same queue.
+- **What has actually been made** — realised revenue, cost, profit and margin over everything shipped with lines; by product and by lot. A line shipped without a lot is in the revenue and named as uncosted, never given a cost of zero.
+- **MERIDIAN** — reads the chain (lots, cover from the last thirty days' rate, the queue, what shipped) and names where it binds and what to reorder; proposals wait in this room and on the Bridge.
 - VIGIL raises a breach for any line in stock without a published COA and a warning for a low line; the Bridge's Peptides card shows vials, COA and the queue; the brief's Peptides line reads the same numbers.
-*Where it lives.* `products`, `stock_lots`, `dispatch`, `settings` (0005). Seeded once from `data/peptides/catalog.json` (local, gitignored — it carries cost prices) by `npm run products:import`; the database is the truth after that. Mirrored to `05-Knowledge/Lab.md`. Nothing here is a claim about what a compound does.
+*Where it lives.* `products`, `stock_lots`, `dispatch`, `settings` (0005), `dispatch_items` (0010). Seeded once from `data/peptides/catalog.json` (local, gitignored — it carries cost prices) by `npm run products:import`; the database is the truth after that. Mirrored to `05-Knowledge/Lab.md`. Nothing here is a claim about what a compound does.
 
 ### VITALS — WORKING (ledger REAL)
 *What it is for.* Arcane Track: members, and what they are worth.
@@ -122,7 +130,7 @@ live. Click a note to open it in Obsidian.
 
 ### THE OBSERVATORY — WORKING
 *What it is for.* Everything that changes while nobody is looking.
-*What it does.* VIGIL's live signals, computed now from the state — the brief's age, low stock, missing COAs, the draft queue, nothing marked posted, stale P0s, the split, journal drawdown and rule breaks, the protocol — each with the room it belongs to and what clears it. The bar counts them.
+*What it does.* VIGIL's live signals, computed now from the state — the brief's age, low stock, missing COAs, the draft queue, nothing marked posted, stale P0s, the split, journal drawdown and rule breaks, the protocol — each with a stable id, the room it belongs to, what clears it, the evidence it was computed from, and when it started. **Open work** writes the order the signal proposes, naming the signal; a signal with open work shows as answered. A signal is never stored and never ticked off: it clears when the state changes. The server computes the same list for the Bridge and the brief. The bar counts them.
 
 ### THE DEAL ROOM — WORKING (lists REAL)
 *What it is for.* Leads, prospects, partners, suppliers.
@@ -144,7 +152,7 @@ live. Click a note to open it in Obsidian.
 *What it does.* An idea queue tagged BUILD / WATCH / KILL, and the count of items in the brain's inbox. SPARK's evaluation is not wired; the tags are Leo's.
 
 ### THE RECORDS — REAL · `#records`
-*What it does.* TIMELINE — every system event (orders, moves, drafts, decisions, stock, money, the protocol …) newest first, by day, searchable, filtered by kind, each linking where it happened; RUNS — every agent run with status, objective, model, tokens, how long; DECISIONS — verdicts with outcomes, recorded here or on the Bridge; LESSONS — one line each, tagged to a venture, retired when no longer true; TRACE — the vault's Trace and this session's floor log. Append-only.
+*What it does.* TIMELINE — every system event (orders, moves, drafts, decisions, stock, money, the protocol …) newest first, by day, searchable, filtered by kind, each linking where it happened; RUNS — every agent run with status, objective, model, tokens, how long, **what it caused** (every order that names it, with its state), what it read and the gaps it found in the data; DECISIONS — verdicts with outcomes, recorded here or on the Bridge; LESSONS — one line each, tagged to a venture, retired when no longer true; TRACE — the vault's Trace and this session's floor log. Append-only.
 
 ### SANCTUM — REAL · `#sanctum`
 *What it does.* TODAY — energy (1–10), hours slept, the day's focus (the same line as the Bridge), a note on the day; the protocol as items (train, sleep floor, deep work, steps, read — yours to edit, add, retire) with daily ticks, streaks, a weekly count for weekly items, the last seven days as cells; the week's energy and sleep; principles kept and objectives open. Then five kinds of entry — JOURNAL, REFLECTIONS, PRINCIPLES (kept), OBJECTIVES (done or dropped), LIFE DECISIONS — written, edited, dropped, never deleted.
@@ -153,6 +161,7 @@ live. Click a note to open it in Obsidian.
 ## Under every room
 
 - **`/api/*`** — the only door to the database. Every call carries the operator key; without it the API refuses and the rooms say so. Counsel, the Council and HERALD need `ANTHROPIC_API_KEY` on the server too.
-- **The store** — the browser's cache of the tables plus the blob. A change shows at once, goes up, and if refused the store reloads and the bar says why.
+- **The store** — the browser's cache of the tables plus the blob. A change shows at once, goes up, and if refused the store reloads, the bar says why, and offers the same change again — the intent is kept, not retyped. Every fifteen seconds it asks for the stamp of the last change and re-reads only when it has moved, so another device's write arrives within a poll.
+- **Readiness** — `/api/health` judges the machine from the tables (migrations by table and by column, the imports, stock, the model by its last real run); the bar shows the worst thing and THE CONTROL ROOM the whole list, each with its evidence and its fix.
 - **The brain** — `npm run vault:sync` lands the tables in Obsidian (orders by number, lists, focus, the Lab, money, drafts, decisions, counsel, trades, the protocol — never Sanctum's entries) and `npm run brief` writes the four-block brief from the same aggregate the Bridge reads.
 - **Local** — `npm run dev` is the production loop on a laptop; `npm run dev:local` runs it all on the dev database with the mock writer, no keys needed.
