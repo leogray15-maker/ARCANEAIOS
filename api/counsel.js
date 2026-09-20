@@ -6,7 +6,7 @@
  * in by name, and may propose exactly one order for a room. It never acts;
  * the operator adds the order if he wants it.
  */
-import { json, guard, client, systemContext, MODEL, ROOM_LIST } from './_lib.js';
+import { json, guard, client, systemContext, modelFailure, MODEL, ROOM_LIST } from './_lib.js';
 
 const schema = {
   type: 'object', additionalProperties: false,
@@ -33,7 +33,7 @@ export default guard(['POST'], async (req, res) => {
     const out = JSON.parse(r.content.find((b) => b.type === 'text')?.text || '{}');
     return json(res, 200, { ...out, usage: { in: r.usage.input_tokens, out: r.usage.output_tokens, cached: r.usage.cache_read_input_tokens || 0 } });
   } catch (e) {
-    const status = e.status === 429 ? 429 : e.status === 401 ? 503 : 502;
-    return json(res, status, { error: /credit balance/i.test(e.message) ? 'the Anthropic account has no credits' : e.message });
+    const { status, error } = modelFailure(e);
+    return json(res, status, { error });
   }
 });

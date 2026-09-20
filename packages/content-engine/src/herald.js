@@ -61,7 +61,7 @@ export function explain(e) {
   const msg = e?.message || String(e);
   if (e?.status === 401) return 'the API key was rejected — check ANTHROPIC_API_KEY';
   if (e?.status === 429) return 'rate limited by the API — try again in a minute';
-  if (/credit balance/i.test(msg)) return 'the Anthropic account has no credits — top up at console.anthropic.com → Plans & Billing';
+  if (/credit balance/i.test(msg)) return 'the Anthropic account has no API credits — top up at console.anthropic.com → Plans & Billing (API credits are separate from a Claude subscription)';
   if (e?.status) return `API error ${e.status}: ${msg}`;
   return msg;
 }

@@ -6,7 +6,7 @@
  * same brief, and the prompt asks for disagreement — a council where
  * everyone agrees is worthless. The verdict is ARCANE's synthesis.
  */
-import { json, guard, client, systemContext, MODEL, SEATS, VERDICT_LIST } from './_lib.js';
+import { json, guard, client, systemContext, modelFailure, MODEL, SEATS, VERDICT_LIST } from './_lib.js';
 
 const schema = {
   type: 'object', additionalProperties: false,
@@ -40,7 +40,7 @@ export default guard(['POST'], async (req, res) => {
     if (missing.length) out.summary = `${out.summary || ''}\n(${missing.length} seat${missing.length === 1 ? '' : 's'} did not speak: ${missing.join(', ')})`.trim();
     return json(res, 200, { ...out, usage: { in: r.usage.input_tokens, out: r.usage.output_tokens, cached: r.usage.cache_read_input_tokens || 0 } });
   } catch (e) {
-    const status = e.status === 429 ? 429 : e.status === 401 ? 503 : 502;
-    return json(res, status, { error: /credit balance/i.test(e.message) ? 'the Anthropic account has no credits' : e.message });
+    const { status, error } = modelFailure(e);
+    return json(res, status, { error });
   }
 });

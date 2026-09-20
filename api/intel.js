@@ -19,7 +19,7 @@
  * THE CONTROL ROOM show the watch beside every other agent, and the room
  * reads its latest run back from there instead of keeping one in a blob.
  */
-import { json, guard, db, client, systemContext, MODEL, ROOM_LIST } from './_lib.js';
+import { json, guard, db, client, systemContext, modelFailure, MODEL, ROOM_LIST } from './_lib.js';
 import { state } from '../packages/database/src/state.js';
 import { runs, nextId } from '../packages/database/src/content.js';
 
@@ -122,8 +122,7 @@ export default guard(['POST'], async (req, res, auth) => {
     await runs.finish(db(), runId, { status: 'ok', usage, output: { items: out.items || [], summary: out.summary || '', quiet: !!out.quiet, sources, terms } });
     return json(res, 200, { run: runId, ...out, sources, asOf: now.toISOString(), usage });
   } catch (e) {
-    const status = e.status === 429 ? 429 : e.status === 401 ? 503 : 502;
-    const error = /credit balance/i.test(e.message) ? 'the Anthropic account has no credits' : e.message;
+    const { status, error } = modelFailure(e);
     await runs.finish(db(), runId, { status: 'failed', error }).catch(() => {});
     return json(res, status, { error });
   }

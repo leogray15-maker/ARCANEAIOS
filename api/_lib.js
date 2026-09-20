@@ -28,6 +28,22 @@ export function client() {
   return new Anthropic();
 }
 
+/**
+ * What to tell Leo when a call to the model fails. The credit case is the
+ * one that gets confused with something else: API credits are bought at
+ * console.anthropic.com and are not the same thing as a Claude
+ * subscription, so a subscription whose limit has just reset still leaves
+ * the API unfunded. Say that, rather than "502".
+ */
+export function modelFailure(e) {
+  const msg = e?.message || String(e);
+  if (/credit balance/i.test(msg)) return { status: 402, error: 'the Anthropic account has no API credits — top up at console.anthropic.com → Plans & Billing. API credits are bought separately from a Claude subscription, so a subscription limit resetting does not fund this.' };
+  if (e?.status === 401) return { status: 503, error: 'the ANTHROPIC_API_KEY is not valid — check it in the Vercel project settings' };
+  if (e?.status === 429) return { status: 429, error: 'the Anthropic account is rate limited — try again in a moment' };
+  if (e?.status === 529 || /overloaded/i.test(msg)) return { status: 503, error: 'the model is overloaded — try again in a moment' };
+  return { status: 502, error: msg };
+}
+
 /** What every agent knows about the empire before it speaks. */
 export function systemContext(ctx = {}) {
   const roster = AGENTS.map((a) => `- ${a.name} (${a.role}, ${ROOM_BY_ID[a.room].name}): ${a.domain}. ${a.brief}`).join('\n');
