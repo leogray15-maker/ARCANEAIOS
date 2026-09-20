@@ -54,8 +54,53 @@ export function stockLines(products = [], lots = [], settings = DEFAULT_SETTINGS
   });
 }
 
+/**
+ * What a shipped dispatch actually made.
+ *
+ * The catalogue's margin is a hope: price minus landed cost, at today's
+ * exchange rate, for a vial nobody has bought. This is the other kind —
+ * what the lines that actually left the building sold for, less what the
+ * lot they came out of had cost, both captured at the moment of shipping.
+ *
+ * Only shipped and delivered dispatches count. A line with no captured
+ * cost (shipped before this existed, or picked from no lot) is counted in
+ * revenue and named in `incomplete`, never quietly given a cost of zero —
+ * a margin that flatters itself is worse than no margin at all.
+ */
+export function realised(dispatch = [], items = [], { from = '', to = '' } = {}) {
+  const shipped = (dispatch || []).filter((d) => ['shipped', 'delivered'].includes(d.stage))
+    .filter((d) => { const day = String(d.shipped_at || d.updated_at || d.created_at || '').slice(0, 10); return (!from || day >= from) && (!to || day <= to); });
+  const byId = Object.fromEntries(shipped.map((d) => [d.id, d]));
+  const lines = (items || []).filter((l) => byId[l.dispatch_id]);
+  const priced = lines.filter((l) => l.unit_price_gbp !== null && l.unit_price_gbp !== undefined);
+  const costed = priced.filter((l) => l.unit_cost_gbp !== null && l.unit_cost_gbp !== undefined);
+  const sum = (list, f) => list.reduce((n, l) => n + f(l), 0);
+  const revenue = sum(priced, (l) => Number(l.unit_price_gbp) * l.vials);
+  const cost = sum(costed, (l) => Number(l.unit_cost_gbp) * l.vials);
+  const complete = costed.length === lines.length && lines.length > 0;
+  const group = (key) => {
+    const out = {};
+    for (const l of costed) {
+      const k = l[key]; if (!k) continue;
+      const r = out[k] || (out[k] = { id: k, vials: 0, revenue: 0, cost: 0 });
+      r.vials += l.vials; r.revenue += Number(l.unit_price_gbp || 0) * l.vials; r.cost += Number(l.unit_cost_gbp) * l.vials;
+    }
+    return Object.values(out).map((r) => ({ ...r, profit: r.revenue - r.cost, margin: r.revenue > 0 ? (r.revenue - r.cost) / r.revenue : null })).sort((a, b) => b.profit - a.profit);
+  };
+  return {
+    dispatches: shipped.length, lines: lines.length, vials: sum(lines, (l) => l.vials),
+    revenue: priced.length ? revenue : null,
+    cost: costed.length ? cost : null,
+    profit: costed.length ? revenue - cost : null,
+    margin: costed.length && revenue > 0 ? (revenue - cost) / revenue : null,
+    complete,
+    incomplete: lines.filter((l) => !costed.includes(l)).map((l) => ({ id: l.id, dispatch: l.dispatch_id, product: l.product_id, why: l.unit_price_gbp === null || l.unit_price_gbp === undefined ? 'no price captured' : 'no lot cost captured' })),
+    byProduct: group('product_id'), byLot: group('lot_id'),
+  };
+}
+
 /** The room's numbers in one object — the Bridge, the brief and the Lab's header read this. */
-export function labSummary(products = [], lots = [], settingsRows = [], dispatch = []) {
+export function labSummary(products = [], lots = [], settingsRows = [], dispatch = [], items = []) {
   const s = settingsOf(settingsRows);
   const lines = stockLines(products, lots, s);
   const live = lines.filter((l) => l.vials > 0);
@@ -73,5 +118,7 @@ export function labSummary(products = [], lots = [], settingsRows = [], dispatch
     avgMargin: costed.length ? costed.reduce((n, l) => n + l.margin, 0) / costed.length : null,
     thinnest: costed.slice().sort((a, b) => a.margin - b.margin).slice(0, 5).map((l) => ({ id: l.id, name: l.name, size: l.size, margin: l.margin })),
     dispatch: { packing: queue.filter((d) => d.stage === 'packing').length, ready: queue.filter((d) => d.stage === 'ready').length, oldest: queue.length ? queue.slice().sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))[0] : null },
+    // What has actually been made, beside what the catalogue hopes for.
+    realised: realised(dispatch, items),
   };
 }

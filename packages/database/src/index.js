@@ -56,6 +56,7 @@ const MIGRATION_OF = {
   ledger_months: '0006_vault.sql', fixed_costs: '0006_vault.sql', cash_snapshots: '0006_vault.sql', pots: '0006_vault.sql',
   protocol_items: '0007_sanctum.sql', protocol_ticks: '0007_sanctum.sql', entries: '0007_sanctum.sql',
   trades: '0008_trading.sql', setups: '0008_trading.sql', checkins: '0008_trading.sql',
+  dispatch_items: '0010_dispatch_items.sql',
 };
 
 function translate(status, body, table) {

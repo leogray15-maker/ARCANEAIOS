@@ -178,14 +178,70 @@ function productView(lab) {
 function dispatchView(lab) {
   const rows = store.state.dispatch.slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
   const queue = rows.filter((d) => ['packing', 'ready'].includes(d.stage)), done = rows.filter((d) => !['packing', 'ready'].includes(d.stage)).slice(0, 30);
-  const row = (d) => `<div class="order-row"><span>${chip(d.stage, STAGE_TONE[d.stage])}</span><b>${esc(d.ref)}</b><span class="text">${esc(d.items)}</span>${d.tracking ? `<span class="ash">${esc(d.tracking)}</span>` : ''}<span class="faint nowrap">${when(d.created_at)}</span>
-    <span class="row-acts">${STAGES.filter((s) => s !== d.stage && !(d.stage === 'shipped' && s === 'packing')).map((s) => `<button class="tiny ghost" data-act="dispatch-stage" data-id="${esc(d.id)}" data-stage="${s}">${s}</button>`).join('')}${d.stage === 'ready' || d.stage === 'shipped' ? `<button class="tiny ghost" data-act="dispatch-tracking" data-id="${esc(d.id)}">tracking</button>` : ''}</span></div>`;
+  const stock = store.stock();
+  const lotsOf = (pid) => store.state.lots.filter((l) => l.product_id === pid && l.vials > 0);
+  // A dispatch is its lines. Each line says which lot it came out of,
+  // because that is the only way the margin can ever be a fact rather than
+  // the catalogue's hope. Once shipped, the line keeps what it cost.
+  const lines = (d) => {
+    const list = store.dispatchLines(d.id);
+    const open = ['packing', 'ready'].includes(d.stage);
+    const r = store.dispatchRealised(d.id);
+    return `<div class="lines">
+      ${list.length ? `<table class="grid"><thead><tr><th>Line</th><th>From</th><th class="r">Vials</th><th class="r">Price</th><th class="r">Cost</th><th class="r">Profit</th>${open ? '<th></th>' : ''}</tr></thead><tbody>
+        ${list.map((l) => { const p = store.product(l.product_id); const lot = store.state.lots.find((x) => x.id === l.lot_id);
+          const price = l.unit_price_gbp ?? p?.sell_gbp ?? null, cost = l.unit_cost_gbp ?? null;
+          return `<tr>
+            <td>${esc(p ? `${p.name} ${p.size}`.trim() : l.product_id)}</td>
+            <td class="ash">${l.lot_id ? `${esc(lot?.batch || l.lot_id)}${lot ? ` <span class="faint">${lot.vials} left</span>` : ''}` : '<span class="flare">no lot — nothing drawn down</span>'}</td>
+            <td class="r">${l.vials}</td>
+            <td class="r">${price === null ? '—' : gbp(price)}${l.unit_price_gbp === null || l.unit_price_gbp === undefined ? '<span class="faint"> list</span>' : ''}</td>
+            <td class="r">${cost === null ? '<span class="faint">at shipping</span>' : gbp(cost)}</td>
+            <td class="r">${cost === null || price === null ? '—' : gbp((price - cost) * l.vials)}</td>
+            ${open ? `<td class="r"><button class="tiny ghost" data-act="line-remove" data-id="${esc(l.id)}">×</button></td>` : ''}
+          </tr>`; }).join('')}
+      </tbody></table>` : `<p class="empty">No lines yet${open ? ' — add what is in the box, and which lot it came from' : ''}.</p>`}
+      ${open ? `<form class="inline" data-act="line-add" data-dispatch="${esc(d.id)}">
+        <select name="product" required><option value="">a product…</option>${stock.filter((x) => x.active !== false).map((x) => `<option value="${esc(x.id)}">${esc(`${x.name} ${x.size}`.trim())}${x.vials ? ` (${x.vials} in stock)` : ' (no stock)'}</option>`).join('')}</select>
+        <select name="lot"><option value="">no lot</option>${store.state.lots.filter((l) => l.vials > 0).map((l) => `<option value="${esc(l.id)}">${esc(store.product(l.product_id)?.name || l.product_id)} · ${esc(l.batch || l.id)} · ${l.vials}</option>`).join('')}</select>
+        <input name="vials" class="num" type="number" min="1" value="1" style="width:70px">
+        <button class="tiny" type="submit">add line</button>
+      </form>` : ''}
+      ${!open && r && r.revenue !== null ? `<p class="ash">Made <b>${gbp(r.profit)}</b> on <b>${gbp(r.revenue)}</b> — margin <b>${pct(r.margin)}</b>${r.incomplete.length ? ` <span class="flare">· ${r.incomplete.length} line${r.incomplete.length === 1 ? '' : 's'} without a cost</span>` : ''}</p>` : ''}
+    </div>`;
+  };
+  const row = (d) => `<div class="dispatch-box"><div class="order-row"><span>${chip(d.stage, STAGE_TONE[d.stage])}</span><b>${esc(d.ref)}</b><span class="text">${esc(d.items)}</span>${d.tracking ? `<span class="ash">${esc(d.tracking)}</span>` : ''}<span class="faint nowrap">${when(d.created_at)}</span>
+    <span class="row-acts">${STAGES.filter((s) => s !== d.stage && !(d.stage === 'shipped' && ['packing', 'ready', 'cancelled'].includes(s)) && !(d.stage === 'delivered' && s !== 'delivered')).map((s) => `<button class="tiny ghost" data-act="dispatch-stage" data-id="${esc(d.id)}" data-stage="${s}">${s}</button>`).join('')}${d.stage === 'ready' || d.stage === 'shipped' ? `<button class="tiny ghost" data-act="dispatch-tracking" data-id="${esc(d.id)}">tracking</button>` : ''}</span></div>${lines(d)}</div>`;
   return `${tabs()}
     <p class="ash">Cutoff 12:00 Mon–Fri. ${lab.dispatch.packing} packing · ${lab.dispatch.ready} ready${lab.dispatch.oldest ? ` · oldest in the queue ${when(lab.dispatch.oldest.created_at)}` : ''}.</p>
     <form class="inline add-order" data-act="dispatch-add"><input name="ref" placeholder="Order ref (from the store)" style="width:180px" required><input name="items" placeholder="Items — e.g. 2× GHK-Cu 50mg, 1× BPC-157 5mg" style="flex:1;min-width:260px"><button type="submit" class="primary">Add to packing</button></form>
     <h2>The queue <span class="faint">${queue.length}</span></h2>
     ${queue.length ? queue.map(row).join('') : '<p class="empty">Nothing packing or ready.</p>'}
-    ${done.length ? `<h2>Gone <span class="faint">${done.length}</span></h2>${done.map(row).join('')}` : ''}`;
+    ${done.length ? `<h2>Gone <span class="faint">${done.length}</span></h2>${done.map(row).join('')}` : ''}
+    <h2>What has actually been made</h2>
+    ${realisedBlock(lab.realised)}`;
+}
+
+/**
+ * Realised margin, with the chain that produced it visible: a number the
+ * operator cannot trace is a number he cannot act on.
+ */
+function realisedBlock(r) {
+  if (!r || !r.dispatches) return '<p class="empty">Nothing has shipped with its lines recorded yet. Margins on the catalogue are price minus landed cost — what a vial would make, not what one has made.</p>';
+  return `<div class="stat-row">
+      <div class="stat"><b>${gbp(r.revenue)}</b><span>realised revenue · ${r.dispatches} dispatch${r.dispatches === 1 ? '' : 'es'}</span></div>
+      <div class="stat"><b>${gbp(r.cost)}</b><span>cost of what went out</span></div>
+      <div class="stat"><b>${gbp(r.profit)}</b><span>realised profit</span></div>
+      <div class="stat"><b>${pct(r.margin)}</b><span>realised margin · ${r.vials} vials</span></div>
+    </div>
+    ${r.incomplete.length ? `<p class="flare">${r.incomplete.length} line${r.incomplete.length === 1 ? '' : 's'} could not be costed (${esc(r.incomplete.slice(0, 3).map((i) => `${i.dispatch}: ${i.why}`).join('; '))}${r.incomplete.length > 3 ? '…' : ''}). Those are in the revenue and not in the cost, so the margin above is the best case.</p>` : ''}
+    ${r.byProduct.length ? `<h3>By product</h3><table class="grid"><thead><tr><th>Product</th><th class="r">Vials</th><th class="r">Revenue</th><th class="r">Cost</th><th class="r">Profit</th><th>Margin</th></tr></thead><tbody>
+      ${r.byProduct.map((p) => `<tr><td>${esc(store.product(p.id)?.name || p.id)} <span class="ash">${esc(store.product(p.id)?.size || '')}</span></td><td class="r">${p.vials}</td><td class="r">${gbp(p.revenue)}</td><td class="r">${gbp(p.cost)}</td><td class="r">${gbp(p.profit)}</td><td>${chip(pct(p.margin), marginTone(p.margin))}</td></tr>`).join('')}
+    </tbody></table>` : ''}
+    ${r.byLot.length ? `<h3>By lot <span class="faint">what each batch actually earned</span></h3><table class="grid"><thead><tr><th>Lot</th><th class="r">Vials out</th><th class="r">Revenue</th><th class="r">Profit</th><th>Margin</th></tr></thead><tbody>
+      ${r.byLot.map((l) => { const lot = store.state.lots.find((x) => x.id === l.id); return `<tr><td><code>${esc(lot?.batch || l.id)}</code> <span class="ash">${esc(store.product(lot?.product_id)?.name || '')}</span></td><td class="r">${l.vials}</td><td class="r">${gbp(l.revenue)}</td><td class="r">${gbp(l.profit)}</td><td>${chip(pct(l.margin), marginTone(l.margin))}</td></tr>`; }).join('')}
+    </tbody></table>` : ''}
+    <p class="src">Price and cost are captured when a dispatch ships: what the vial sold for, and what the lot it came out of had cost at that moment. A later change to the exchange rate or the price list never rewrites a past sale.</p>`;
 }
 
 /* ---------- events ---------- */
@@ -198,6 +254,7 @@ function onClick(e) {
   else if (act === 'proposal-reject') { if (confirm('Reject this proposal? It stays in the record as killed.')) store.rejectProposal('apothecary', id); }
   else if (act === 'view') { st.view = b.dataset.view; st.editing = ''; go(b.dataset.view === 'dispatch' ? '#lab/dispatch' : '#lab'); paint(); }
   else if (act === 'open' && !e.target.closest('a')) go(`#lab/${encodeURIComponent(id)}`);
+  else if (act === 'line-remove') store.removeDispatchLine(id);
   else if (act === 'new-product') { st.editing = 'new'; paint({ keepScroll: true }); el.querySelector('form[data-act=product-add] input[name=name]')?.focus(); }
   else if (act === 'cancel') { st.editing = ''; paint({ keepScroll: true }); }
   else if (act === 'product-toggle') store.setProduct(id, { [b.dataset.field]: b.dataset.value === 'true' });
@@ -237,5 +294,9 @@ function onSubmit(e) {
   } else if (act === 'dispatch-add') {
     const ref = f.ref.value.trim(); if (!ref) return;
     store.addDispatch(ref, f.items.value.trim()); f.reset();
+  } else if (act === 'line-add') {
+    const productId = f.product.value; if (!productId) return;
+    store.addDispatchLine(f.dataset.dispatch, { productId, lotId: f.lot.value || null, vials: Number(f.vials.value) || 1 });
+    f.reset(); f.vials.value = '1';
   }
 }

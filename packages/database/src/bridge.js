@@ -25,9 +25,11 @@ export async function aggregate(db, { now = new Date() } = {}) {
     state.list(db, 'venture_focus'), state.list(db, 'goal_progress'), state.list(db, 'days', { limit: 14 }),
   ]);
   let lab = null, tables = { orders };
-  try { const [products, lots, settings, dispatch] = await Promise.all([state.list(db, 'products'), state.list(db, 'stock_lots'), state.list(db, 'settings'), state.list(db, 'dispatch')]); lab = labSummary(products, lots, settings, dispatch); Object.assign(tables, { products, stock_lots: lots, settings, dispatch }); } catch {}
+  let dispatchItems = [];
+  try { dispatchItems = await state.list(db, 'dispatch_items', { limit: 5000 }); } catch {}
+  try { const [products, lots, settings, dispatch] = await Promise.all([state.list(db, 'products'), state.list(db, 'stock_lots'), state.list(db, 'settings'), state.list(db, 'dispatch')]); lab = labSummary(products, lots, settings, dispatch, dispatchItems); Object.assign(tables, { products, stock_lots: lots, settings, dispatch, dispatch_items: dispatchItems }); } catch {}
   let money = null, protocol = null;
-  try { const [ledger, fixed, cash, pots] = await Promise.all([state.list(db, 'ledger_months'), state.list(db, 'fixed_costs'), state.list(db, 'cash_snapshots'), state.list(db, 'pots')]); money = moneySummary({ ledger, fixed, cash, pots }, monthOf(now)); Object.assign(tables, { ledger_months: ledger, fixed_costs: fixed, cash_snapshots: cash, pots }); } catch {}
+  try { const [ledger, fixed, cash, pots] = await Promise.all([state.list(db, 'ledger_months'), state.list(db, 'fixed_costs'), state.list(db, 'cash_snapshots'), state.list(db, 'pots')]); money = moneySummary({ ledger, fixed, cash, pots, dispatch: tables.dispatch || [], dispatchItems }, monthOf(now)); Object.assign(tables, { ledger_months: ledger, fixed_costs: fixed, cash_snapshots: cash, pots }); } catch {}
   try { Object.assign(tables, { trades: await state.list(db, 'trades', { limit: 500 }) }); } catch {}
   try { const [items, ticks] = await Promise.all([state.list(db, 'protocol_items'), state.list(db, 'protocol_ticks', { limit: 400 })]); const active = items.filter((i) => i.active !== false); protocol = { items: active.length, done: ticks.filter((k) => k.day === day && k.done).length, week: ticks.filter((k) => k.done && (t - new Date(k.day).getTime()) < 7 * DAY).length }; Object.assign(tables, { protocol_ticks: ticks }); } catch {}
   let draftCounts = null, recentRuns = [], recentEvents = [];

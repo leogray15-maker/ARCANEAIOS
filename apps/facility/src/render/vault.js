@@ -68,7 +68,9 @@ function paint({ keepScroll = false } = {}) {
       <div class="stat"><b>${m.cash ? gbp(m.cash.cash) : '—'}</b><span>cash${m.cash ? ` · ${esc(m.cash.day)}` : ' · not typed'}</span></div>
       <div class="stat ${m.runway !== null && m.runway !== Infinity && m.runway < 3 ? 'breach' : ''}"><b>${runwayText}</b><span>runway</span></div>
       <div class="stat"><b>${gbp(lab.valueCost)}</b><span>stock at cost · <a href="#lab">${gbp(lab.valueSell)} at price</a></span></div>
+      <div class="stat ${m.realised.revenue === null ? '' : 'explain'}" title="${m.realised.revenue === null ? 'Nothing shipped this month with its lines recorded' : esc(`${m.realised.dispatches} dispatch(es) · ${m.realised.vials} vials · revenue ${gbp(m.realised.revenue)} − cost ${gbp(m.realised.cost)}${m.realised.incomplete.length ? ` · ${m.realised.incomplete.length} line(s) without a cost` : ''}`)}"><b>${m.realised.profit === null ? '—' : gbp(m.realised.profit)}</b><span>realised profit ${esc(monthLabel(month))}${m.realised.margin !== null ? ` · ${pct(m.realised.margin)}` : ''} · <a href="#lab/dispatch">from what shipped</a></span></div>
     </div>
+    ${m.realised.revenue !== null && m.revenue !== null ? `<p class="src">Realised profit is what the boxes shipped in ${esc(monthLabel(month))} made — ${gbp(m.realised.revenue)} sold less ${gbp(m.realised.cost)} of lot cost, captured as each one shipped. The revenue above is what was typed; the two answer different questions and are not added together.${m.realised.incomplete.length ? ` <span class="flare">${m.realised.incomplete.length} line${m.realised.incomplete.length === 1 ? '' : 's'} shipped without a lot cost and ${m.realised.incomplete.length === 1 ? 'is' : 'are'} in the revenue but not the cost.</span>` : ''}</p>` : ''}
     <div class="bridge-grid">
       <div class="bridge-main">
         <section>

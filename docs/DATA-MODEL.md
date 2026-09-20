@@ -71,6 +71,9 @@ A verdict without an outcome is "waiting on you" on the Bridge.
 **settings** — `key` (fx_gbp_per_usd | landed_overhead_pct | low_stock_vials) · `value` · `note`. The numbers a room computes with, typed once.
 The arithmetic is `apps/facility/src/core/lab.js` (landed cost per vial = kit cost ÷ vials × rate × (1 + overhead); margin on the vial price; `labSummary`), imported by the floor, the Bridge aggregate and the vault mirror alike.
 
+**dispatch_items** (0010) — `id` (`DSI-YYYYMMDD-NNN`) · `dispatch_id` · `product_id` · `lot_id` (which lot it came out of; null until picked) · `vials` · `unit_price_gbp` · `unit_cost_gbp` · `note`.
+The lines of a dispatch, and the chain supplier → lot → unit cost → product → sale → revenue → realised margin. **Shipping is the moment the chain closes**: `state.update('dispatch', id, { stage: 'shipped' })` checks every line first (a lot must hold enough vials and must belong to the line's product), then draws the lots down and writes each line's price (the product's, unless the line says otherwise) and cost (the landed cost of *that lot* at *that moment*). A later change to the exchange rate or the price list never rewrites a past sale. A shipped dispatch cannot be cancelled or unshipped, only delivered. `realised()` in `core/lab.js` sums shipped lines — and names the ones it could not cost rather than giving them a cost of zero.
+
 ### THE VAULT (0006)
 **ledger_months** — `id` (`YYYY-MM:venture`) · `month` · `venture` · `revenue_gbp` (typed; for a priced venture, units × price when empty) · `units` · `visitors` · `leads` · `orders` · `note`. One row per venture per month; THE MARKET and VITALS write the same rows.
 **fixed_costs** — `id` (slug) · `name` · `amount_gbp` · `room` · `active` · `note`. Retired, not deleted.

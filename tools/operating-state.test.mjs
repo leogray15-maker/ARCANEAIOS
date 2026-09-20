@@ -20,7 +20,7 @@ const db = memoryDb();
 const now = new Date('2026-09-18T12:00:00');
 
 /* ---- the registry ---- */
-ok(TABLE_IDS.length === 21, 'twenty-one tables');
+ok(TABLE_IDS.length === 22, 'twenty-two tables');
 await refuses(() => state.insert(db, 'orders', { text: 'no room' }), /room is required/, 'order without a room');
 await refuses(() => state.insert(db, 'orders', { room: 'nowhere', text: 'x' }), /unknown room/, 'order in an unknown room');
 await refuses(() => state.insert(db, 'orders', { room: 'forge', text: 'x', priority: 7 }), /0–3/, 'priority out of range');

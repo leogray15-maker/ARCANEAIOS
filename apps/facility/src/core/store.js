@@ -20,7 +20,7 @@
  */
 import { VENTURES, ROOMS, ROOM_BY_ID, GOALS_FALLBACK } from './seeds.js';
 import { ORDER_OPEN_STATES, AGENT_BY_ID } from '@arcane/config';
-import { stockLines, labSummary, settingsOf, stockOf } from './lab.js';
+import { stockLines, labSummary, settingsOf, stockOf, realised } from './lab.js';
 import { moneySummary, monthOf, ventureRow, history as moneyHistory } from './money.js';
 import { cloud } from './cloud.js';
 import { sync } from './sync.js';
@@ -32,7 +32,7 @@ const LOG_MAX = 80;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
 /** The parts of the state that live on the server; never written into the blob. */
-const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal'];
+const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'dispatchItems', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal'];
 const OPEN_STATES = ORDER_OPEN_STATES;   // a proposal is not open work: it is waiting to be answered
 const ts = (iso) => (iso ? new Date(iso).getTime() : 0);
 
@@ -52,7 +52,7 @@ function seedState(brain) {
   }
   const goals = {};
   for (const g of brain?.goals?.length ? brain.goals : GOALS_FALLBACK) goals[g.id] = { progress: Number(String(g.progress).replace(/[^\d.]/g, '')) || 0 };
-  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] } };
+  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], dispatchItems: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] } };
 }
 
 export class Store {
@@ -134,7 +134,7 @@ export class Store {
     // The cache of the server's tables, in the shapes the floor draws.
     s.lists = saved.lists || {}; s.counsel = (saved.counsel || []).slice(-40); s.decisions = saved.decisions || [];
     s.focus = saved.focus || {}; s.goalProgress = saved.goalProgress || {}; s.days = saved.days || {};
-    s.products = saved.products || []; s.lots = saved.lots || []; s.dispatch = saved.dispatch || []; s.settings = saved.settings || [];
+    s.products = saved.products || []; s.lots = saved.lots || []; s.dispatch = saved.dispatch || []; s.dispatchItems = saved.dispatchItems || []; s.settings = saved.settings || [];
     s.ledger = Array.isArray(saved.ledger) ? saved.ledger : []; s.fixedCosts = saved.fixedCosts || []; s.cash = saved.cash || []; s.pots = saved.pots || [];
     s.protocolItems = saved.protocolItems || []; s.protocolTicks = saved.protocolTicks || []; s.entries = saved.entries || [];
     s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups || [], checkins: saved.journal?.checkins || [] };
@@ -197,7 +197,7 @@ export class Store {
     s.focus = Object.fromEntries((t.venture_focus || []).map((f) => [f.venture, { rank: f.rank, allocation: f.allocation, why: f.why, ts: ts(f.updated_at) }]));
     s.goalProgress = Object.fromEntries((t.goal_progress || []).map((g) => [g.goal_id, { value: Number(g.value), note: g.note, ts: ts(g.updated_at) }]));
     s.days = Object.fromEntries((t.days || []).map((d) => [d.day, { focus: d.focus, note: d.note, energy: d.energy, sleep: d.sleep }]));
-    s.products = t.products || []; s.lots = t.stock_lots || []; s.dispatch = t.dispatch || []; s.settings = t.settings || [];
+    s.products = t.products || []; s.lots = t.stock_lots || []; s.dispatch = t.dispatch || []; s.dispatchItems = t.dispatch_items || []; s.settings = t.settings || [];
     s.ledger = t.ledger_months || []; s.fixedCosts = t.fixed_costs || []; s.cash = t.cash_snapshots || []; s.pots = t.pots || [];
     s.protocolItems = t.protocol_items || []; s.protocolTicks = t.protocol_ticks || []; s.entries = t.entries || [];
     s.journal = { trades: (t.trades || []).map(fromTradeRow), setups: t.setups || [], checkins: (t.checkins || []).map((c) => ({ ...c, ts: ts(c.created_at) })) };
@@ -363,7 +363,7 @@ export class Store {
   product(id) { return this.state.products.find((p) => p.id === id); }
   /** One line per active product: vials, COA, cost, price, margin. What the Lab lists and VIGIL reads. */
   stock() { return stockLines(this.state.products, this.state.lots, this.labSettings()); }
-  lab() { return labSummary(this.state.products, this.state.lots, this.state.settings, this.state.dispatch); }
+  lab() { return labSummary(this.state.products, this.state.lots, this.state.settings, this.state.dispatch, this.state.dispatchItems); }
   lowStock() { return this.stock().filter((l) => l.low); }
   totalVials() { return this.stock().reduce((n, l) => n + l.vials, 0); }
   coaPct() { return this.lab().coaPct ?? 0; }
@@ -401,13 +401,47 @@ export class Store {
       async () => { const { row } = await api.state.insert('dispatch', { ref, items, note }); Object.assign(local, row); return local; },
       'dispatch');
   }
-  setDispatch(id, patch) {
+  /* ---------- the lines of a dispatch: what actually goes out ---------- */
+  /** The lines on one dispatch, oldest first, the way they were packed. */
+  dispatchLines(dispatchId) { return this.state.dispatchItems.filter((l) => l.dispatch_id === dispatchId); }
+  /**
+   * Add a line. The lot is what closes the chain: without it the box still
+   * ships, but nothing is drawn down and the margin cannot be realised, so
+   * the room says so rather than pretending.
+   */
+  addDispatchLine(dispatchId, { productId, lotId = null, vials = 1, note = '' }) {
+    if (!productId) return null;
+    const local = { id: `tmp-${uid()}`, dispatch_id: dispatchId, product_id: productId, lot_id: lotId || null, vials: Number(vials) || 1, unit_price_gbp: null, unit_cost_gbp: null, note, created_at: new Date().toISOString() };
+    return this.commit(
+      () => { this.state.dispatchItems.push(local); },
+      async () => { const { row } = await api.state.insert('dispatch_items', { dispatch_id: dispatchId, product_id: productId, lot_id: lotId || null, vials: local.vials, note }); Object.assign(local, row); return local; },
+      'dispatch line');
+  }
+  setDispatchLine(id, patch) {
+    const l = this.state.dispatchItems.find((x) => x.id === id); if (!l) return null;
+    return this.commit(() => Object.assign(l, patch), () => api.state.update('dispatch_items', id, patch), 'dispatch line');
+  }
+  removeDispatchLine(id) {
+    return this.commit(() => { this.state.dispatchItems = this.state.dispatchItems.filter((x) => x.id !== id); }, () => api.state.remove('dispatch_items', id), 'dispatch line');
+  }
+  /** What one dispatch made, once it has shipped. */
+  dispatchRealised(dispatchId) {
+    const d = this.state.dispatch.find((x) => x.id === dispatchId);
+    return d ? realised([d], this.dispatchLines(dispatchId)) : null;
+  }
+
+  async setDispatch(id, patch) {
     const d = this.state.dispatch.find((x) => x.id === id); if (!d) return null;
-    return this.commit(() => { Object.assign(d, patch); if (patch.stage) { if (patch.stage === 'shipped') d.shipped_at = new Date().toISOString(); this.log(`Dispatch: ${d.ref} ${patch.stage}`, 'lab'); } }, () => api.state.update('dispatch', id, patch), 'dispatch');
+    const r = await this.commit(() => { Object.assign(d, patch); if (patch.stage) { if (patch.stage === 'shipped') d.shipped_at = new Date().toISOString(); this.log(`Dispatch: ${d.ref} ${patch.stage}`, 'lab'); } }, () => api.state.update('dispatch', id, patch), 'dispatch');
+    // Shipping moves more than the dispatch: the server draws the lines out
+    // of their lots and writes what they cost. Re-read, so the room shows
+    // the stock as it now is and the margin as it was actually made.
+    if (r && patch.stage === 'shipped') await this.loadServer({ quiet: true });
+    return r;
   }
 
   /* ---------- THE VAULT: the ledger by month, fixed costs, cash, the pots ---------- */
-  money(month = monthOf()) { return moneySummary({ ledger: this.state.ledger, fixed: this.state.fixedCosts, cash: this.state.cash, pots: this.state.pots }, month); }
+  money(month = monthOf()) { return moneySummary({ ledger: this.state.ledger, fixed: this.state.fixedCosts, cash: this.state.cash, pots: this.state.pots, dispatch: this.state.dispatch, dispatchItems: this.state.dispatchItems }, month); }
   moneyHistory(n = 12) { return moneyHistory(this.state.ledger, this.state.fixedCosts, n); }
   ledgerRow(month, venture) { return ventureRow(this.state.ledger, month, venture); }
   setLedger(month, venture, patch) {

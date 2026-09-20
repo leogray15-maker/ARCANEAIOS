@@ -393,3 +393,9 @@ html.touch .zoomer { display: flex; }
 .proposal .text { flex: 1 1 200px; min-width: 0; }
 .proposal .why { flex-basis: 100%; font-size: var(--t-1); white-space: pre-wrap; }
 .wait.lit b { color: var(--arcaneLt); }
+
+/* A dispatch and its lines: the box, then what is in it. */
+.dispatch-box { border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 10px; }
+.dispatch-box .lines { margin: 4px 0 0 26px; }
+.dispatch-box .lines table.grid { margin: 4px 0; }
+.dispatch-box .lines form.inline { margin-top: 6px; }

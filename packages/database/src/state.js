@@ -16,6 +16,7 @@ import { ROOM_BY_ID, VENTURE_BY_ID, AGENT_BY_ID, ORDER_STATES, ORDER_PRIORITY, O
 import { DatabaseError } from './index.js';
 import { nextId } from './content.js';
 import { events } from './content.js';
+import { unitCost, settingsOf } from '../../../apps/facility/src/core/lab.js';
 
 export const LISTS = ['moves', 'stop', 'watch', 'pipeline', 'ideas', 'lessons', 'manuscripts'];
 export const ALLOCATIONS = ['push', 'maintain', 'starve'];
@@ -130,6 +131,12 @@ export const TABLES = {
     required: ['ref'],
     defaults: { items: '', stage: 'packing', tracking: '', note: '', shipped_at: null },
     fields: { ref: str(60), items: str(1000), stage: oneOf(DISPATCH_STAGES), tracking: str(120), note: str(1000), shipped_at: dateOrNull() },
+  },
+  dispatch_items: {
+    key: 'id', mint: (db, now) => nextId(db, 'dispatch_items', 'DSI', now), order: 'created_at.asc', event: 'dispatch-item',
+    required: ['dispatch_id', 'product_id'],
+    defaults: { lot_id: null, vials: 1, unit_price_gbp: null, unit_cost_gbp: null, note: '' },
+    fields: { dispatch_id: str(40), product_id: str(120), lot_id: (v) => (v === null || v === '' || v === undefined ? null : str(40)(v)), vials: int(1, 100000), unit_price_gbp: numOrNull(0), unit_cost_gbp: numOrNull(0), note: str(500) },
   },
   /* ---- THE VAULT (0006) ---- */
   ledger_months: {
@@ -255,6 +262,16 @@ export const state = {
     if (table === 'list_items' && patch.done !== undefined && patch.done !== cur.done) patch.done_at = patch.done ? now.toISOString() : null;
     if (table === 'decisions' && patch.outcome !== undefined && patch.outcome !== cur.outcome) patch.reviewed_at = patch.outcome ? now.toISOString() : null;
     if (table === 'dispatch' && patch.stage === 'shipped' && cur.stage !== 'shipped') patch.shipped_at = now.toISOString();
+    // A shipped dispatch cannot be unshipped or cancelled: the vials have
+    // left the building and the lots have already been drawn down. Mark it
+    // delivered, or write a new dispatch for what comes back.
+    if (table === 'dispatch' && cur.stage === 'shipped' && patch.stage && !['shipped', 'delivered'].includes(patch.stage)) {
+      throw bad(`${cur.ref} has already shipped — it can only be marked delivered. Stock left the building when it shipped.`);
+    }
+    if (table === 'dispatch' && cur.stage === 'delivered' && patch.stage && patch.stage !== 'delivered') throw bad(`${cur.ref} has been delivered`);
+    // Shipping is the moment the chain closes: the lines come out of their
+    // lots and what they cost and sold for is written down as it was.
+    if (table === 'dispatch' && patch.stage === 'shipped' && cur.stage !== 'shipped') await draw(db, id, now);
     const [saved] = await db.patch(table, { [t.key]: `eq.${id}` }, patch);
     const change = table === 'orders' && patch.state ? `${cur.state} → ${patch.state}` : table === 'list_items' && patch.done !== undefined ? (patch.done ? 'done' : 'reopened') : table === 'decisions' && patch.outcome ? 'outcome recorded' : Object.keys(patch).join(', ');
     await events.add(db, { kind: `${t.event}.changed`, actor, subject_type: t.event, subject_id: String(id), summary: `${summarise(table, saved)} — ${change}`, data: { fields: Object.keys(patch) } });
@@ -274,6 +291,49 @@ export const state = {
   },
 };
 
+/**
+ * Draw a dispatch's lines out of their lots, and capture their economics.
+ *
+ * Each line that names a lot decrements it; a line that would take more
+ * vials than the lot holds refuses the whole shipment, because a stock
+ * figure that can go negative is worth nothing. Cost is the landed cost of
+ * that lot at this moment and price is the product's price now: both are
+ * written onto the line so that a later change in the exchange rate or the
+ * price list never rewrites what this sale made.
+ *
+ * There is no transaction across tables here — PostgREST has none — so the
+ * refusals are checked first and the writes follow, smallest window
+ * possible. A dispatch with no lines ships and simply says nothing about
+ * margin.
+ */
+async function draw(db, dispatchId, now) {
+  const lines = await db.get('dispatch_items', { select: '*', dispatch_id: `eq.${dispatchId}` });
+  if (!lines.length) return;
+  const settings = settingsOf(await db.get('settings', { select: '*' }));
+  const lotIds = [...new Set(lines.map((l) => l.lot_id).filter(Boolean))];
+  const lots = {};
+  for (const lid of lotIds) { const lot = await db.get('stock_lots', { select: '*', id: `eq.${lid}` }, { single: true }); if (!lot) throw bad(`lot ${lid} does not exist`); lots[lid] = lot; }
+  const products = {};
+  for (const pid of [...new Set(lines.map((l) => l.product_id))]) { const p = await db.get('products', { select: '*', id: `eq.${pid}` }, { single: true }); if (!p) throw bad(`product ${pid} does not exist`); products[pid] = p; }
+  // Check every line before moving a single vial.
+  const want = {};
+  for (const l of lines) {
+    if (!l.lot_id) continue;
+    if (lots[l.lot_id].product_id !== l.product_id) throw bad(`${l.id}: lot ${l.lot_id} holds ${lots[l.lot_id].product_id}, not ${l.product_id}`);
+    want[l.lot_id] = (want[l.lot_id] || 0) + l.vials;
+  }
+  for (const [lid, n] of Object.entries(want)) if (n > lots[lid].vials) throw bad(`lot ${lid} holds ${lots[lid].vials} vials and the dispatch needs ${n} — book stock in, or pick another lot`);
+  // Then write: the lines' economics, and the lots they came out of.
+  for (const l of lines) {
+    const p = products[l.product_id];
+    const cost = l.unit_cost_gbp ?? (l.lot_id ? unitCost(p, settings, lots[l.lot_id]) : unitCost(p, settings));
+    const price = l.unit_price_gbp ?? (p.sell_gbp === null || p.sell_gbp === undefined ? null : Number(p.sell_gbp));
+    await db.patch('dispatch_items', { id: `eq.${l.id}` }, { unit_cost_gbp: cost, unit_price_gbp: price }, { returning: false });
+  }
+  for (const [lid, n] of Object.entries(want)) await db.patch('stock_lots', { id: `eq.${lid}` }, { vials: lots[lid].vials - n }, { returning: false });
+  await events.add(db, { kind: 'dispatch.drawn', actor: 'leo', subject_type: 'dispatch', subject_id: dispatchId, summary: `${dispatchId}: ${lines.reduce((n, l) => n + l.vials, 0)} vials drawn from ${lotIds.length} lot${lotIds.length === 1 ? '' : 's'}`, data: { lots: want, at: now.toISOString() } });
+}
+
 function summarise(table, r) {
   switch (table) {
     case 'orders': return `[P${r.priority}] ${ROOM_BY_ID[r.room]?.name || r.room}: ${r.text}`;
@@ -287,6 +347,7 @@ function summarise(table, r) {
     case 'products': return `${r.name} ${r.size}${r.sell_gbp ? ` £${r.sell_gbp}` : ''}${r.kit_cost_usd ? ` · kit $${r.kit_cost_usd}` : ''}`;
     case 'stock_lots': return `${r.product_id} · ${r.vials} vials · COA ${r.coa}${r.batch ? ` · batch ${r.batch}` : ''}`;
     case 'dispatch': return `${r.ref}: ${r.stage}${r.items ? ` — ${String(r.items).slice(0, 60)}` : ''}`;
+    case 'dispatch_items': return `${r.vials} × ${r.product_id}${r.lot_id ? ` from ${r.lot_id}` : ''}`;
     case 'ledger_months': return `${r.month} ${VENTURE_BY_ID[r.venture]?.name || r.venture}: ${r.revenue_gbp !== null && r.revenue_gbp !== undefined ? `£${r.revenue_gbp}` : ''}${r.units !== null && r.units !== undefined ? ` · ${r.units} units` : ''}`;
     case 'fixed_costs': return `${r.name}: £${r.amount_gbp}/mo${r.active === false ? ' (retired)' : ''}`;
     case 'cash_snapshots': return `cash ${r.day}: £${r.cash_gbp}`;
