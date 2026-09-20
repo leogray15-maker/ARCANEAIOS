@@ -1,7 +1,7 @@
 ---
 type: memory
 created: 2026-09-16 22:00
-updated: 2026-09-18 18:08
+updated: 2026-09-21 00:26
 status: active
 agent: ARCANE
 tags: [memory]
@@ -22,15 +22,15 @@ any agent may correct a figure it owns, with a Trace entry saying so.
 
 ## Content
 
-- Drafts waiting: 5
+- Drafts waiting: 3
 - Approved, unscheduled: 0
-- Posted this week: 0
+- Posted this week: 1
 - Last HERALD run: 2026-09-16 22:20 (HER-R-20260916-001)
 
 ## Treasury
 
-- Cash: —
-- Runway (months): —
+- Cash: £800
+- Runway (months): covered
 - Tax reserve: —
 
 ## Operator

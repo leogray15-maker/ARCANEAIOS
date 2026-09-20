@@ -1,21 +1,25 @@
 ---
-type: goals
-created: 2026-09-16 22:00
-updated: 2026-09-16 22:00
+created: 2026-09-21 00:26
+updated: 2026-09-21 00:26
 status: active
+generated: true
+source: tools/vault-sync.mjs
+type: goals
 agent: ARCANE
 tags: [knowledge, goals]
 ---
 # Goals
 
-| ID | Goal | Room | Kind | Target | Progress |
-| --- | --- | --- | --- | --- | --- |
-| g-mrr | £10k a month across all four ventures | [[THE VAULT]] | money | £10,000 | — |
-| g-members | 50 Archives members at £128 | [[THE LIBRARY]] | money | 50 | — |
-| g-runway | Six months of runway banked | [[THE VAULT]] | money | 6 months | — |
-| g-track | 250 Arcane Track subscribers | [[VITALS]] | money | 250 | — |
-| g-index | All Archives modules indexed | [[THE LIBRARY]] | work | 100% | — |
-| g-posts | Post every day for 90 days | [[BEACON]] | work | 90 days | 0 |
-| g-coa | COA published for every live batch | [[THE LAB]] | work | 100% | — |
-| g-codex | The Quiet Empire launched | [[SCRIPTORIUM]] | work | 100% | — |
-| g-train | Train four times a week | [[SANCTUM]] | work | 4 / week | — |
+The hierarchy from [[BRIDGE]] → NORTH STAR, each goal read against the tables: a bound goal's actual is computed, a typed one is what Leo entered. 9 goals, 9 active.
+
+| Goal | Horizon | Target | Actual | Progress | Days left | Trend | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| £10k a month across all four ventures | 1 YEAR | £10,000 | £3,220 | 32% | 365 | — | active |
+| 50 Archives members at £128 | 1 YEAR | 50 members | 11 members | 22% | 365 | — | active |
+| Six months of runway banked | 1 YEAR | 6 months | 99 months | 100% | 365 | — | active |
+| 250 Arcane Track subscribers | 1 YEAR | 250 members | 13 members | 5% | 365 | — | active |
+| All Archives modules indexed | QUARTER | 100% | — | — | 91 | — | active |
+| Post every day for 90 days | QUARTER | 90 posts | — | — | 91 | — | active |
+| COA published for every live batch | QUARTER | 100% | — | — | 91 | — | active |
+| The Quiet Empire launched | QUARTER | 100% | — | — | 91 | — | active |
+| Train four times a week | WEEK | 100% | 0% | 0% | 7 | flat | active |
