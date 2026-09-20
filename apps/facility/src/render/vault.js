@@ -19,7 +19,7 @@ const gbp = (n, d = 0) => (n === null || n === undefined || !Number.isFinite(n) 
 const pct = (x) => (x === null || x === undefined ? '—' : `${x >= 0 ? '+' : ''}${Math.round(x * 100)}%`);
 const today = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 
-const st = { month: monthOf(), adding: '' };
+const st = { month: monthOf(), adding: '', explain: '' };
 const tally = agentState();
 let el = null, go = null, store = null;
 
@@ -65,14 +65,15 @@ function paint({ keepScroll = false } = {}) {
     ${store.server.needsKey || (!store.server.ready && store.server.reason === 'no operator key') ? failed({ needsKey: true, status: 401 }) : ''}
     ${proposalsBlock(store, 'vault')}
     <div class="stat-row">
-      <div class="stat"><b>${gbp(m.revenue)}</b><span>revenue ${esc(monthLabel(month))}${m.change !== null ? ` · <span class="${m.change >= 0 ? 'vital' : 'breach'}">${pct(m.change)}</span> vs ${esc(monthLabel(prevMonth(month)))}` : ''}</span></div>
-      <div class="stat"><b>${gbp(m.fixed)}</b><span>fixed / month</span></div>
-      <div class="stat ${m.net === null ? '' : m.net < 0 ? 'breach' : 'vital'}"><b>${gbp(m.net)}</b><span>net</span></div>
-      <div class="stat"><b>${m.cash ? gbp(m.cash.cash) : '—'}</b><span>cash${m.cash ? ` · ${esc(m.cash.day)}` : ' · not typed'}</span></div>
-      <div class="stat ${m.runway !== null && m.runway !== Infinity && m.runway < 3 ? 'breach' : ''}"><b>${runwayText}</b><span>runway</span></div>
+      <div class="stat explain" data-act="explain" data-key="revenue" title="${esc(m.explain.revenue)}"><b>${gbp(m.revenue)}</b><span>revenue ${esc(monthLabel(month))}${m.change !== null ? ` · <span class="${m.change >= 0 ? 'vital' : 'breach'}">${pct(m.change)}</span> vs ${esc(monthLabel(prevMonth(month)))}` : ''}</span></div>
+      <div class="stat explain" data-act="explain" data-key="fixed" title="${esc(m.explain.fixed)}"><b>${gbp(m.fixed)}</b><span>fixed / month</span></div>
+      <div class="stat explain ${m.net === null ? '' : m.net < 0 ? 'breach' : 'vital'}" data-act="explain" data-key="net" title="${esc(m.explain.net)}"><b>${gbp(m.net)}</b><span>net</span></div>
+      <div class="stat explain" data-act="explain" data-key="cash" title="${esc(m.explain.cash)}"><b>${m.cash ? gbp(m.cash.cash) : '—'}</b><span>cash${m.cash ? ` · ${esc(m.cash.day)}` : ' · not typed'}</span></div>
+      <div class="stat explain ${m.runway !== null && m.runway !== Infinity && m.runway < 3 ? 'breach' : ''}" data-act="explain" data-key="runway" title="${esc(m.explain.runway)}"><b>${runwayText}</b><span>runway</span></div>
       <div class="stat"><b>${gbp(lab.valueCost)}</b><span>stock at cost · <a href="#lab">${gbp(lab.valueSell)} at price</a></span></div>
-      <div class="stat ${m.realised.revenue === null ? '' : 'explain'}" title="${m.realised.revenue === null ? 'Nothing shipped this month with its lines recorded' : esc(`${m.realised.dispatches} dispatch(es) · ${m.realised.vials} vials · revenue ${gbp(m.realised.revenue)} − cost ${gbp(m.realised.cost)}${m.realised.incomplete.length ? ` · ${m.realised.incomplete.length} line(s) without a cost` : ''}`)}"><b>${m.realised.profit === null ? '—' : gbp(m.realised.profit)}</b><span>realised profit ${esc(monthLabel(month))}${m.realised.margin !== null ? ` · ${pct(m.realised.margin)}` : ''} · <a href="#lab/dispatch">from what shipped</a></span></div>
+      <div class="stat explain" data-act="explain" data-key="realised" title="${m.realised.revenue === null ? 'Nothing shipped this month with its lines recorded' : esc(`${m.realised.dispatches} dispatch(es) · ${m.realised.vials} vials · revenue ${gbp(m.realised.revenue)} − cost ${gbp(m.realised.cost)}${m.realised.incomplete.length ? ` · ${m.realised.incomplete.length} line(s) without a cost` : ''}`)}"><b>${m.realised.profit === null ? '—' : gbp(m.realised.profit)}</b><span>realised profit ${esc(monthLabel(month))}${m.realised.margin !== null ? ` · ${pct(m.realised.margin)}` : ''} · <a href="#lab/dispatch">from what shipped</a></span></div>
     </div>
+    ${st.explain ? `<p class="how"><b>${esc(st.explain)}</b> = ${esc(m.explain[st.explain] || '')} <button class="tiny ghost" data-act="explain" data-key="">close</button></p>` : ''}
     ${m.realised.revenue !== null && m.revenue !== null ? `<p class="src">Realised profit is what the boxes shipped in ${esc(monthLabel(month))} made — ${gbp(m.realised.revenue)} sold less ${gbp(m.realised.cost)} of lot cost, captured as each one shipped. The revenue above is what was typed; the two answer different questions and are not added together.${m.realised.incomplete.length ? ` <span class="flare">${m.realised.incomplete.length} line${m.realised.incomplete.length === 1 ? '' : 's'} shipped without a lot cost and ${m.realised.incomplete.length === 1 ? 'is' : 'are'} in the revenue but not the cost.</span>` : ''}</p>` : ''}
     <div class="bridge-grid">
       <div class="bridge-main">
@@ -132,6 +133,7 @@ function onClick(e) {
   const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'INPUT' || b.tagName === 'FORM') return;
   const act = b.dataset.act, id = b.dataset.id;
   if (act === 'back') go('#');
+  else if (act === 'explain') { st.explain = st.explain === b.dataset.key ? '' : b.dataset.key; paint({ keepScroll: true }); }
   else if (act === 'open-month' && !e.target.closest('a')) go(`#vault/${b.dataset.month}`);
   else if (act === 'proposal-approve') store.approveProposal('vault', id);
   else if (act === 'proposal-reject') { if (confirm('Reject this proposal? It stays in the record as killed.')) store.rejectProposal('vault', id); }

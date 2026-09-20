@@ -38,6 +38,7 @@ export function latestCash(snapshots = []) { const s = (snapshots || []).slice()
 export function runway(cash, revenue, fixed) { if (cash === null || cash === undefined) return null; const burn = fixed - (revenue || 0); return burn <= 0 ? Infinity : cash / burn; }
 export function allocations(pots = [], revenue) { return (pots || []).slice().sort((a, b) => a.position - b.position).map((p) => ({ ...p, pct: Number(p.pct) || 0, amount: revenue === null ? null : revenue * (Number(p.pct) || 0) / 100 })); }
 const items_ = (x) => x || [];
+const round = (n) => Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 });
 export const splitTotal = (pots = []) => (pots || []).reduce((n, p) => n + (Number(p.pct) || 0), 0);
 
 /** The last `n` months with figures, newest first: revenue, fixed at today's list, net. */
@@ -60,7 +61,22 @@ export function moneySummary({ ledger = [], fixed = [], cash = [], pots = [], di
   const c = latestCash(cash);
   const rw = runway(c?.cash ?? null, revenue, fx);
   const real = realisedMonth(dispatch, items_(dispatchItems), month);
+  // The working, so a total can be traced: which rows made the revenue and
+  // how each was read, which costs make the fixed figure, and the runway
+  // arithmetic in the terms it was done in. Computed here, once, so the
+  // room and the brief show the same explanation.
+  const terms = VENTURES.map((v) => { const r = ventureRow(ledger, month, v.id); const rev = rowRevenue(r); return { id: v.id, name: v.name, revenue: rev, how: !r ? 'no row' : r.revenue_gbp !== null && r.revenue_gbp !== undefined && r.revenue_gbp !== '' ? 'typed' : v.price && r.units !== null && r.units !== undefined ? `${r.units} × £${v.price}` : 'nothing typed' }; });
+  const fixedItems = (fixed || []).filter((f) => f.active !== false).map((f) => ({ id: f.id, name: f.name, amount: Number(f.amount_gbp) || 0 })).sort((a, b) => b.amount - a.amount);
+  const explain = {
+    revenue: terms.filter((t) => t.revenue !== null).map((t) => `${t.name} £${round(t.revenue)} (${t.how})`).join(' + ') || 'nothing typed for this month',
+    fixed: fixedItems.length ? fixedItems.map((f) => `${f.name} £${round(f.amount)}`).join(' + ') : 'no fixed costs listed',
+    net: revenue === null ? 'no revenue typed' : `£${round(revenue)} revenue − £${round(fx)} fixed`,
+    cash: c ? `typed ${c.day}${c.note ? ` — ${c.note}` : ''}` : 'no snapshot typed',
+    runway: c === null ? 'needs a cash snapshot' : fx - (revenue || 0) <= 0 ? `fixed £${round(fx)} ≤ revenue £${round(revenue || 0)}: nothing is being burned` : `£${round(c.cash)} cash ÷ (£${round(fx)} fixed − £${round(revenue || 0)} revenue) = £${round(fx - (revenue || 0))} a month`,
+    realised: real.revenue === null ? 'nothing shipped with lines this month' : `${real.dispatches} dispatch${real.dispatches === 1 ? '' : 'es'}, ${real.vials} vials: £${round(real.revenue)} sold − £${round(real.cost)} lot cost${real.incomplete.length ? ` (${real.incomplete.length} lines uncosted)` : ''}`,
+  };
   return {
+    explain, terms, fixedItems,
     month, revenue, previous: prev, change: revenue !== null && prev !== null && prev > 0 ? (revenue - prev) / prev : null,
     // Typed revenue is what Leo says came in; realised is what the boxes
     // that left the building actually made. They answer different

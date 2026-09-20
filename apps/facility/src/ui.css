@@ -408,3 +408,9 @@ html.touch .zoomer { display: flex; }
 .reader pre.evidence { max-height: 320px; overflow: auto; font-size: var(--t-1); }
 .reader tr.why-row td { font-size: var(--t-1); border-top: 0; padding-top: 0; }
 .bridge .signal { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: var(--t-1); }
+
+/* A number that can explain itself. */
+.stat.explain { cursor: pointer; }
+.stat.explain:hover { border-color: var(--arcane); }
+.how { border-left: 2px solid var(--arcane); padding: 6px 10px; margin: -6px 0 14px; color: var(--ash); font-size: var(--t-1); }
+.how b { color: var(--ink); text-transform: uppercase; letter-spacing: .08em; font-size: var(--t-1); font-weight: 500; }
