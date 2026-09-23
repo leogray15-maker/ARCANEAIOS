@@ -59,9 +59,10 @@ const MIGRATION_OF = {
   dispatch_items: '0010_dispatch_items.sql',
   goals: '0011_command.sql', projects: '0011_command.sql', reviews: '0011_command.sql', bottlenecks: '0011_command.sql', capital_rules: '0011_command.sql', capital_allocations: '0011_command.sql',
   permission_memory: '0012_governance.sql', agent_budgets: '0012_governance.sql', room_budgets: '0012_governance.sql',
+  agents: '0013_ai_layer.sql', outputs: '0013_ai_layer.sql', model_usage: '0013_ai_layer.sql',
 };
 /** Columns a later migration added to an existing table, so a half-applied schema is named rather than mistaken for a working one. */
-const COLUMN_OF = { 'orders.source_id': '0009_proposals.sql', 'orders.agent': '0009_proposals.sql', 'orders.project_id': '0011_command.sql', 'orders.recurrence': '0011_command.sql', 'decisions.options': '0011_command.sql', 'decisions.review_on': '0011_command.sql', 'list_items.value_gbp': '0011_command.sql', 'agent_runs.heartbeat_at': '0012_governance.sql', 'agent_runs.checkpoint': '0012_governance.sql', 'system_events.row_hash': '0012_governance.sql' };
+const COLUMN_OF = { 'orders.source_id': '0009_proposals.sql', 'orders.agent': '0009_proposals.sql', 'orders.project_id': '0011_command.sql', 'orders.recurrence': '0011_command.sql', 'decisions.options': '0011_command.sql', 'decisions.review_on': '0011_command.sql', 'list_items.value_gbp': '0011_command.sql', 'agent_runs.heartbeat_at': '0012_governance.sql', 'agent_runs.checkpoint': '0012_governance.sql', 'system_events.row_hash': '0012_governance.sql', 'agent_runs.cost_gbp': '0013_ai_layer.sql', 'agent_runs.output_ref': '0013_ai_layer.sql' };
 
 function translate(status, body, table) {
   const code = body?.code || '';

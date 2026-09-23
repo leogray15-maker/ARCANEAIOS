@@ -15,7 +15,7 @@ import { REPO, createDb, config } from './index.js';
 import { moduleRows } from './modules-from-index.js';
 
 const FILE = path.join(REPO, 'data', 'dev-db.json');
-const PERSIST = ['knowledge_sources', 'content_drafts', 'content_revisions', 'agent_runs', 'system_events', 'orders', 'list_items', 'decisions', 'counsel_turns', 'venture_focus', 'goal_progress', 'days', 'settings', 'products', 'stock_lots', 'dispatch', 'dispatch_items', 'ledger_months', 'fixed_costs', 'cash_snapshots', 'pots', 'protocol_items', 'protocol_ticks', 'entries', 'trades', 'setups', 'checkins', 'goals', 'projects', 'reviews', 'bottlenecks', 'capital_rules', 'capital_allocations', 'permission_memory', 'agent_budgets', 'room_budgets'];
+const PERSIST = ['knowledge_sources', 'content_drafts', 'content_revisions', 'agent_runs', 'system_events', 'orders', 'list_items', 'decisions', 'counsel_turns', 'venture_focus', 'goal_progress', 'days', 'settings', 'products', 'stock_lots', 'dispatch', 'dispatch_items', 'ledger_months', 'fixed_costs', 'cash_snapshots', 'pots', 'protocol_items', 'protocol_ticks', 'entries', 'trades', 'setups', 'checkins', 'goals', 'projects', 'reviews', 'bottlenecks', 'capital_rules', 'capital_allocations', 'permission_memory', 'agent_budgets', 'room_budgets', 'agents', 'outputs', 'model_usage'];
 
 export function devDb({ file = FILE } = {}) {
   let saved = {};

@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.js",
     "./memory": "./src/memory.js",
-    "./content": "./src/content.js"
+    "./content": "./src/content.js",
+    "./ai": "./src/ai.js"
   }
 }
