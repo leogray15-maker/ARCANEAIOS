@@ -144,4 +144,19 @@ await ok('a prefix of the key is not the key', async () => {
 });
 
 console.log(failures ? `\n✗ api gate: ${failures} failed` : `\n✓ api gate: every endpoint refuses before it reaches the model or the database`);
+const tick = (await import('../api/tick.js')).default;
+const { cronAuthorized } = await import('../api/_auth.js');
+await ok('tick: the x-vercel-cron header alone is not authority', async () => {
+  const r = await call(tick, { method: 'GET', headers: { 'x-vercel-cron': '1' } });
+  eq(r.code, 401, 'status');
+});
+await ok('tick: CRON_SECRET as a Bearer token is, and a wrong one is not', async () => {
+  const env = { CRON_SECRET: 'a-cron-secret-long-enough', ARCANE_OPERATOR_KEY: KEY };
+  eq(cronAuthorized({ headers: auth('a-cron-secret-long-enough') }, env), true, 'cron secret');
+  eq(cronAuthorized({ headers: auth(KEY) }, env), true, 'operator key');
+  eq(cronAuthorized({ headers: auth('a-cron-secret-long-enougX') }, env), false, 'wrong secret');
+  eq(cronAuthorized({ headers: {} }, env), false, 'no header');
+  eq(cronAuthorized({ headers: auth('short') }, { CRON_SECRET: 'short' }), false, 'a short secret is refused');
+});
+
 process.exit(failures ? 1 : 0);

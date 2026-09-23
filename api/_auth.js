@@ -48,6 +48,18 @@ export function operator(req, env = process.env) {
   return { ok: true, device: SYNC_CODE.test(code) ? code : '' };
 }
 
+/**
+ * Who may fire the scheduler. Vercel Cron sends `Authorization: Bearer
+ * $CRON_SECRET` when that variable is set on the project; the operator key
+ * also works, for a manual or GitHub Actions trigger. A header such as
+ * `x-vercel-cron` is not proof of anything: any client can send it.
+ */
+export function cronAuthorized(req, env = process.env) {
+  const given = bearer(req);
+  if (!given) return false;
+  return [env.CRON_SECRET, env.ARCANE_OPERATOR_KEY].some((k) => !!k && String(k).length >= 16 && same(given, k));
+}
+
 /** Wrap a handler: method check, operator check, JSON errors, one place. */
 export function guard(methods, fn) {
   return async function handler(req, res) {

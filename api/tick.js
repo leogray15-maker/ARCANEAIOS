@@ -7,9 +7,9 @@
  *   GET /api/tick
  *
  * Vercel Cron calls this itself and does not send the operator key, so it
- * is authorised separately, by a header only Vercel's own scheduler sets
- * (`x-vercel-cron`) or by the operator key for a manual/local trigger —
- * never open to the public internet undecorated.
+ * is authorised separately: by `Authorization: Bearer $CRON_SECRET`, which
+ * Vercel sends when CRON_SECRET is set on the project, or by the operator
+ * key for a manual/local trigger (`_auth.js` `cronAuthorized`).
  *
  * `vercel.json` asks for once a day (03:00). A first attempt at every 15
  * minutes was wrong, not just wasteful: on the Hobby plan a cron more
@@ -28,16 +28,13 @@
  *   2. nothing else yet — HERALD's own schedule stays where it is
  *      (`tools/herald-schedule.sh`, launchd) until it is worth moving here too
  */
-import { json } from './_auth.js';
+import { json, cronAuthorized } from './_auth.js';
 import { db } from './_lib.js';
 import { runs } from '../packages/database/src/content.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'use GET or POST' });
-  const fromVercelCron = !!req.headers['x-vercel-cron'];
-  const key = process.env.ARCANE_OPERATOR_KEY || '';
-  const given = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '')?.[1] || '';
-  if (!fromVercelCron && (!key || given !== key)) return json(res, 401, { error: 'tick is for Vercel Cron or the operator key' });
+  if (!cronAuthorized(req)) return json(res, 401, { error: 'tick needs CRON_SECRET (as Vercel Cron sends it) or the operator key' });
   let d;
   try { d = db(); } catch (e) { return json(res, 503, { error: e.message }); }
   try {

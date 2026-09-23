@@ -77,6 +77,8 @@ s = agentStatus(tally, { runs: staleRuns, orders: [], now: now.getTime() });
 ok(s.status === 'stalled' && s.stalled?.id === r2, `a heartbeat past the window means stalled, not working (${s.status})`); n++;
 
 await runs.finish(db, r2, { status: 'ok', usage: { in: 500, out: 200 } });
+// runs.start stamps the real clock; the budget is counted against the test's own day, so the run is moved onto it.
+await db.patch('agent_runs', { id: `eq.${r2}` }, { started_at: now.toISOString() });
 const budget = { agent: 'tally', tokens_daily: 600, tokens_monthly: null, runs_daily: null, active: true };
 s = agentStatus(tally, { runs: await runs.list(db, { limit: 20 }), orders: [], budgets: [budget], now: now.getTime() });
 ok(s.status === 'budget_exceeded', `usage at or over the daily token ceiling is budget_exceeded (used ${s.usage.tokensToday} of ${budget.tokens_daily})`); n++;
