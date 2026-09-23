@@ -23,4 +23,4 @@ jobs:
       - name: Every configured model exists
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: npm run models:verify
+        run: npm run models:verify -- --list nousresearch/

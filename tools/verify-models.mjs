@@ -12,6 +12,9 @@
  * that the catalogue prices, a price that has drifted by more than 10%,
  * and a capability we rely on (tools, structured output) that has gone.
  *
+ * `-- --list <prefix>` also prints every OpenRouter model under that
+ * prefix (e.g. `--list nousresearch/`), for choosing new ones.
+ *
  * Exit 1 when a configured id does not exist or a "free" model is priced:
  * either would fail or cost money at run time.
  */
@@ -44,6 +47,12 @@ const orModels = MODEL_LIST.filter((m) => m.provider === 'openrouter');
 try {
   const cat = OpenRouterModels.parse(await getJson('https://openrouter.ai/api/v1/models'));
   const byId = new Map(cat.data.map((x) => [x.id, x]));
+  const listAt = process.argv.indexOf('--list');
+  const prefix = listAt > 0 ? process.argv[listAt + 1] || '' : '';
+  if (prefix) {
+    say(`  models under ${prefix}:`);
+    for (const x of cat.data.filter((y) => y.id.startsWith(prefix)).sort((a, b) => a.id.localeCompare(b.id))) say(`    ${x.id} | $${+(Number(x.pricing.prompt) * 1e6).toFixed(4)}/$${+(Number(x.pricing.completion) * 1e6).toFixed(4)} per M | ${(x.supported_parameters || []).filter((p) => ['tools', 'structured_outputs', 'response_format'].includes(p)).join('+')}`);
+  }
   for (const m of orModels) {
     const x = byId.get(m.id);
     if (!x) { problems.push(`${m.key}: ${m.id} is not in OpenRouter's catalogue`); say(`  ✗ ${m.id} — not found`); continue; }
@@ -80,7 +89,7 @@ else {
 }
 
 // ---- the optional providers: list what the key can see, check any configured ids
-for (const pid of /** @type {const} */ (['groq', 'xai', 'deepseek'])) {
+for (const pid of /** @type {const} */ (['groq', 'xai', 'deepseek', 'nous'])) {
   const p = PROVIDERS[pid]; const mine = MODEL_LIST.filter((m) => m.provider === pid);
   const key = env[p.keyEnv];
   if (!key) { if (mine.length) warnings.push(`${p.name} ids unchecked: set ${p.keyEnv}`); continue; }

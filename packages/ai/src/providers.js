@@ -3,14 +3,14 @@
  * The providers, all spoken to through the same OpenAI-compatible chat
  * completions shape. OpenRouter is the gateway for most models; Gemini is
  * called directly so its free tier is used rather than paid through a
- * gateway; Groq, xAI and DeepSeek are optional and switch on when their
+ * gateway; Groq, xAI, DeepSeek and Nous (Hermes) are optional and switch on when their
  * key is present. Nothing here decides which model to use or whether it
  * may be paid for — that is the router's job (`router.js`).
  */
 import { z } from 'zod';
 
 /**
- * @typedef {'openrouter' | 'gemini' | 'groq' | 'xai' | 'deepseek'} ProviderId
+ * @typedef {'openrouter' | 'gemini' | 'groq' | 'xai' | 'deepseek' | 'nous'} ProviderId
  * @typedef {{ id: ProviderId, name: string, baseUrl: string, keyEnv: string, optional: boolean, headers?: (env: Record<string, string | undefined>) => Record<string, string> }} Provider
  */
 
@@ -25,6 +25,8 @@ export const PROVIDERS = {
   groq: { id: 'groq', name: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', keyEnv: 'GROQ_API_KEY', optional: true },
   xai: { id: 'xai', name: 'xAI', baseUrl: 'https://api.x.ai/v1', keyEnv: 'XAI_API_KEY', optional: true },
   deepseek: { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', keyEnv: 'DEEPSEEK_API_KEY', optional: true },
+  // Nous Research's inference API (the Hermes models), OpenAI-compatible per portal.nousresearch.com/api-docs.
+  nous: { id: 'nous', name: 'Nous Research', baseUrl: 'https://inference-api.nousresearch.com/v1', keyEnv: 'NOUS_API_KEY', optional: true },
 };
 
 /** @param {ProviderId} id @param {Record<string, string | undefined>} env */
