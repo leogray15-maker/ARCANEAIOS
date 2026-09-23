@@ -22,6 +22,8 @@ function rng(seed) {
   for (const ch of String(seed)) s = (s * 31 + ch.charCodeAt(0)) >>> 0;
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
+/** Signage and labels use the interface's mono face once it has loaded, the system mono until then. */
+const SIGN_FONT = '"Geist Mono", ui-monospace, Menlo, monospace';
 const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
 
 export function createBuffer() {
@@ -299,7 +301,7 @@ function drawAgent(g, a, sprite, t) {
    PRESENT — blit + labels + atmosphere at display resolution
    ============================================================ */
 
-export function present(canvas, buf, view, { hover, selected } = {}, sim = null, dpr = 1) {
+export function present(canvas, buf, view, { hover, selected, rooms = {} } = {}, sim = null, dpr = 1) {
   const g = canvas.getContext('2d');
   // Work in CSS pixels; the transform puts every fill and blit on device pixels.
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -309,31 +311,51 @@ export function present(canvas, buf, view, { hover, selected } = {}, sim = null,
   g.drawImage(buf, 0, 0, PW, PH, view.x, view.y, PW * view.scale, PH * view.scale);
 
   const s = view.scale;
+  const now = performance.now() / 1000;
   g.textBaseline = 'top';
+  // Signage: a dark plate on the top wall with the room's accent tick, its
+  // name, and the lamp that says what state the room is in (core/roomstate.js).
+  // The name belongs to the room, so it never leaves it: on a phone the whole
+  // plan is a third of its size, so the plate shrinks first, then clips.
   for (const p of PLAN) {
     const room = ROOM_BY_ID[p.id];
+    const lamp = rooms[p.id];
     const [x, y, w] = p.rect;
-    const px = view.x + (x + 12) * s, py = view.y + (y + WALL + 15) * s;
-    // The name belongs to the room, so it never leaves it: on a phone the
-    // whole plan is a third of its size and a full name would run over the
-    // wall into the next wing. Shrink first, then clip.
-    const max = (w - 24) * s;
-    let size = Math.max(9, 4.5 * s);
-    g.font = `${size}px ui-monospace, Menlo, monospace`;
+    const px = view.x + (x + 8) * s, py = view.y + (y + WALL + 13) * s;
+    const lampW = lamp ? 12 : 0;
+    const max = (w - 20) * s - lampW;
+    let size = Math.max(9, 4.2 * s);
+    g.font = `500 ${size}px ${SIGN_FONT}`;
     let text = room.name;
     const width = g.measureText(text).width;
     if (width > max) {
       size = Math.max(7, size * (max / width));
-      g.font = `${size}px ui-monospace, Menlo, monospace`;
+      g.font = `500 ${size}px ${SIGN_FONT}`;
       while (text.length > 4 && g.measureText(`${text}\u2026`).width > max) text = text.slice(0, -1);
       if (text !== room.name) text += '\u2026';
     }
-    g.fillStyle = p.id === selected ? accent(room.accent) : p.id === hover ? PX.ink : PX.ash;
-    g.fillText(text, px, py);
+    const tw = g.measureText(text).width;
+    const padX = Math.max(4, 1.6 * s), plateH = size + Math.max(6, 2.4 * s);
+    const lit = p.id === selected || p.id === hover;
+    g.fillStyle = 'rgba(6,6,11,0.86)';
+    g.fillRect(px, py, tw + padX * 2 + lampW + 2, plateH);
+    g.fillStyle = lit ? accent(room.accent) : 'rgba(255,255,255,0.08)';
+    g.fillRect(px, py + plateH - 1, tw + padX * 2 + lampW + 2, 1);
+    g.fillStyle = accent(room.accent);
+    g.fillRect(px, py, 2, plateH);
+    g.fillStyle = p.id === selected ? accent(room.accent) : lit ? PX.ink : '#b4b2c6';
+    g.fillText(text, px + padX + 1, py + (plateH - size) / 2 + 1);
+    if (lamp) {
+      // The lamp breathes only when it wants the operator; a quiet room holds still.
+      const a = lamp.pulse ? 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(now * 2.6)) : 1;
+      const lx = px + padX + tw + 8, ly = py + plateH / 2;
+      if (lamp.pulse) { g.fillStyle = hexA(lamp.colour, 0.22 * a); g.beginPath(); g.arc(lx, ly, 6, 0, Math.PI * 2); g.fill(); }
+      g.globalAlpha = a; g.fillStyle = lamp.colour; g.beginPath(); g.arc(lx, ly, 3, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1;
+    }
   }
   // Equipment labels at 2x and above: a dark plate and the name, like the signage in the references.
   if (s >= 2) {
-    g.font = `${Math.max(7, 2.6 * s)}px ui-monospace, Menlo, monospace`;
+    g.font = `${Math.max(7, 2.6 * s)}px ${SIGN_FONT}`;
     for (const p of PLAN) {
       const [rx, ry] = p.rect;
       for (const prop of ROOM_PROPS[p.id].props) {
@@ -349,7 +371,7 @@ export function present(canvas, buf, view, { hover, selected } = {}, sim = null,
   }
   // Name tags over the crew at 2x and above, so you can tell who is walking.
   if (sim && s >= 2) {
-    g.font = `${Math.max(8, 3.2 * s)}px ui-monospace, Menlo, monospace`;
+    g.font = `500 ${Math.max(8, 3.2 * s)}px ${SIGN_FONT}`;
     g.textAlign = 'center';
     for (const a of sim.agents) {
       if (a.cfg.kind !== 'arcane' && a.state !== 'walk' && a.state !== 'drift' && a.id !== hover) continue;
@@ -359,13 +381,22 @@ export function present(canvas, buf, view, { hover, selected } = {}, sim = null,
     }
     g.textAlign = 'left';
   }
-  g.font = `${Math.max(9, 4 * s)}px ui-monospace, Menlo, monospace`;
-  g.fillStyle = PX.faint;
-  WINGS.forEach((w, i) => { const first = PLAN.find((p) => p.wing === i && p.row === 0); g.fillText(`${w.no} ${w.name}`, view.x + (first.rect[0] + 2) * s, view.y + (MARGIN - 14) * s); });
+  // Wing headers: the number, the name, and a hairline in the wing's colour.
+  // Each header stays inside its wing: shrink to fit, and on a phone keep only the number.
+  WINGS.forEach((w, i) => {
+    const first = PLAN.find((p) => p.wing === i && p.row === 0);
+    const hx = view.x + (first.rect[0] + 2) * s, hy = view.y + (MARGIN - 15) * s;
+    const max = (first.rect[2] - 4) * s;
+    let size = Math.max(9, 3.8 * s);
+    g.font = `600 ${size}px ${SIGN_FONT}`;
+    const full = g.measureText(`${w.no}  ${w.name}`).width;
+    if (full > max) { size = Math.max(7, size * (max / full)); g.font = `600 ${size}px ${SIGN_FONT}`; }
+    g.fillStyle = '#6e6c84'; g.fillText(w.no, hx, hy);
+    if (g.measureText(`${w.no}  ${w.name}`).width <= max) { g.fillStyle = '#b4b2c6'; g.fillText(w.name, hx + g.measureText(`${w.no}  `).width, hy); }
+    g.fillStyle = hexA(accent(w.accent), 0.55); g.fillRect(hx, view.y + (MARGIN - 5) * s, first.rect[2] * s - 4 * s, Math.max(1, s / 2));
+  });
 
   const vg = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.95);
-  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.38)');
   g.fillStyle = vg; g.fillRect(0, 0, W, H);
-  g.fillStyle = 'rgba(0,0,0,0.06)';
-  for (let yy = 0; yy < H; yy += 2) g.fillRect(0, yy, W, 1);
 }

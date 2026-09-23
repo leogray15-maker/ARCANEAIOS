@@ -11,7 +11,7 @@
  * the art stays sharp on a Retina display instead of being resampled.
  */
 import { AGENTS, ROOM_BY_ID } from '@arcane/config';
-import { PW, PH, PLAN_BY_ID, roomAt } from './config/floorplan.js';
+import { PW, PH, PLAN, PLAN_BY_ID, roomAt } from './config/floorplan.js';
 import { createBuffer, bakeStatic, drawLive, present } from './render/factory.js';
 import { bakeSprites } from './render/sprites.js';
 import { renderDash, bindDash } from './render/panel.js';
@@ -32,6 +32,7 @@ import { installResponsive, markTabs, isPhone, isTouch } from './render/responsi
 import { BrainGraph } from './render/graph.js';
 import { Strip } from './render/strip.js';
 import { signals } from './core/vigil.js';
+import { roomStates } from './core/roomstate.js';
 import { Sim } from './core/sim.js';
 import { Store } from './core/store.js';
 import { exampleTrades } from './core/journal.js';
@@ -47,7 +48,7 @@ const staticBuf = createBuffer();
 const buf = createBuffer();
 const sprites = bakeSprites(AGENTS);
 const view = { scale: 2, x: 0, y: 0, mode: 'fit' };
-const state = { hover: null, selected: null, staticDirty: true, screen: 'floor' };
+const state = { hover: null, selected: null, staticDirty: true, screen: 'floor', rooms: {} };
 const bellState = { open: false };
 
 // The brain export is baked into the site at build time; without it the
@@ -192,7 +193,13 @@ function showTip(roomId, e) {
   const room = ROOM_BY_ID[roomId];
   const here = sim.occupants(roomId);
   const open = store.openCount(roomId);
-  tip.innerHTML = `<b>${room.name}</b> <span>· ${room.sub}</span><br>${open ? `${open} open order${open === 1 ? '' : 's'}` : 'no open orders'}${here.length ? ' · ' + here.map((a) => `<span class="dot" style="background:${a.cfg.colour}"></span>${a.cfg.name}`).join(' ') : ''}`;
+  const lamp = state.rooms[roomId];
+  const resident = room.agent && AGENTS.find((a) => a.id === room.agent);
+  tip.innerHTML = `<div class="tip-head"><b>${esc(room.name)}</b>${lamp ? `<span class="tip-state" style="color:${lamp.colour}"><span class="lamp${lamp.pulse ? ' pulse-lamp' : ''}" style="background:${lamp.colour}"></span>${lamp.word}</span>` : ''}</div>
+    <div class="tip-sub">${esc(room.sub)}</div>
+    ${resident ? `<div class="tip-agent"><span class="dot" style="background:${resident.colour}"></span>${esc(resident.name)} <span>${esc(resident.call)} · ${esc(resident.role)}</span></div>` : ''}
+    <div class="tip-why">${lamp ? esc(lamp.why) : ''}${open ? ` · ${open} open order${open === 1 ? '' : 's'}` : ''}${here.length ? ' · here: ' + here.map((a) => esc(a.cfg.name)).join(', ') : ''}</div>
+    <div class="tip-foot">click to open</div>`;
   const r = stage.getBoundingClientRect();
   tip.style.left = `${e.clientX - r.left + 14}px`; tip.style.top = `${e.clientY - r.top + 14}px`;
   tip.style.display = 'block';
@@ -331,7 +338,12 @@ renderSync();
 function barStatus() {
   renderBell();
   const away = sim.agents.filter((a) => a.id !== 'arcane' && a.room !== a.home).length;
-  const sig = signals(store.state, brain); const worst = sig.some((s) => s.severity === 'breach') ? 'breach' : sig.some((s) => s.severity === 'warn') ? 'flare' : 'ash';
+  const sig = signals(store.state, brain);
+  state.rooms = roomStates(PLAN.map((p) => p.id), {
+    signals: sig, proposals: store.proposals(), open: (id) => store.openCount(id),
+    working: (id) => sim.agents.some((a) => a.home === id && a.room === id && a.working),
+  });
+  const worst = sig.some((s) => s.severity === 'breach') ? 'breach' : sig.some((s) => s.severity === 'warn') ? 'flare' : 'ash';
   const waiting = contentCounts ? (contentCounts.draft || 0) + (contentCounts.review || 0) : store.drafts().filter((d) => d.status === 'draft').length;
   const sv = store.serverStatus();
   const notice = store.noticeNow();
