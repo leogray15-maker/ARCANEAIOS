@@ -1,0 +1,28 @@
+# The model IDs in packages/ai/src/models.js must exist on OpenRouter. This
+# checks them against the live catalogue (a public endpoint, no key needed)
+# weekly and on every push that touches the AI layer, so a retired model
+# shows up here rather than as a failed agent run.
+name: models
+on:
+  push:
+    paths: ['packages/ai/**', 'tools/verify-models.mjs', '.github/workflows/models.yml']
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Catalogue (for reference)
+        run: |
+          curl -sS https://openrouter.ai/api/v1/models | node -e '
+            let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+              const m=JSON.parse(s).data;
+              const want=/^(deepseek|x-ai|anthropic|openai\/gpt-5|openai\/gpt-oss|google\/gemini|moonshotai|qwen|meta-llama|z-ai|mistralai|nvidia|openrouter)\//;
+              for (const x of m.filter(x=>want.test(x.id)||x.id.endsWith(":free")).sort((a,b)=>a.id.localeCompare(b.id)))
+                console.log([x.id, x.pricing?.prompt, x.pricing?.completion, x.context_length, (x.supported_parameters||[]).filter(p=>["tools","response_format","structured_outputs","reasoning"].includes(p)).join("+"), x.created].join(" | "));
+            })'
