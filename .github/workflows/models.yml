@@ -22,7 +22,7 @@ jobs:
           curl -sS https://openrouter.ai/api/v1/models | node -e '
             let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
               const m=JSON.parse(s).data;
-              const want=/^(deepseek|x-ai|anthropic|openai\/gpt-5|openai\/gpt-oss|google\/gemini|moonshotai|qwen|meta-llama|z-ai|mistralai|nvidia|openrouter)\//;
+              console.log("total", m.length); const want=/^(openai|google|meta-llama|x-ai)\//;
               for (const x of m.filter(x=>want.test(x.id)||x.id.endsWith(":free")).sort((a,b)=>a.id.localeCompare(b.id)))
                 console.log([x.id, x.pricing?.prompt, x.pricing?.completion, x.context_length, (x.supported_parameters||[]).filter(p=>["tools","response_format","structured_outputs","reasoning"].includes(p)).join("+"), x.created].join(" | "));
             })'
