@@ -1,0 +1,21 @@
+{
+  // Strict TypeScript over the plain ESM the repo is written in: files that
+  // start with `// @ts-check` are checked with JSDoc types; the rest of the
+  // repo predates this and is not. No emit — Vercel runs the source as is.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2022",
+    "lib": ["es2023", "dom"],
+    "types": ["node"],
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["packages/ai/src/**/*.js", "packages/agents/src/**/*.js", "api/**/*.js", "tools/verify-models.mjs", "tools/ai.test.mjs", "tools/agents-runner.test.mjs"]
+}

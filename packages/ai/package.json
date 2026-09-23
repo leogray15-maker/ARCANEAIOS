@@ -1,0 +1,15 @@
+{
+  "name": "@arcane/ai",
+  "version": "3.0.0",
+  "description": "The model router: one runModel() over OpenRouter, Gemini, Groq, xAI and DeepSeek, with tiers, fallback chains, a paid-model gate and a monthly budget.",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./models": "./src/models.js"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}

@@ -17,12 +17,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Catalogue (for reference)
-        run: |
-          curl -sS https://openrouter.ai/api/v1/models | node -e '
-            let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
-              const m=JSON.parse(s).data;
-              console.log("total", m.length); const want=/^(openai|google|meta-llama|x-ai)\//;
-              for (const x of m.filter(x=>want.test(x.id)||x.id.endsWith(":free")).sort((a,b)=>a.id.localeCompare(b.id)))
-                console.log([x.id, x.pricing?.prompt, x.pricing?.completion, x.context_length, (x.supported_parameters||[]).filter(p=>["tools","response_format","structured_outputs","reasoning"].includes(p)).join("+"), x.created].join(" | "));
-            })'
+      - run: npm ci
+      # GEMINI_API_KEY is optional here: add it as an Actions secret to have
+      # the Gemini ids checked too; without it they are reported unchecked.
+      - name: Every configured model exists
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: npm run models:verify

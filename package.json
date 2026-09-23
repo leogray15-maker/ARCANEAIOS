@@ -18,7 +18,7 @@
     "herald:emit": "node .claude/skills/herald/scripts/emit.mjs",
     "facility": "npm run vault:export && npm --workspace apps/facility run dev",
     "facility:build": "npm run vault:export && npm --workspace apps/facility run build",
-    "test": "node tools/validate-config.mjs && node .claude/skills/herald/scripts/lint.mjs --self-test && node .claude/skills/herald/scripts/archives.test.mjs && node tools/api.test.mjs && node tools/state.test.mjs && node tools/readiness.test.mjs && node tools/proposals.test.mjs && node tools/signals.test.mjs && node tools/realised.test.mjs && node tools/agents.test.mjs && node tools/content-machine.test.mjs && node tools/operating-state.test.mjs && node tools/os.test.mjs && node tools/governance.test.mjs && node tools/resilience.test.mjs && node tools/audit.test.mjs && node tools/workflow.test.mjs && node tools/runtime.test.mjs && npm --workspace apps/facility test",
+    "test": "node tools/validate-config.mjs && node tools/ai.test.mjs && node .claude/skills/herald/scripts/lint.mjs --self-test && node .claude/skills/herald/scripts/archives.test.mjs && node tools/api.test.mjs && node tools/state.test.mjs && node tools/readiness.test.mjs && node tools/proposals.test.mjs && node tools/signals.test.mjs && node tools/realised.test.mjs && node tools/agents.test.mjs && node tools/content-machine.test.mjs && node tools/operating-state.test.mjs && node tools/os.test.mjs && node tools/governance.test.mjs && node tools/resilience.test.mjs && node tools/audit.test.mjs && node tools/workflow.test.mjs && node tools/runtime.test.mjs && npm --workspace apps/facility test",
     "vault:export": "node tools/vault-export.mjs",
     "vault:graph": "node tools/vault-graph.mjs",
     "vault:all": "npm run vault:write && npm run vault:export && npm run vault:graph",
@@ -32,12 +32,23 @@
     "dev:local": "node tools/dev.mjs --local",
     "archives:sync": "node tools/archives-sync.mjs",
     "db:check": "node tools/db-check.mjs",
-    "products:import": "node tools/products-import.mjs"
+    "products:import": "node tools/products-import.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint",
+    "models:verify": "node tools/verify-models.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.126.0"
+    "@anthropic-ai/sdk": "^0.126.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.4",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "typescript": "~5.9.3"
   }
 }

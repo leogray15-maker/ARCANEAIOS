@@ -18,6 +18,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Typecheck and lint (the AI layer and the agent framework)
+        run: npm run typecheck && npm run lint
       - name: Standing rules, lint self-test, fold and signals, facility geometry
         run: npm test
       - name: Generated cards match the config (no drift)
