@@ -29,7 +29,7 @@ import { json, guard, db } from './_lib.js';
 import { runs, events } from '../packages/database/src/content.js';
 import { checkSchema } from '../packages/database/src/index.js';
 import { agentsTable, outputs, usage, OUTPUT_TYPES, OUTPUT_STATUSES } from '../packages/database/src/ai.js';
-import { runAgent, publicDef, parseCron, allDefs, CraftInput, craftedId, craftedDef, PERSONAS } from '../packages/agents/src/index.js';
+import { runAgent, publicDef, parseCron, allDefs, CraftInput, craftedId, craftedDef, PERSONAS, AGENT_DEFS } from '../packages/agents/src/index.js';
 import { paidAllowed, budgetGbp } from '../packages/ai/src/index.js';
 
 /**
@@ -99,6 +99,8 @@ export default guard(['GET', 'POST'], async (/** @type {ApiRequest} */ req, /** 
   const parsed = Body.safeParse(merged);
   if (!parsed.success) return json(res, 400, { error: parsed.error.issues.slice(0, 3).map((i) => `${i.path.join('.') || '(body)'}: ${i.message}`).join('; ') });
   const b = parsed.data;
+  // An id that is neither in code nor shaped like a crafted agent cannot exist: say so before asking the database.
+  if ((b.action === 'run' || b.action === 'set' || b.action === 'remove') && !b.id.startsWith('crafted-') && !AGENT_DEFS.some((x) => x.id === b.id)) return json(res, 404, { error: `no agent "${b.id}"` });
   const d = /** @type {Db} */ (db());
   const device = typeof raw.code === 'string' ? raw.code : '';
 
