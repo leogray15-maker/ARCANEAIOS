@@ -38,7 +38,7 @@ import { json, cronAuthorized } from './_auth.js';
 import { db } from './_lib.js';
 import { runs } from '../packages/database/src/content.js';
 import { agentsTable } from '../packages/database/src/ai.js';
-import { runAgent, AGENT_DEFS, publicDef, isDue } from '../packages/agents/src/index.js';
+import { runAgent, allDefs, publicDef, isDue } from '../packages/agents/src/index.js';
 
 /** The function's limit (vercel.json maxDuration), less a margin to write the answer. */
 const BUDGET_MS = 280_000;
@@ -51,13 +51,14 @@ export default async function handler(req, res) {
   try {
     const t0 = Date.now();
     const recovered = await runs.reap(d);
-    const rows = await agentsTable.ensure(d, AGENT_DEFS.map((x) => ({ id: x.id, schedule: x.schedule, config: publicDef(x) })));
+    const defs = await allDefs(d);
+    const rows = await agentsTable.ensure(d, defs.map((x) => ({ id: x.id, schedule: x.schedule, config: publicDef(x) })));
     const ran = [], deferred = [];
-    for (const [i, def] of AGENT_DEFS.entries()) {
+    for (const [i, def] of defs.entries()) {
       const row = rows[i];
       if (!row?.enabled || !row.schedule || def.disabled || !isDue(row.schedule, row.last_run_at)) continue;
       if (Date.now() - t0 + def.maxDurationMs > BUDGET_MS) { deferred.push(def.id); continue; }
-      const r = await runAgent(def.id, { trigger: 'cron' }, { db: d });
+      const r = await runAgent(def.id, { trigger: 'cron' }, { db: d, defs });
       ran.push({ agent: def.id, run: r.runId, status: r.status, error: r.error, outputs: r.outputs.length });
     }
     return json(res, 200, { at: new Date().toISOString(), reaped: recovered.map((r) => r.id), ran, deferred });

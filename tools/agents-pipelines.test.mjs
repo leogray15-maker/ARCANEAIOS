@@ -14,6 +14,7 @@ import { memoryDb } from '../packages/database/src/memory.js';
 import { runAgent } from '../packages/agents/src/index.js';
 import { agentsTable } from '../packages/database/src/ai.js';
 import { mockDrafts } from '../packages/content-engine/src/mock.js';
+import { CraftInput, craftedDef, craftedId, allDefs, PERSONAS } from '../packages/agents/src/index.js';
 
 let failures = 0, n = 0;
 /** @param {string} name @param {() => Promise<void> | void} fn */
@@ -24,7 +25,7 @@ const eq = (got, want, what) => { if (got !== want) throw new Error(`${what}: ex
 const truthy = (c, what) => { if (!c) throw new Error(what); };
 
 /** @typedef {import('../packages/database/src/ai.js').Db} Db */
-/** @typedef {{ [k: string]: unknown, id?: string, content?: string, data: Record<string, unknown> & { drafts?: string[] } }} Row */
+/** @typedef {{ [k: string]: unknown, id?: string, content?: string, data?: Record<string, unknown> & { drafts?: string[], withheld?: unknown, drafted_at?: unknown } }} Row */
 /** @typedef {Db & { tables: Record<string, Array<Row>> }} TestDb */
 const freshDb = () => /** @type {TestDb} */ (/** @type {unknown} */ (memoryDb({ agents: [], agent_runs: [], outputs: [], model_usage: [], system_events: [], content_drafts: [], content_revisions: [], archive_modules: [], settings: [] })));
 /** @param {Db} db @param {string} id */
@@ -88,7 +89,7 @@ await ok('LIBRARY SUMMARISER: a summary that restates a dose is withheld, not st
   const db = freshDb(); await enable(db, 'library-summariser');
   const { f } = fakeFetch(() => completion(summaryJson('Take 5mg before bed.')));
   const rep = await runAgent('library-summariser', {}, { db, env: ENV, fetch: f, ...fast });
-  eq(rep.status, 'ok', 'ok'); truthy(db.tables.outputs.every((o) => /^Withheld/.test(String(o.content)) && o.data.withheld && !/5mg/.test(String(o.content))), 'withheld');
+  eq(rep.status, 'ok', 'ok'); truthy(db.tables.outputs.every((o) => /^Withheld/.test(String(o.content)) && o.data?.withheld && !/5mg/.test(String(o.content))), 'withheld');
 });
 
 await ok('SCRIPTORIUM DRAFTER: gate-passing drafts land as draft for BEACON; the summary is marked drafted', async () => {
@@ -102,7 +103,7 @@ await ok('SCRIPTORIUM DRAFTER: gate-passing drafts land as draft for BEACON; the
   truthy(drafts.length >= 1, `drafts landed (${rep.summary})`);
   truthy(drafts.every((d) => d.status === 'draft' && d.agent === 'SCRIBE' && /^HER-\d{8}-\d{3}$/.test(String(d.id)) && d.compliance === 'pass'), 'as draft, by SCRIBE, gate passed');
   eq(drafts[0].model, 'nex-agi/nex-n2.5-pro:free', 'the model that wrote it is recorded');
-  truthy(db.tables.outputs[0].data.drafted_at && db.tables.outputs[0].data.drafts?.length === drafts.length, 'summary marked drafted');
+  truthy(db.tables.outputs[0].data?.drafted_at && db.tables.outputs[0].data?.drafts?.length === drafts.length, 'summary marked drafted');
   const again = await runAgent('scriptorium-drafter', {}, { db, env: ENV, fetch: f, ...fast });
   truthy(/nothing to draft/.test(again.summary), 'a drafted summary is not drafted twice');
 });
@@ -157,5 +158,26 @@ await ok('TREND SCOUT: stubbed — refused with what it needs, never runs', asyn
   eq(rep.status, 'refused', 'refused'); truthy(/XAI_API_KEY/.test(rep.error), rep.error); eq(db.tables.agent_runs.length, 0, 'no run');
 });
 
-console.log(failures ? `\n✗ agents-pipelines: ${failures} of ${n} failed` : `\n✓ agents-pipelines — Library, Scriptorium, Council, Trend Scout (${n} checks)`);
+await ok('CRAFTED: a persona, a room and a task make an agent that is bounded, owned by the room, and runs', async () => {
+  const db = freshDb();
+  const craft = CraftInput.parse({ name: 'X Radar', persona: 'x-twitter-intelligence-analyst', room: 'beacon', tier: 'grunt', task: 'List three conversations in my lanes worth a post this week.' });
+  const id = craftedId(craft.name); eq(id, 'crafted-x-radar', 'id');
+  db.tables.agents.push({ id, enabled: true, schedule: '', config: craft, custom: true, last_status: '', lock_run_id: null, lock_until: null });
+  const def = craftedDef({ id, schedule: '', config: craft });
+  truthy(def && def.owner === 'herald' && def.tools.includes('outputs.save') && /you never act/.test(def.instructions) && def.instructions.includes(String(PERSONAS.find((p) => p.id === 'x-twitter-intelligence-analyst')?.text.slice(0, 60))), 'bounded, owned by BEACON\'s agent, persona included');
+  const defs = await allDefs(db); truthy(defs.some((d) => d.id === id) && defs.some((d) => d.id === 'council'), 'listed with the code agents');
+  const { f } = fakeFetch(() => completion('1. The discipline debate. 2. Quiet quitting. 3. Solo founders.'));
+  const rep = await runAgent(id, {}, { db, env: ENV, fetch: f, defs, ...fast });
+  eq(rep.status, 'ok', `ran (${rep.error})`); eq(db.tables.outputs[0].type, 'note', 'saved as a note'); eq(db.tables.outputs[0].room, 'beacon', 'in BEACON');
+  eq(db.tables.agent_runs[0].agent, 'HERALD', 'recorded under the room\'s agent');
+});
+await ok('CRAFTED: an unknown persona, room or tool is refused; a broken row is skipped, not fatal', async () => {
+  for (const bad of [{ persona: 'nurse' }, { room: 'moon' }, { tools: ['shell.exec'] }, { name: 'x' }, { task: 'short' }]) {
+    truthy(!CraftInput.safeParse({ name: 'Radar', persona: 'growth-hacker', room: 'warroom', tier: 'thinker', task: 'Find me three growth experiments.', ...bad }).success, `refused ${JSON.stringify(bad)}`);
+  }
+  eq(craftedDef({ id: 'crafted-old', schedule: '', config: { name: 'Old', persona: 'gone' } }), null, 'a row that no longer validates is null');
+  truthy(!PERSONAS.some((p) => /health|nurse|payable|medical/i.test(p.id)), 'no persona that would bend a standing rule');
+});
+
+console.log(failures ? `\n✗ agents-pipelines: ${failures} of ${n} failed` : `\n✓ agents-pipelines — Library, Scriptorium, Council, Trend Scout, crafted (${n} checks)`);
 process.exit(failures ? 1 : 0);

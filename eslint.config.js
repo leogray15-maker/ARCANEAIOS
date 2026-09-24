@@ -11,7 +11,7 @@ export default [
     languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: { ...globals.node } },
     rules: {
       ...js.configs.recommended.rules,
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }],
       'no-empty': ['error', { allowEmptyCatch: true }],
       eqeqeq: ['error', 'smart'],
       'no-var': 'error',

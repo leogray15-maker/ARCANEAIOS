@@ -17,6 +17,9 @@
  *   POST /api/ai { action: 'run', id, input? }            → the run report   (also POST /api/agents/<id>/run)
  *   POST /api/ai { action: 'set', id, enabled?, schedule? } → { agent }
  *   POST /api/ai { action: 'review', id, status, content? } → { output }
+ *   GET  /api/ai?view=personas               → { personas } the library an agent is crafted from (no texts)
+ *   POST /api/ai { action: 'craft', name, persona, room, tier, task, instructions?, tools? } → { agent }
+ *   POST /api/ai { action: 'remove', id }    → { removed } — crafted agents only
  *
  * One file rather than several: the Hobby plan allows 12 functions and
  * this is the twelfth.
@@ -26,7 +29,7 @@ import { json, guard, db } from './_lib.js';
 import { runs, events } from '../packages/database/src/content.js';
 import { checkSchema } from '../packages/database/src/index.js';
 import { agentsTable, outputs, usage, OUTPUT_TYPES, OUTPUT_STATUSES } from '../packages/database/src/ai.js';
-import { runAgent, AGENT_DEFS, publicDef, parseCron } from '../packages/agents/src/index.js';
+import { runAgent, publicDef, parseCron, allDefs, CraftInput, craftedId, craftedDef, PERSONAS } from '../packages/agents/src/index.js';
 import { paidAllowed, budgetGbp } from '../packages/ai/src/index.js';
 
 /**
@@ -34,12 +37,14 @@ import { paidAllowed, budgetGbp } from '../packages/ai/src/index.js';
  * @typedef {import('../packages/database/src/ai.js').Db} Db
  */
 
-const AGENT_IDS = /** @type {[string, ...string[]]} */ (AGENT_DEFS.map((d) => d.id).length ? AGENT_DEFS.map((d) => d.id) : ['(none)']);
-const Id = z.enum(AGENT_IDS);
+// Crafted agents make the set of ids open-ended; the shape is checked here and existence against the registry below.
+const Id = z.string().regex(/^[a-z0-9-]{3,60}$/, 'not an agent id');
 const Body = z.discriminatedUnion('action', [
   z.object({ action: z.literal('run'), id: Id, input: z.record(z.string(), z.unknown()).optional(), code: z.string().optional() }),
   z.object({ action: z.literal('set'), id: Id, enabled: z.boolean().optional(), schedule: z.string().max(100).refine((s) => s.trim() === '' || !!parseCron(s), 'not a 5-field cron expression').optional(), code: z.string().optional() }),
   z.object({ action: z.literal('review'), id: z.string().regex(/^OUT-\d{8}-\d{3}$/), status: z.enum(OUTPUT_STATUSES), content: z.string().max(20_000).optional(), code: z.string().optional() }),
+  CraftInput.extend({ action: z.literal('craft'), code: z.string().optional() }),
+  z.object({ action: z.literal('remove'), id: Id, code: z.string().optional() }),
 ]);
 
 /** @param {ApiRequest} req @param {string} k */
@@ -47,12 +52,13 @@ const q = (req, k) => { const v = req.query?.[k]; return String(Array.isArray(v)
 
 /** Every agent: its definition, the operator's switches, its last few runs. @param {Db} d */
 async function agentsView(d) {
-  const rows = await agentsTable.ensure(d, AGENT_DEFS.map((x) => ({ id: x.id, schedule: x.schedule, config: publicDef(x) })));
-  const recent = /** @type {Array<Record<string, unknown>>} */ (await d.get('agent_runs', { select: 'id,agent,skill,status,model,error,started_at,finished_at,cost_gbp,steps,duration_ms,trigger,output_ref,usage', skill: `in.(${AGENT_DEFS.map((x) => x.id).join(',')})`, order: 'started_at.desc', limit: 200 }));
-  return AGENT_DEFS.map((x, i) => {
+  const defs = await allDefs(d);
+  const rows = await agentsTable.ensure(d, defs.map((x) => ({ id: x.id, schedule: x.schedule, config: publicDef(x) })));
+  const recent = /** @type {Array<Record<string, unknown>>} */ (await d.get('agent_runs', { select: 'id,agent,skill,status,model,error,started_at,finished_at,cost_gbp,steps,duration_ms,trigger,output_ref,usage', skill: `in.(${defs.map((x) => x.id).join(',')})`, order: 'started_at.desc', limit: 200 }));
+  return defs.map((x, i) => {
     const mine = recent.filter((r) => r.skill === x.id);
     const row = rows[i];
-    return { ...publicDef(x), enabled: row.enabled, schedule: row.schedule, lastRunAt: row.last_run_at, lastStatus: row.last_status, running: !!row.lock_run_id && !!row.lock_until && new Date(row.lock_until).getTime() > Date.now(), lastRun: mine[0] || null, recent: mine.slice(0, 5) };
+    return { ...publicDef(x), crafted: x.runPrefix === 'CRF-R', enabled: row.enabled, schedule: row.schedule, lastRunAt: row.last_run_at, lastStatus: row.last_status, running: !!row.lock_run_id && !!row.lock_until && new Date(row.lock_until).getTime() > Date.now(), lastRun: mine[0] || null, recent: mine.slice(0, 5) };
   });
 }
 
@@ -73,7 +79,7 @@ export default guard(['GET', 'POST'], async (/** @type {ApiRequest} */ req, /** 
       const id = q(req, 'agent');
       /** @type {Record<string, string | number>} */
       const params = { select: '*', order: 'started_at.desc', limit: Math.min(100, Number(q(req, 'limit')) || 30) };
-      if (id) params.skill = `eq.${id}`; else params.skill = `in.(${AGENT_DEFS.map((x) => x.id).join(',')})`;
+      if (id) params.skill = `eq.${id}`; else params.skill = `in.(${(await allDefs(d)).map((x) => x.id).join(',')})`;
       return json(res, 200, { runs: await d.get('agent_runs', params) });
     }
     if (view === 'outputs') {
@@ -82,6 +88,7 @@ export default guard(['GET', 'POST'], async (/** @type {ApiRequest} */ req, /** 
       if (status && !(/** @type {readonly string[]} */ (OUTPUT_STATUSES)).includes(status)) return json(res, 400, { error: `status must be one of ${OUTPUT_STATUSES.join(', ')}` });
       return json(res, 200, { outputs: await outputs.list(d, { room: q(req, 'room'), agent: q(req, 'agent'), type, status, limit: Number(q(req, 'limit')) || 50 }) });
     }
+    if (view === 'personas') return json(res, 200, { personas: PERSONAS.map((p) => ({ id: p.id, name: p.name, description: p.description, room: p.room, tier: p.tier, words: p.words, source: p.source })) });
     if (view === 'usage') return json(res, 200, { usage: await usage.summary(d), paid: { allowed: paidAllowed(process.env), budgetGbp: budgetGbp(process.env) } });
     return json(res, 400, { error: `unknown view "${view}"` });
   }
@@ -95,17 +102,38 @@ export default guard(['GET', 'POST'], async (/** @type {ApiRequest} */ req, /** 
   const d = /** @type {Db} */ (db());
   const device = typeof raw.code === 'string' ? raw.code : '';
 
+  if (b.action === 'review') {
+    const output = await outputs.review(d, b.id, b.status, { content: b.content });
+    if (!output) return json(res, 404, { error: `no output ${b.id}` });
+    return json(res, 200, { output });
+  }
+  if (b.action === 'craft') {
+    const { action: _a, code: _c, ...craft } = b;
+    const id = craftedId(craft.name);
+    const defs = await allDefs(d);
+    if (defs.some((x) => x.id === id)) return json(res, 409, { error: `an agent called ${craft.name} already exists` });
+    const def = craftedDef({ id, schedule: '', config: craft });
+    if (!def) return json(res, 400, { error: 'that combination does not make a runnable agent' });
+    const [row] = /** @type {Array<Record<string, unknown>>} */ (await d.post('agents', { id, enabled: false, schedule: '', config: craft, custom: true, last_status: '' }));
+    return json(res, 201, { agent: { ...publicDef(def), crafted: true, enabled: false, row } });
+  }
+  const defs = await allDefs(d);
+  const def = defs.find((x) => x.id === b.id);
+  if (!def) return json(res, 404, { error: `no agent "${b.id}"` });
+  if (b.action === 'remove') {
+    if (def.runPrefix !== 'CRF-R') return json(res, 400, { error: `${def.name} is defined in code; switch it off instead` });
+    await d.delete('agents', { id: `eq.${b.id}`, custom: 'eq.true' });
+    return json(res, 200, { removed: b.id });
+  }
   if (b.action === 'run') {
-    const report = await runAgent(b.id, { trigger: 'manual', input: b.input || {}, device }, { db: d });
+    const report = await runAgent(b.id, { trigger: 'manual', input: b.input || {}, device }, { db: d, defs });
     const status = report.status === 'ok' ? 200 : report.status === 'skipped' ? 409 : report.status === 'refused' ? 422 : 502;
     return json(res, status, { ...report, ...(report.error ? { error: report.error } : {}) });
   }
   if (b.action === 'set') {
-    await agentsTable.ensure(d, AGENT_DEFS.map((x) => ({ id: x.id, schedule: x.schedule, config: publicDef(x) })));
+    await agentsTable.ensure(d, [{ id: def.id, schedule: def.schedule, config: publicDef(def) }]);
     const agent = await agentsTable.set(d, b.id, { enabled: b.enabled, schedule: b.schedule }, 'leo');
     return json(res, 200, { agent });
   }
-  const output = await outputs.review(d, b.id, b.status, { content: b.content });
-  if (!output) return json(res, 404, { error: `no output ${b.id}` });
-  return json(res, 200, { output });
+  return json(res, 400, { error: 'unknown action' });
 });

@@ -6,7 +6,9 @@
 --   agents       one row per runnable agent in packages/agents/src/registry.js:
 --                the operator's switches (enabled, schedule) and the run lock.
 --                The definition itself lives in code; `config` is a copy of it
---                for the floor to show, refreshed on every run.
+--                for the floor to show, refreshed on every run. A `custom` row
+--                is an agent crafted in THE AGENT GARAGE from a persona: its
+--                definition is its `config`, validated by packages/agents.
 --   agent_runs   (exists since 0003) gains cost, steps, duration, trigger and
 --                an output reference, so a run row is the whole story.
 --   outputs      what an agent produced for a room: a summary, a draft, a
@@ -25,9 +27,11 @@ create table if not exists public.agents (
   lock_until   timestamptz,                             -- a lock past this time is stale and may be taken
   last_run_at  timestamptz,
   last_status  text        not null default '',
+  custom       boolean     not null default false,      -- crafted in THE AGENT GARAGE rather than defined in code
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
+alter table public.agents add column if not exists custom boolean not null default false;
 
 alter table public.agent_runs add column if not exists cost_gbp    numeric not null default 0;
 alter table public.agent_runs add column if not exists steps       integer not null default 0;
