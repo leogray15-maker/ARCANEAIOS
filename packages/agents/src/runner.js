@@ -141,11 +141,19 @@ export async function runAgent(agentId, req, deps) {
         const remaining = Math.max(0, def.budgetGbpPerRun - costGbp);
         /** @type {RunOptions} */
         const o = { purpose: def.id, maxTokens: 2_000, ...(opts.tier || opts.model || opts.chain ? {} : { tier: def.tier, model: def.model, fallbackTier: def.fallbackTier }), ...opts, maxCostGbp: Math.min(opts.maxCostGbp ?? Infinity, remaining), deadlineMs: Math.max(1_000, deadline - Date.now() - 5_000) };
-        const r = await runModel(o, {
+        /** @type {RunResult} */
+        let r;
+        try {
+          r = await runModel(o, {
           env, fetch: doFetch, sleep: deps.sleep, fxGbpPerUsd: fx,
           monthSpendGbp: () => usage.monthSpendGbp(db),
           onUsage: (u) => usage.record(db, { at: u.at, run_id: runId, agent: def.id, purpose: u.purpose, provider: u.provider, model: u.model, model_id: u.modelId, served_model: u.servedModel, free: u.free, ok: u.ok, error: u.error.slice(0, 500), tokens_in: u.tokensIn, tokens_out: u.tokensOut, cost_usd: u.costUsd, cost_gbp: u.costGbp, latency_ms: u.latencyMs }),
-        });
+          });
+        } catch (e) {
+          // Nothing was requested (every model skipped: no key, paid off, over budget): that was not a step.
+          if (e instanceof AiError && e.attempts.every((a) => a.outcome === 'skipped')) steps--;
+          throw e;
+        }
         costGbp += r.costGbp; tokens.in += r.usage.in; tokens.out += r.usage.out; lastModel = r.servedModel || r.modelId;
         await runs.heartbeat(db, runId, `step ${steps}: ${r.model}`).catch(() => null);
         return r;

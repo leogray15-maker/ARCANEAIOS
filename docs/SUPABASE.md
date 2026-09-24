@@ -29,6 +29,7 @@ Open the project → SQL Editor → paste each migration → Run, in order:
 | `0008_trading.sql` | `trades`, `setups`, `checkins` | THE TRADING FLOOR, VIGIL's drawdown and rule-break signals |
 | `0009_proposals.sql` | `orders.source_id`, `orders.agent`, the `proposed` state | An agent may propose; only the operator approves. Every order can name what caused it. |
 | `0010_dispatch_items.sql` | `dispatch_items` | The lines of a dispatch: product, lot, vials, price and cost captured at shipping. Shipping draws the lots down; realised margin follows. |
+| `0013_ai_layer.sql` | `agents`, `outputs`, `model_usage`; `agent_runs.cost_gbp`, `steps`, `duration_ms`, `trigger`, `output_ref` | THE AGENT GARAGE, THE COUNCIL, SCRIPTORIUM, the model budget (`docs/AI.md`). Run after `0011` and `0012`. |
 
 All seven are idempotent. The dashboard's "Last migration" card only counts
 migrations pushed by the Supabase CLI, so it says "No migrations" even

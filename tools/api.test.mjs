@@ -174,4 +174,10 @@ await ok('tick: CRON_SECRET as a Bearer token is, and a wrong one is not', async
   eq(cronAuthorized({ headers: auth('short') }, { CRON_SECRET: 'short' }), false, 'a short secret is refused');
 });
 
+await ok('the deployment stays inside the Hobby plan: at most 12 functions in api/', async () => {
+  const fs = await import('node:fs');
+  const fns = fs.readdirSync(new URL('../api/', import.meta.url)).filter((f) => f.endsWith('.js') && !f.startsWith('_'));
+  if (fns.length > 12) throw new Error(`${fns.length} functions (${fns.join(', ')}): Vercel Hobby refuses the deploy above 12 — merge one`);
+});
+
 process.exit(failures ? 1 : 0);

@@ -34,8 +34,24 @@ the real thing: the migrations in `supabase/migrations`, the keys in
 Open `brain/` in Obsidian. In Claude Code, `/herald` runs the same engine
 from the terminal.
 
+## The AI layer
+
+Agents that run on several models — OpenRouter (Claude, GPT, Grok,
+DeepSeek, Kimi, Qwen, Llama, Hermes and the free models), Gemini direct,
+optionally Groq, xAI, DeepSeek, Nous — built, run and watched from THE
+AGENT GARAGE. Free models first; paid ones only with `ALLOW_PAID_MODELS=true`
+inside `MONTHLY_BUDGET_GBP`.
+
+- **Add an agent**: an `AgentDef` in `packages/agents/src/agents/`, listed in `registry.js` — or craft one from a persona in THE AGENT GARAGE.
+- **Change models**: `packages/ai/src/models.js`, then `npm run models:verify`.
+- **Enable paid models**: `ALLOW_PAID_MODELS=true` and `MONTHLY_BUDGET_GBP` in Vercel and `.env`.
+- **Check spend**: THE AGENT GARAGE, `GET /api/ai?view=usage`, or `GET /api/health`.
+
+`docs/AI.md` has the detail: the agents, the tables, scheduling, security.
+
 ## Read next
 
+- `docs/AI.md` — the model router, the agents, the Garage, the Council, spend
 - `docs/ARCHITECTURE.md` — how the facility, brain, agents and content pipeline connect
 - `docs/CONTENT-MACHINE.md` — Archives → HERALD → BEACON, end to end
 - `docs/DATA-MODEL.md` — the tables, the draft lifecycle, who may write what

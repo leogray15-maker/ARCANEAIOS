@@ -12,7 +12,7 @@
  * budget spent.
  */
 import { z } from 'zod';
-import { runModel, AiError, extractJson, MODELS, TIERS, NAMED, COUNCIL_PANEL, resolveChain } from '../packages/ai/src/index.js';
+import { runModel, AiError, extractJson, MODELS, TIERS, NAMED, COUNCIL_PANEL, resolveChain, pingProviders } from '../packages/ai/src/index.js';
 
 let failures = 0, n = 0;
 /** @param {string} name @param {() => Promise<void> | void} fn */
@@ -203,6 +203,23 @@ await ok('an unknown model key is a config error, not a silent skip', () => {
 await ok('extractJson: bare, fenced and embedded', () => {
   eq(extractJson('{"a":1}').ok, true, 'bare'); eq(extractJson('```json\n{"a":1}\n```').ok, true, 'fenced');
   eq(extractJson('Here you go: {"a":1} hope that helps').ok, true, 'embedded'); eq(extractJson('no json').ok, false, 'none');
+});
+
+await ok('health: each provider is ok, missing or failing, and a key never comes back out', async () => {
+  const KEYS = { OPENROUTER_API_KEY: 'sk-or-v1-secretsecretsecret', GEMINI_API_KEY: 'AIzaSecretSecretSecretSecret12' };
+  /** @type {string[]} */ const asked = [];
+  /** @type {typeof globalThis.fetch} */
+  const f = async (url, init) => {
+    asked.push(`${init?.method || 'GET'} ${url}`);
+    if (String(url).includes('openrouter')) return new Response(JSON.stringify({ error: { message: 'Invalid key sk-or-v1-secretsecretsecret' } }), { status: 401 });
+    return new Response('{"models":[]}', { status: 200 });
+  };
+  const h = await pingProviders(KEYS, f);
+  const by = Object.fromEntries(h.map((x) => [x.provider, x]));
+  eq(by.openrouter.state, 'failing', 'openrouter failing'); eq(by.gemini.state, 'ok', 'gemini ok'); eq(by.groq.state, 'missing', 'groq missing');
+  truthy(!JSON.stringify(h).includes('secretsecret'), 'no key in the report');
+  truthy(asked.some((a) => a.startsWith('POST https://openrouter.ai/api/v1/chat/completions')) && asked.some((a) => a.includes('generativelanguage.googleapis.com/v1beta/models')), 'the cheap checks were used');
+  eq(asked.length, 2, 'providers without a key are not called');
 });
 
 console.log(failures ? `\n✗ ai: ${failures} of ${n} failed` : `\n✓ ai — router, fallbacks, paid gate, budget, JSON (${n} checks)`);

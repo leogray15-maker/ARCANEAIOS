@@ -17,5 +17,5 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["packages/ai/src/**/*.js", "packages/agents/src/**/*.js", "packages/database/src/ai.js", "tools/ai-data.test.mjs", "api/**/*.js", "tools/verify-models.mjs", "tools/ai.test.mjs", "tools/agents-runner.test.mjs", "tools/agents-pipelines.test.mjs"]
+  "include": ["packages/ai/src/**/*.js", "packages/agents/src/**/*.js", "packages/database/src/ai.js", "tools/ai-data.test.mjs", "api/**/*.js", "tools/verify-models.mjs", "tools/agent-run.mjs", "tools/ai.test.mjs", "tools/agents-runner.test.mjs", "tools/agents-pipelines.test.mjs"]
 }

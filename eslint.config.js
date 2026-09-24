@@ -7,7 +7,7 @@ import globals from 'globals';
 export default [
   { ignores: ['**/node_modules/**', '**/dist/**', 'brain/**', 'apps/facility/public/**'] },
   {
-    files: ['packages/ai/src/**/*.js', 'packages/agents/src/**/*.js', 'tools/verify-models.mjs', 'tools/ai.test.mjs', 'tools/ai-data.test.mjs', 'packages/database/src/ai.js', 'tools/agents-runner.test.mjs', 'tools/agents-pipelines.test.mjs', 'api/ai.js', 'api/tick.js'],
+    files: ['packages/ai/src/**/*.js', 'packages/agents/src/**/*.js', 'tools/verify-models.mjs', 'tools/agent-run.mjs', 'tools/ai.test.mjs', 'tools/ai-data.test.mjs', 'packages/database/src/ai.js', 'tools/agents-runner.test.mjs', 'tools/agents-pipelines.test.mjs', 'api/ai.js', 'api/tick.js'],
     languageOptions: { ecmaVersion: 2023, sourceType: 'module', globals: { ...globals.node } },
     rules: {
       ...js.configs.recommended.rules,
