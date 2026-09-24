@@ -41,8 +41,13 @@
  * @property {(ctx: RunContext) => Promise<{ summary: string, data?: Record<string, unknown> }>} [run]   a pipeline; without one, the generic tool loop runs
  */
 
+import { librarySummariser } from './agents/library.js';
+import { scriptoriumDrafter } from './agents/drafter.js';
+import { council } from './agents/council.js';
+import { trendScout } from './agents/trend.js';
+
 /** @type {AgentDef[]} */
-export const AGENT_DEFS = [];
+export const AGENT_DEFS = [librarySummariser, scriptoriumDrafter, council, trendScout];
 
 /** @type {Record<string, AgentDef>} */
 export const AGENT_DEF_BY_ID = Object.fromEntries(AGENT_DEFS.map((d) => [d.id, d]));

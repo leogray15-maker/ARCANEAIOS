@@ -57,8 +57,8 @@ async function agentsView(d) {
 }
 
 export default guard(['GET', 'POST'], async (/** @type {ApiRequest} */ req, /** @type {import('node:http').ServerResponse} */ res) => {
-  const d = /** @type {Db} */ (db());
   if (req.method === 'GET') {
+    const d = /** @type {Db} */ (db());
     // The record, exactly as /api/runs answered it.
     if (q(req, 'schema')) return json(res, 200, { tables: await checkSchema(d) });
     if (q(req, 'events')) return json(res, 200, { events: await events.list(d, { limit: Number(q(req, 'limit')) || 50, kind: q(req, 'kind') }) });
@@ -92,6 +92,7 @@ export default guard(['GET', 'POST'], async (/** @type {ApiRequest} */ req, /** 
   const parsed = Body.safeParse(merged);
   if (!parsed.success) return json(res, 400, { error: parsed.error.issues.slice(0, 3).map((i) => `${i.path.join('.') || '(body)'}: ${i.message}`).join('; ') });
   const b = parsed.data;
+  const d = /** @type {Db} */ (db());
   const device = typeof raw.code === 'string' ? raw.code : '';
 
   if (b.action === 'run') {

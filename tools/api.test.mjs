@@ -144,6 +144,20 @@ await ok('a prefix of the key is not the key', async () => {
 });
 
 console.log(failures ? `\n✗ api gate: ${failures} failed` : `\n✓ api gate: every endpoint refuses before it reaches the model or the database`);
+await ok('ai: a bad body is refused with the reason, before the database', async () => {
+  process.env.ARCANE_OPERATOR_KEY = KEY;
+  const post = (body) => call(runsApi, { method: 'POST', headers: auth(KEY), query: {}, body: { code: CODE, ...body } });
+  let r = await post({ action: 'run', id: 'not-an-agent' }); eq(r.code, 400, 'unknown agent');
+  r = await post({ action: 'set', id: 'council', schedule: 'every tuesday' }); eq(r.code, 400, 'bad cron'); if (!/cron/.test(r.body.error)) throw new Error(r.body.error);
+  r = await post({ action: 'review', id: 'OUT-1', status: 'published' }); eq(r.code, 400, 'bad review');
+  r = await post({ action: 'delete', id: 'council' }); eq(r.code, 400, 'unknown action');
+  r = await call(runsApi, { method: 'POST', headers: {}, query: {}, body: { action: 'run', id: 'council' } }); eq(r.code, 401, 'no key');
+});
+await ok('ai: /api/agents/<id>/run arrives as query action and id, and is validated the same way', async () => {
+  const r = await call(runsApi, { method: 'POST', headers: auth(KEY), query: { action: 'run', id: 'nope' }, body: { code: CODE } });
+  eq(r.code, 400, 'unknown agent via the rewrite');
+});
+
 const tick = (await import('../api/tick.js')).default;
 const { cronAuthorized } = await import('../api/_auth.js');
 await ok('tick: the x-vercel-cron header alone is not authority', async () => {
