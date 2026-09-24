@@ -55,9 +55,20 @@ export const api = {
     edit: (id, patch) => api.patch('/api/drafts', { id, ...patch }),
   },
   runs: {
-    list: (q) => api.get('/api/runs', q),
-    events: (q) => api.get('/api/runs', { events: 1, ...q }),
-    schema: () => api.get('/api/runs', { schema: 1 }),
+    list: (q) => api.get('/api/ai', q),
+    events: (q) => api.get('/api/ai', { events: 1, ...q }),
+    schema: () => api.get('/api/ai', { schema: 1 }),
+  },
+  /** The AI layer: runnable agents, what they produced, what the models cost. One function (api/ai.js). */
+  ai: {
+    agents: () => api.get('/api/ai', { view: 'agents' }),
+    runs: (agent, limit = 30) => api.get('/api/ai', { view: 'runs', agent, limit }),
+    outputs: (q = {}) => api.get('/api/ai', { view: 'outputs', ...q }),
+    usage: () => api.get('/api/ai', { view: 'usage' }),
+    /** A run can take minutes (the Council asks several models); wait as long as the function may. */
+    run: (id, input = {}) => api.post('/api/ai', { action: 'run', id, input }, { timeout: 300_000 }),
+    set: (id, patch) => api.post('/api/ai', { action: 'set', id, ...patch }),
+    review: (id, status, content) => api.post('/api/ai', { action: 'review', id, status, ...(content !== undefined ? { content } : {}) }),
   },
   /** The floor's operating state: orders, list items, decisions, counsel, venture focus, goal progress, days. */
   state: {
@@ -70,7 +81,7 @@ export const api = {
   },
   bridge: () => api.get('/api/bridge'),
   /** The machine's own state: keys held, database, migrations, imports, the last run — and the readiness the bar reads. */
-  health: () => api.get('/api/health'),
+  health: (ping = false) => api.get('/api/health', ping ? { ping: 1 } : {}, ping ? { timeout: 20_000 } : {}),
   /** A reader — TALLY, MERIDIAN or VECTOR — on the agent contract, all three behind one function (the Hobby plan's 12-function ceiling). `dry` returns what it read without the model. */
   agent: (id, { question = '', dry = false } = {}) => api.post('/api/agent', { agent: id, question, dry }, { timeout: 300_000 }),
   /** CIPHER, the only call that reads outside the building. It takes a while: it is searching. */

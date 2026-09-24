@@ -1,0 +1,28 @@
+# Vercel's Hobby plan runs a cron at most once a day (vercel.json fires
+# /api/tick at 03:00 UTC). This wakes the same endpoint every hour so an
+# agent scheduled for 06:00 runs near 06:00, not at 03:00 the next day.
+# Each agent still runs only when its own schedule says it is due.
+#
+# Needs two things in the repository's Settings → Secrets and variables → Actions:
+#   secret   CRON_SECRET  the same value as the Vercel project's CRON_SECRET
+#   variable ARCANE_URL   the deployment, e.g. https://arcaneaios.vercel.app
+# Until both are set the job says so and exits cleanly.
+name: agents-cron
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Wake /api/cron
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ARCANE_URL: ${{ vars.ARCANE_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$ARCANE_URL" ]; then echo "::notice::set the CRON_SECRET secret and the ARCANE_URL variable to enable the hourly scheduler"; exit 0; fi
+          code=$(curl -sS -o body.json -w '%{http_code}' --max-time 300 -H "Authorization: Bearer $CRON_SECRET" "$ARCANE_URL/api/cron")
+          cat body.json; echo
+          test "$code" = "200"

@@ -1,7 +1,13 @@
 /**
  * The machine's own state, for THE CONTROL ROOM.
  *
- *   GET /api/health → { env: { anthropic, service_key, operator_key, model }, db: { kind, ok, error }, tables: [...], sources: [...], runtime }
+ *   GET /api/health → { env: { anthropic, service_key, operator_key, model }, db: { kind, ok, error }, tables: [...], sources: [...], runtime, ai }
+ *   GET /api/health?ping=1 → the same, and `ai.providers` pinged: each OK, missing or failing
+ *
+ * `ai` says which AI keys are set (booleans), whether paid models are on,
+ * the monthly budget and this month's spend. Pinging is on request only:
+ * OpenRouter's free tier allows few requests a day without credits, and a
+ * dashboard refresh should not spend them.
  *
  * Which keys the server has (never their values), whether the database
  * answers, which migrations it has had, and the knowledge sources' sync
@@ -11,6 +17,8 @@ import { json, guard, db } from './_lib.js';
 import { checkSchema } from '../packages/database/src/index.js';
 import { sources, runs } from '../packages/database/src/content.js';
 import { readiness } from '../packages/database/src/readiness.js';
+import { usage } from '../packages/database/src/ai.js';
+import { PROVIDERS, pingProviders, paidAllowed, budgetGbp } from '../packages/ai/src/index.js';
 
 /** How many rows a table holds, or null when it cannot be asked. Never throws: a missing table is evidence, not an error. */
 async function count(d, table) {
@@ -33,5 +41,14 @@ export default guard(['GET'], async (req, res) => {
     try { lastRun = (await runs.list(d, { limit: 20 })).find((r) => ['ok', 'failed', 'refused'].includes(r.status)) || null; } catch {}
   }
   const ready = readiness({ env, db: dbInfo, tables, counts, lastRun });
-  return json(res, 200, { env, db: dbInfo, tables, sources: srcs, counts, ready, runtime: { vercel: process.env.VERCEL === '1', region: process.env.VERCEL_REGION || '', node: process.version, at: new Date().toISOString() } });
+  const e = process.env;
+  const ai = {
+    keys: Object.fromEntries(Object.values(PROVIDERS).map((p) => [p.keyEnv, !!e[p.keyEnv]])),
+    notion: !!e.NOTION_TOKEN, cron_secret: !!e.CRON_SECRET, supabase_url: !!(e.SUPABASE_URL || e.NEXT_PUBLIC_storage_SUPABASE_URL), supabase_anon: !!(e.SUPABASE_ANON_KEY || e.NEXT_PUBLIC_storage_SUPABASE_PUBLISHABLE_KEY),
+    paid: { allowed: paidAllowed(e), budgetGbp: budgetGbp(e), gemini_billing: e.GEMINI_BILLING === 'paid' ? 'paid' : 'free' },
+    spentGbp: null, providers: null,
+  };
+  if (d) { try { ai.spentGbp = await usage.monthSpendGbp(d); } catch {} }
+  if (req.query?.ping) ai.providers = await pingProviders(e);
+  return json(res, 200, { env, db: dbInfo, tables, sources: srcs, counts, ready, ai, runtime: { vercel: process.env.VERCEL === '1', region: process.env.VERCEL_REGION || '', node: process.version, at: new Date().toISOString() } });
 });

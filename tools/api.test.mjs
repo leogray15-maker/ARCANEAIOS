@@ -50,7 +50,7 @@ const stateApi = (await import('../api/state.js')).default;
 const bridge = (await import('../api/bridge.js')).default;
 const drafts = (await import('../api/drafts.js')).default;
 const modules = (await import('../api/modules.js')).default;
-const runsApi = (await import('../api/runs.js')).default;
+const runsApi = (await import('../api/ai.js')).default;
 const health = (await import('../api/health.js')).default;
 const agentApi = (await import('../api/agent.js')).default;
 

@@ -5,7 +5,7 @@
  *   #control     the keys the server holds (never their values), the database and its migrations,
  *                the knowledge sources' sync state, the last runs, the permission matrix
  *
- * Reads /api/health and /api/runs; the matrix is the config. Nothing here
+ * Reads /api/health and /api/ai (the record); the matrix is the config. Nothing here
  * is edited: agents are configured in packages/config, migrations in
  * supabase/migrations, keys in the environment.
  */

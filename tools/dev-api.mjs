@@ -42,7 +42,32 @@ function shim(req, res) {
   return url;
 }
 
+/** vercel.json's rewrites, applied the way Vercel applies them, so /api/agents/<id>/run and /api/cron work here too. */
+const REWRITES = (() => {
+  try {
+    return (JSON.parse(fs.readFileSync(path.join(REPO, 'vercel.json'), 'utf8')).rewrites || []).map((r) => {
+      const names = [];
+      const re = new RegExp('^' + r.source.replace(/:([a-z]+)/gi, (_, n) => { names.push(n); return '([^/]+)'; }) + '/?$');
+      return { re, names, destination: r.destination };
+    });
+  } catch { return []; }
+})();
+function rewrite(req) {
+  const url = new URL(req.url, 'http://localhost');
+  for (const r of REWRITES) {
+    const m = r.re.exec(url.pathname);
+    if (!m) continue;
+    let dest = r.destination;
+    r.names.forEach((n, i) => { dest = dest.replace(`:${n}`, encodeURIComponent(m[i + 1])); });
+    const to = new URL(dest, 'http://localhost');
+    for (const [k, v] of url.searchParams) if (!to.searchParams.has(k)) to.searchParams.set(k, v);
+    req.url = to.pathname + to.search;
+    return;
+  }
+}
+
 const server = http.createServer(async (req, res) => {
+  rewrite(req);
   const url = shim(req, res);
   const m = /^\/api\/([a-z-]+)\/?$/.exec(url.pathname);
   if (!m) return res.status(404).json({ error: `no route ${url.pathname}` });
