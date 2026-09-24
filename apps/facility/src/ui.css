@@ -460,3 +460,24 @@ html.touch .zoomer { display: flex; }
 /* Every panel shares one shape: square pixel rooms underneath, softly rounded instruments on top. */
 .state, .wait, .venture-card, form.gen, form.editor, .dispatch-box .lines table.grid, .how { border-radius: var(--r3); }
 .flash { border-radius: 0 var(--r2) var(--r2) 0; }
+
+/* THE AGENT GARAGE, THE COUNCIL, SCRIPTORIUM — the AI layer's rooms. */
+.garage-table { table-layout: fixed; }
+.garage-table td { vertical-align: top; overflow-wrap: anywhere; white-space: normal; box-sizing: border-box; }
+.garage-table th:nth-child(1) { width: 34%; } .garage-table th:nth-child(2) { width: 52px; } .garage-table th:nth-child(3) { width: 170px; }
+.garage-table th:nth-child(4) { width: 150px; } .garage-table th:nth-child(6) { width: 150px; }
+.garage-table td:nth-child(6) { white-space: normal; }
+.garage form.inline input { max-width: 100%; }
+form.craft { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+form.craft label.field:nth-child(n+5), form.craft p { grid-column: 1 / -1; }
+.council-seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.council-seats .pre, .verdict > p { white-space: pre-wrap; }
+.verdict h2 .chip { font-size: var(--t0); }
+@media (max-width: 760px) {
+  .garage-table, .garage-table tbody, .garage-table tr, .garage-table td { display: block; width: 100% !important; }
+  .garage-table thead { display: none; }
+  .tscroll > table.grid.garage-table { min-width: 0; }
+  .garage-table tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .garage-table td { border: 0; padding: 3px 0; }
+  form.craft { grid-template-columns: 1fr; }
+}

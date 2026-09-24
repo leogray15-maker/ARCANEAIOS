@@ -69,7 +69,9 @@ export class Strip {
     const w = this.weather;
     const weather = w ? `${w.t}°C ${WMO[w.code] || ''} · wind ${w.wind} km/h · ☼ ${w.sunrise} ☾ ${w.sunset}` : 'weather —';
     const gold = this.gold ? `XAUUSD <b>${Number(this.gold.price).toLocaleString('en-US', { maximumFractionDigits: 2 })}</b>${this.gold.chg !== undefined ? ` <span class="${this.gold.chg >= 0 ? 'vital' : 'breach'}">${this.gold.chg >= 0 ? '+' : ''}${Number(this.gold.chg).toFixed(2)}%</span>` : ''}` : 'XAUUSD —';
-    const posted = store.draftsBy('posted').length, waiting = store.draftsBy('draft').length;
+    // The database's counts once the bar has them (main.js loadLive); the build-time vault's until then.
+    const posted = this.counts ? this.counts.posted || 0 : store.draftsBy('posted').length;
+    const waiting = this.counts ? (this.counts.draft || 0) + (this.counts.review || 0) : store.draftsBy('draft').length;
     const today = new Date().toISOString().slice(0, 10); const done = store.protocolDone(today), items = store.protocolItems().length;
     const tradesToday = store.trades().filter((t) => (t.opened || '').startsWith(today)).length;
     this.el.innerHTML = `

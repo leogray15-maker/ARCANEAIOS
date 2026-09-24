@@ -78,6 +78,7 @@ export const ROOMS = [
     domain: 'Nine seated agents put a decision to the test and the Commander returns one verdict.',
     brain: '04-Records/Decisions',
     widgets: ['council-session'],
+    opens: '#council',
   },
   {
     id: 'vault', name: 'THE VAULT', sub: 'Treasury · Cash · VAT · The split',
@@ -93,6 +94,7 @@ export const ROOMS = [
     domain: 'Books, masterclasses, the long-form work and its launches.',
     brain: null,
     widgets: ['manuscript-progress'],
+    opens: '#scriptorium',
   },
 
   /* ============ ANNEX · below COMMAND, opening onto the atrium ============ */
@@ -151,6 +153,7 @@ export const ROOMS = [
     domain: 'Where an agent is configured: name, role, domain, tools, grades, and what it must ask before doing.',
     brain: '01-System/Agents',
     widgets: ['roster'],
+    opens: '#garage',
   },
   {
     id: 'control', name: 'THE CONTROL ROOM', sub: 'Permissions · Approvals · Audit',

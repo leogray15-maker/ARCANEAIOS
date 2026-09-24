@@ -26,6 +26,9 @@ import { renderSanctum, bindSanctum } from './render/sanctum.js';
 import { renderRecords, bindRecords } from './render/records.js';
 import { renderControl, bindControl } from './render/control.js';
 import { renderIntel, bindIntel } from './render/intel.js';
+import { renderGarage, bindGarage } from './render/garage.js';
+import { renderCouncil, bindCouncil } from './render/council.js';
+import { renderScriptorium, bindScriptorium } from './render/scriptorium.js';
 import { installNav, navCounts, toggle as toggleNav, isOpen as navOpen } from './render/nav.js';
 import { esc } from './render/ui.js';
 import { installResponsive, markTabs, isPhone, isTouch } from './render/responsive.js';
@@ -39,11 +42,12 @@ import { exampleTrades } from './core/journal.js';
 import { sync } from './core/sync.js';
 import { cloud } from './core/cloud.js';
 import { operator } from './core/operator.js';
+import { api } from './core/api.js';
 
 const $ = (id) => document.getElementById(id);
 
 const stage = $('stage'), canvas = $('floor'), tip = $('tip');
-const views = { dash: $('dash'), library: $('library'), beacon: $('beacon'), bridge: $('bridge'), warroom: $('warroom'), lab: $('lab'), vault: $('vault'), sanctum: $('sanctum'), records: $('records'), control: $('control'), intel: $('intel'), journal: $('journal'), graph: $('graph') };
+const views = { dash: $('dash'), library: $('library'), beacon: $('beacon'), bridge: $('bridge'), warroom: $('warroom'), lab: $('lab'), vault: $('vault'), sanctum: $('sanctum'), records: $('records'), control: $('control'), garage: $('garage'), council: $('council'), scriptorium: $('scriptorium'), intel: $('intel'), journal: $('journal'), graph: $('graph') };
 const staticBuf = createBuffer();
 const buf = createBuffer();
 const sprites = bakeSprites(AGENTS);
@@ -60,7 +64,8 @@ store.sessionStart = Date.now();
 const sim = new Sim(store);
 const ctx = { sim, store, brain };
 window.arcane = { store, sim, brain };   // for the console; nothing reads it
-let contentCounts = null;   // BEACON's counts by status, once it has loaded them; the bar reads them
+let contentCounts = null;   // drafts by status, from the database; the bar and the strip read them
+let aiCounts = null;        // the AI layer: outputs waiting for review, agents whose last run failed
 // The bar repaints on every store change and every counts callback; writing
 // the same HTML again would detach a button mid-click, so it is only written
 // when it actually differs.
@@ -214,7 +219,7 @@ function route() {
   const h = location.hash || '#';
   const room = /^#room\/([a-z]+)/.exec(h)?.[1];
   if (room && ROOM_BY_ID[room]?.opens) { location.hash = ROOM_BY_ID[room].opens; return; }
-  const screen = room && ROOM_BY_ID[room] ? 'dash' : h.startsWith('#journal') ? 'journal' : h.startsWith('#library') ? 'library' : h.startsWith('#beacon') ? 'beacon' : h.startsWith('#content') ? 'beacon' : h.startsWith('#bridge') ? 'bridge' : h.startsWith('#warroom') ? 'warroom' : h.startsWith('#lab') ? 'lab' : h.startsWith('#vault') ? 'vault' : h.startsWith('#sanctum') ? 'sanctum' : h.startsWith('#records') ? 'records' : h.startsWith('#control') ? 'control' : h.startsWith('#intel') ? 'intel' : h.startsWith('#graph') ? 'graph' : 'floor';
+  const screen = room && ROOM_BY_ID[room] ? 'dash' : h.startsWith('#journal') ? 'journal' : h.startsWith('#library') ? 'library' : h.startsWith('#beacon') ? 'beacon' : h.startsWith('#content') ? 'beacon' : h.startsWith('#bridge') ? 'bridge' : h.startsWith('#warroom') ? 'warroom' : h.startsWith('#lab') ? 'lab' : h.startsWith('#vault') ? 'vault' : h.startsWith('#sanctum') ? 'sanctum' : h.startsWith('#records') ? 'records' : h.startsWith('#control') ? 'control' : h.startsWith('#garage') ? 'garage' : h.startsWith('#council') ? 'council' : h.startsWith('#scriptorium') ? 'scriptorium' : h.startsWith('#intel') ? 'intel' : h.startsWith('#graph') ? 'graph' : 'floor';
   state.screen = screen;
   state.selected = room && ROOM_BY_ID[room] ? room : null;
   for (const [k, el] of Object.entries(views)) el.classList.toggle('hidden', k !== screen);
@@ -229,6 +234,9 @@ function route() {
   if (screen === 'records') { sim.command('records'); renderRecords(views.records, ctx, h); }
   if (screen === 'control') { sim.command('control'); renderControl(views.control, ctx, h); }
   if (screen === 'intel') { sim.command('intel'); renderIntel(views.intel, ctx, h); }
+  if (screen === 'garage') { sim.command('garage'); renderGarage(views.garage, ctx, h); }
+  if (screen === 'council') { sim.command('council'); renderCouncil(views.council, ctx, h); }
+  if (screen === 'scriptorium') { sim.command('scriptorium'); renderScriptorium(views.scriptorium, ctx, h); }
   if (screen === 'library') { sim.command('archives'); renderLibrary(views.library, ctx, h); }
   if (screen === 'beacon') { sim.command('beacon'); renderBeacon(views.beacon, ctx, h.startsWith('#content') ? '#beacon' : h); }
   if (screen === 'graph') graph.show();
@@ -251,6 +259,9 @@ bindSanctum(views.sanctum, { store, go });
 bindRecords(views.records, { store, go, brain });
 bindControl(views.control, { store, go });
 bindIntel(views.intel, { store, go, brain });
+bindGarage(views.garage, { store, go });
+bindCouncil(views.council, { store, go });
+bindScriptorium(views.scriptorium, { go, onCounts: (c) => { contentCounts = c; navCounts(c); barStatus(); } });
 store.onChange(() => {
   if (state.screen === 'dash') renderDash(views.dash, state.selected, ctx, { keepScroll: true });
   if (state.screen === 'journal') renderJournal(views.journal, ctx, location.hash, { keepScroll: true });
@@ -266,9 +277,29 @@ store.onChange(() => {
 });
 store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } });
 // The server rung: orders, moves, decisions, counsel, focus, goals, the day. Loads now, again when the key changes, and every minute.
-store.loadServer().then(() => { route(); store.startServerRefresh(); store.loadSystem().then(barStatus); });
+store.loadServer().then(() => { route(); store.startServerRefresh(); store.loadSystem().then(barStatus); loadLive(); });
+/**
+ * The bar's live numbers, from the database rather than the build-time
+ * vault: drafts waiting, outputs waiting for review, agents whose last run
+ * failed. Asked at start, every minute while the page is visible, and when
+ * the operator key changes. A failure leaves the last known numbers (or
+ * the vault's) in place: the floor never waits on it.
+ */
+async function loadLive() {
+  if (!operator.key) return;
+  const [d, a, o] = await Promise.allSettled([api.drafts.list({ limit: 1 }), api.ai.agents(), api.ai.outputs({ status: 'pending', limit: 200 })]);
+  if (d.status === 'fulfilled') { contentCounts = d.value.counts; navCounts(d.value.counts); strip.counts = d.value.counts; }
+  if (a.status === 'fulfilled' || o.status === 'fulfilled') {
+    aiCounts = {
+      failing: a.status === 'fulfilled' ? a.value.agents.filter((x) => x.enabled && x.lastRun?.status === 'failed').length : 0,
+      review: o.status === 'fulfilled' ? o.value.outputs.filter((x) => x.type !== 'summary').length : 0,
+    };
+  }
+  barStatus();
+}
+setInterval(() => { if (!document.hidden) loadLive(); }, 60_000);
 setInterval(() => { if (!document.hidden) store.loadSystem().then(barStatus); }, 300_000);
-operator.onChange(() => { store.loadServer().then(() => route()); store.loadSystem({ force: true }).then(barStatus); });
+operator.onChange(() => { store.loadServer().then(() => route()); store.loadSystem({ force: true }).then(barStatus); loadLive(); });
 sync.onChange(() => { store.loadCloud().then((ok) => { if (ok) { route(); store.startPolling(); } }); renderSync(); });
 
 /**
@@ -361,7 +392,7 @@ function barStatus() {
   // anything needs the operator, without adding a word to read.
   const pulse = sig.some((s) => s.severity === 'breach') || store.proposals().length ? 'attention' : store.totalOpen() > 0 ? 'active' : 'idle';
   document.title = pulse === 'attention' ? '● THE ARCANE' : 'THE ARCANE';
-  paintBar(`<span class="line"><span class="pulse ${pulse}" title="system pulse: ${pulse}"></span><span class="${sv.tone}" title="${sv.text}">●</span> ${sysChip}${brain?.brief?.date ? `<a href="#bridge">brief <b>${brain.brief.date}</b></a> · ` : ''}<a href="#bridge"><b>${store.totalOpen()}</b> open orders</a> · <a href="#beacon"><b>${waiting}</b> draft${waiting === 1 ? '' : 's'} waiting</a> · <a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}${sv.tone !== 'vital' ? ` · <span class="${sv.tone}">${sv.text}</span>` : ''}</span>`);
+  paintBar(`<span class="line"><span class="pulse ${pulse}" title="system pulse: ${pulse}"></span><span class="${sv.tone}" title="${sv.text}">●</span> ${sysChip}${brain?.brief?.date ? `<a href="#bridge">brief <b>${brain.brief.date}</b></a> · ` : ''}<a href="#bridge"><b>${store.totalOpen()}</b> open orders</a> · <a href="#beacon"><b>${waiting}</b> draft${waiting === 1 ? '' : 's'} waiting</a> · ${aiCounts?.review ? `<a href="#garage"><b>${aiCounts.review}</b> to review</a> · ` : ''}${aiCounts?.failing ? `<a href="#garage" class="breach"><b>${aiCounts.failing}</b> agent${aiCounts.failing === 1 ? '' : 's'} failing</a> · ` : ''}<a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}${sv.tone !== 'vital' ? ` · <span class="${sv.tone}">${sv.text}</span>` : ''}</span>`);
 }
 
 
