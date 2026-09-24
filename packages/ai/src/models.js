@@ -57,6 +57,8 @@ export const MODEL_LIST = [
   m('grok', 'openrouter', 'x-ai/grok-4.7', { label: 'Grok 4.7', lab: 'xAI', price: { in: 1.60, out: 4.80 }, context: 500_000 }),
   m('kimi', 'openrouter', 'moonshotai/kimi-k3', { label: 'Kimi K3', lab: 'Moonshot', price: { in: 3, out: 15 }, context: 1_048_576 }),
   m('qwen-flash', 'openrouter', 'qwen/qwen3.8-flash', { label: 'Qwen 3.8 Flash', lab: 'Qwen', price: { in: 0.15, out: 0.47 }, context: 1_000_000 }),
+  // Nous Research's Hermes. The catalogue lists response_format but not tools or structured_outputs.
+  m('hermes', 'openrouter', 'nousresearch/hermes-4-405b', { label: 'Hermes 4 405B', lab: 'Nous Research', price: { in: 1, out: 3 }, context: 131_072, tools: false, json: 'object' }),
   m('llama', 'openrouter', 'meta-llama/llama-4-maverick', { label: 'Llama 4 Maverick', lab: 'Meta', price: { in: 0.1875, out: 0.6525 }, context: 1_048_576 }),
 ];
 
@@ -92,6 +94,7 @@ export const NAMED = {
   deepseek: { chain: ['deepseek-pro', 'deepseek-flash'], note: 'DeepSeek V4' },
   kimi: { chain: ['kimi'], note: 'Moonshot Kimi K3' },
   gemini: { chain: ['gemini-flash', 'gemini-flash-lite'], note: 'Gemini direct, free tier' },
+  hermes: { chain: ['hermes'], note: 'Nous Research Hermes 4' },
 };
 
 /**
@@ -110,6 +113,7 @@ export const COUNCIL_PANEL = [
   { seat: 'NVIDIA', chain: ['nemotron-ultra-free', 'nemotron-super-free'] },
   { seat: 'Thinking Machines', chain: ['inkling-free'] },
   { seat: 'Qwen', chain: ['qwen-free', 'qwen-flash'] },
+  { seat: 'Nous Research', chain: ['hermes'] },
 ];
 
 /** How hard the router tries. Timeouts are per call; a Vercel function has 300s in all (vercel.json). */

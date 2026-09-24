@@ -51,7 +51,7 @@ try {
   const prefix = listAt > 0 ? process.argv[listAt + 1] || '' : '';
   if (prefix) {
     say(`  models under ${prefix}:`);
-    for (const x of cat.data.filter((y) => y.id.startsWith(prefix)).sort((a, b) => a.id.localeCompare(b.id))) say(`    ${x.id} | $${+(Number(x.pricing.prompt) * 1e6).toFixed(4)}/$${+(Number(x.pricing.completion) * 1e6).toFixed(4)} per M | ${(x.supported_parameters || []).filter((p) => ['tools', 'structured_outputs', 'response_format'].includes(p)).join('+')}`);
+    for (const x of cat.data.filter((y) => y.id.startsWith(prefix)).sort((a, b) => a.id.localeCompare(b.id))) say(`    ${x.id} | $${+(Number(x.pricing.prompt) * 1e6).toFixed(4)}/$${+(Number(x.pricing.completion) * 1e6).toFixed(4)} per M | ctx ${x.context_length ?? '?'} | ${(x.supported_parameters || []).filter((p) => ['tools', 'structured_outputs', 'response_format'].includes(p)).join('+')}`);
   }
   for (const m of orModels) {
     const x = byId.get(m.id);
@@ -66,6 +66,7 @@ try {
       const drift = (/** @type {number} */ a, /** @type {number} */ b) => (b === 0 ? a !== 0 : Math.abs(a - b) / b > 0.1);
       if (drift(pin, m.price.in) || drift(pout, m.price.out)) warnings.push(`${m.key}: price drift — configured $${m.price.in}/$${m.price.out}, catalogue $${+pin.toFixed(4)}/$${+pout.toFixed(4)} per M`);
     }
+    if (x.context_length && m.context > x.context_length) warnings.push(`${m.key}: configured context ${m.context} is above the catalogue's ${x.context_length}`);
     if (m.tools && params.length && !params.includes('tools')) warnings.push(`${m.key}: configured with tools, the catalogue does not list tools`);
     if (m.json === 'schema' && params.length && !params.includes('structured_outputs')) warnings.push(`${m.key}: configured json=schema, the catalogue does not list structured_outputs`);
     say(`  ✓ ${m.id} — ${notes.join(', ')}`);
