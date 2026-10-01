@@ -18,6 +18,7 @@ import { signals } from '../core/vigil.js';
 import { reason } from '../core/reason.js';
 import { esc, chip, when, stampFull, num, failed, handleKeyForm, STATUS_TONE } from './ui.js';
 import { DOCTRINE_FALLBACK } from '../config/roomdata.js';
+import { installCore, mountCore } from './core.js';
 
 const PRIO = ['P0', 'P1', 'P2', 'P3'];
 const PRIO_TONE = ['deny', 'flare', 'arcane', 'ash'];
@@ -31,6 +32,7 @@ let el = null, go = null, store = null, brain = null, onCounts = null;
 
 export function bindBridge(view, ctx) {
   el = view; go = ctx.go; store = ctx.store; brain = ctx.brain; onCounts = ctx.onCounts;
+  if (ctx.sim) installCore({ sim: ctx.sim, store, go, rooms: ctx.rooms });
   el.addEventListener('click', onClick);
   el.addEventListener('submit', onSubmit);
   el.addEventListener('change', onChange);
@@ -107,6 +109,21 @@ function paint({ keepScroll = false } = {}) {
     </div>
     ${sv.tone === 'breach' ? `<p class="flash breach">${esc(sv.text)}</p>` : ''}
     ${store.server.needsKey || (!store.server.ready && store.server.reason === 'no operator key') ? failed({ needsKey: true, status: 401 }) : ''}
+    <div class="command-core">
+      <div class="cc-col left">
+        ${metric('open orders', open.length, open.length ? 'cyan' : '', `${rooms.length} room${rooms.length === 1 ? '' : 's'} with work`)}
+        ${metric('P0 · P1', p01.length, p01.some((o) => o.p === 0) ? 'red' : p01.length ? 'amber' : '', p01[0] ? p01[0].t : 'nothing urgent')}
+        ${metric('blocked', blocked.length, blocked.length ? 'amber' : '', blocked[0] ? blocked[0].blocked || blocked[0].t : 'nothing blocked')}
+        ${metric('due', due.length, due.length ? 'red' : '', due[0] ? due[0].t : 'nothing past due')}
+      </div>
+      <div class="cc-slot" data-core><span class="cc-caption">ROOMS · AGENTS · CORE</span></div>
+      <div class="cc-col right">
+        ${metric('waiting on you', waitingCount, waitingCount ? 'amber' : '', 'drafts, blocks, verdicts, proposals')}
+        ${metric('agent proposals', proposals.length, proposals.length ? 'violet' : '', proposals[0] ? `${store.agentName(proposals[0].agent) || 'agent'}: ${proposals[0].t}` : 'none put forward')}
+        ${metric('signals', sig.length, sig.some((s) => s.severity === 'breach') ? 'red' : sig.length ? 'amber' : 'green', sig[0] ? sig[0].text : 'nothing moved', '#room/observatory')}
+        ${metric('agent runs · 2 days', x ? x.active.runs.length : '—', x?.active?.runs?.some((r) => r.status !== 'ok' && r.status !== 'running' && r.status !== 'evidence') ? 'red' : x?.active?.runs?.length ? 'cyan' : '', x?.active?.runs?.[0] ? `${x.active.runs[0].agent}: ${x.active.runs[0].objective}` : 'no agent has run')}
+      </div>
+    </div>
     <div class="bridge-grid">
       <div class="bridge-main">
         <section>
@@ -203,7 +220,15 @@ function paint({ keepScroll = false } = {}) {
       </aside>
     </div>
   </div>`;
+  mountCore(el.querySelector('[data-core]'));
   if (keepScroll) el.scrollTop = scroll;
+}
+
+/** One readout beside the core: a value, what it counts, and the first thing it is counting. */
+function metric(label, value, tone, detail = '', href = '') {
+  const zero = value === 0 || value === '—';
+  const tag = href ? 'a' : 'div';
+  return `<${tag} class="metric ${tone || ''} ${zero ? 'zero' : ''}"${href ? ` href="${href}"` : ''}><span>${esc(label)}</span><b>${esc(String(value))}</b>${detail ? `<i title="${esc(detail)}">${esc(detail)}</i>` : ''}</${tag}>`;
 }
 
 function runRow(r) {

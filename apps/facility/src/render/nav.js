@@ -40,10 +40,10 @@ function destinations(store, counts) {
 }
 
 const st = { open: false, q: '', i: 0, list: [] };
-let el = null, go = null, store = null, counts = null;
+let el = null, go = null, store = null, counts = null, lamps = () => ({});
 
 export function installNav(ctx) {
-  go = ctx.go; store = ctx.store;
+  go = ctx.go; store = ctx.store; if (ctx.rooms) lamps = ctx.rooms;
   el = document.getElementById('nav');
   el.addEventListener('click', (e) => {
     const row = e.target.closest('[data-hash]');
@@ -83,8 +83,9 @@ function paint({ keepQuery = false } = {}) {
   if (st.i >= st.list.length) st.i = Math.max(0, st.list.length - 1);
   const byWing = {};
   for (const d of st.list) (byWing[d.wing || 'ELSEWHERE'] || (byWing[d.wing || 'ELSEWHERE'] = [])).push(d);
-  const row = (d) => `<button class="nav-row ${st.list[st.i] === d ? 'on' : ''}" data-hash="${esc(d.hash)}">
-      <span class="n">${esc(d.name)}</span>
+  const lit = lamps();
+  const row = (d) => `<button class="nav-row ${st.list[st.i] === d ? 'on' : ''}" data-hash="${esc(d.hash)}"${lit[d.id] ? ` style="--lamp:${lit[d.id].colour}" title="${esc(lit[d.id].word)}: ${esc(lit[d.id].why)}"` : ''}>
+      <span class="l"></span><span class="n">${esc(d.name)}</span>
       <span class="s">${esc(d.sub)}</span>
       ${d.agent ? `<span class="a">${esc(d.agent)}</span>` : ''}
       ${d.badge ? `<span class="b">${esc(d.badge)}</span>` : ''}

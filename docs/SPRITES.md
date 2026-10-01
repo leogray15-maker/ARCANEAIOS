@@ -1,5 +1,10 @@
 # Sprites and pixel direction
 
+> The floor is now drawn as a lit 3D facility (`render/world/`, see
+> `docs/VISUAL-SYSTEM.md`). The pixel plan described here is the fallback
+> when the browser cannot draw WebGL2, or with `?flat`, and the sprite
+> sheet (`sheet.html`). The placements in `config/props.js` drive both.
+
 The facility should feel like a place, not a diagram. That comes from
 three things: figures with enough pixels to have posture, rooms with
 enough objects to have a job, and light that makes the objects look like

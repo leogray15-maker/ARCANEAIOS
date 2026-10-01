@@ -78,6 +78,7 @@ function paint({ keepScroll = false } = {}) {
           </form>
           ${!watch.length ? '<p class="empty">The watchlist is empty. CIPHER only researches what you put on it — add a competitor, a supplier, a market or a regulation on the right.</p>' : ''}
           ${st.runError ? `<div class="state error-state"><p><b>The watch did not run.</b> ${esc(st.runError)}</p></div>` : ''}
+          ${run?.items?.length ? evidenceBoard(watch, run) : ''}
           ${run ? runView(run) : st.busy ? loading('the watch (a minute or two — it is reading the web)') : ''}
         </section>
 
@@ -103,6 +104,38 @@ function paint({ keepScroll = false } = {}) {
     </div>
   </div>`;
   el.scrollTop = scroll; restore();
+}
+
+/**
+ * The evidence board: what was watched, what was seen, where it bears.
+ * Left, the watchlist entries the run read; middle, each item it reported,
+ * coloured by kind; right, the room its proposal routes to. A confirmed
+ * finding is a solid line, a reported one fine, a rumour dashed — so the
+ * strength of the evidence is visible before a word is read.
+ */
+const KIND_HEX = { opportunity: '#4fc58a', threat: '#e2554f', signal: '#5ec4e2', action: '#e0a64e' };
+function evidenceBoard(watch, run) {
+  const items = run.items || [];
+  const match = (it) => { const w = String(it.watching || '').toLowerCase(); return w ? watch.find((x) => w.includes(x.text.toLowerCase()) || x.text.toLowerCase().includes(w)) : null; };
+  const sources = [];
+  const srcOf = items.map((it) => { const m = match(it); const key = m ? m.id : it.watching ? `w:${it.watching}` : 'brief'; let s = sources.find((x) => x.key === key); if (!s) { s = { key, label: m ? m.text : it.watching || 'the brief', tag: m?.tag }; sources.push(s); } return s; });
+  const rooms = [];
+  const roomOf = items.map((it) => { const id = it.proposal?.room; if (!id) return null; let r = rooms.find((x) => x.id === id); if (!r) { r = { id, label: ROOM_BY_ID[id]?.name || id }; rooms.push(r); } return r; });
+  const ROW = 46, H = Math.max(items.length, sources.length, rooms.length) * ROW + 30;
+  const y = (i, n) => 15 + (H - 30) / Math.max(1, n) * (i + 0.5);
+  const cut = (t, n) => (String(t).length > n ? `${String(t).slice(0, n - 1)}…` : String(t));
+  const curve = (x1, y1, x2, y2) => `M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`;
+  const dash = (c) => (c === 'confirmed' ? '' : c === 'rumour' ? '4 4' : '1 3');
+  return `<figure class="board">
+    <figcaption><span>WATCHED</span><span>OBSERVED · ${items.length}</span><span>BEARS ON</span></figcaption>
+    <svg viewBox="0 0 1000 ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="What was watched, what was seen, where it bears">
+      ${items.map((it, i) => { const si = sources.indexOf(srcOf[i]), ri = rooms.indexOf(roomOf[i]); const col = KIND_HEX[it.kind] || '#8490a0';
+        return `<g class="link" data-i="${i}"><path d="${curve(250, y(si, sources.length), 400, y(i, items.length))}" stroke="${col}" stroke-dasharray="${dash(it.confidence)}"/>${roomOf[i] ? `<path d="${curve(640, y(i, items.length), 790, y(ri, rooms.length))}" stroke="${col}" stroke-dasharray="${dash(it.confidence)}"/>` : ''}</g>`; }).join('')}
+      ${sources.map((s, i) => `<g class="node src"><circle cx="250" cy="${y(i, sources.length)}" r="3.5"/><text x="238" y="${y(i, sources.length) + 4}" text-anchor="end">${esc(cut(s.label, 30))}</text>${s.tag ? `<text class="tag" x="238" y="${y(i, sources.length) + 17}" text-anchor="end">${esc(s.tag)}</text>` : ''}</g>`).join('')}
+      ${items.map((it, i) => `<g class="node item" style="--k:${KIND_HEX[it.kind] || '#8490a0'}"><rect x="400" y="${y(i, items.length) - 15}" width="240" height="30" rx="3"/><circle cx="412" cy="${y(i, items.length)}" r="3"/><text x="422" y="${y(i, items.length) + 4}">${esc(cut(it.headline, 30))}</text><title>${esc(it.headline)} — ${esc(it.kind)}, ${esc(it.confidence || 'unrated')}</title></g>`).join('')}
+      ${rooms.map((r, i) => `<g class="node room"><circle cx="790" cy="${y(i, rooms.length)}" r="3.5"/><text x="802" y="${y(i, rooms.length) + 4}">${esc(r.label)}</text></g>`).join('')}
+    </svg>
+  </figure>`;
 }
 
 function runView(run) {

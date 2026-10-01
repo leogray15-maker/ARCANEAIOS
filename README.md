@@ -1,8 +1,8 @@
 # THE ARCANE — LEOOS v3
 
 The operating system of the Arcane ventures, rendered as a facility you
-can walk. Twenty rooms across four wings. Nineteen agents as pixel crew
-who walk toward the work. One shared memory in an Obsidian vault. One
+can walk. Twenty rooms across four wings, built and lit in three
+dimensions. Nineteen agents as crew who walk toward the work. One shared memory in an Obsidian vault. One
 brief. Counsel and Council. Strict permission grades — no agent ever
 holds `allow`. The first production skill is **HERALD**, the content
 creator.

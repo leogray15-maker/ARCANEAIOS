@@ -1,12 +1,13 @@
 /**
  * Room widgets — the State section of each dashboard.
  *
- * Each widget is a function (store, brain, room) → HTML. They read the
+ * Each widget is a function (store, brain, room, sim) → HTML. They read the
  * store (what the operator edits on the floor) and the brain export (what
  * the vault knows). Controls carry `data-act` attributes; panel.js routes
  * the clicks and inputs back to the store. Nothing here mutates.
  */
 import { VENTURES, AGENTS, ROOM_BY_ID } from '@arcane/config';
+import { agentUnit } from './units.js';
 import { monthOf, monthLabel } from '../core/money.js';
 import { signals } from '../core/vigil.js';
 
@@ -68,7 +69,8 @@ const council = (store, brain) => {
     ${cards || (brain?.decisions?.length ? '' : '<p class="empty">No decisions recorded yet.</p>')}
     ${brain?.decisions?.length ? `<h3>From the vault</h3>${table(['Date', 'Decision', 'Verdict', 'Via', 'Outcome'], brain.decisions.map((d) => `<tr><td class="ash">${esc(d.date)}</td><td>${esc(d.decision)}</td><td>${chip(d.verdict, tone(d.verdict))}</td><td class="ash">${esc(d.deliberation)}</td><td class="ash">${esc(d.outcome_later)}</td></tr>`))}` : ''}`;
 };
-const garage = () => AGENTS.map((a) => `<div class="card"><div class="card-head"><span class="dot" style="background:${a.colour}"></span><b>${esc(a.name)}</b> <span class="ash">${esc(a.role)} · ${esc(a.call)} · ${esc(ROOM_BY_ID[a.room].name)}</span>${a.council ? chip('council', 'gold') : ''}</div><p class="ash">${esc(a.brief)}</p></div>`).join('');
+// The garage: every agent as a unit — state, location, next action, systems, grades — live from the sim.
+const garage = (store, brain, room, sim) => `<div class="units">${AGENTS.map((a) => agentUnit(a, { sim, store })).join('')}</div>`;
 const observatory = (store, brain) => {
   const live = signals(store.state, brain);
   const tone = (sv) => (sv === 'breach' ? 'deny' : sv === 'warn' ? 'flare' : 'ash');

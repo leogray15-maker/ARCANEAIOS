@@ -86,14 +86,14 @@ ARCANEAIOSMAIN/                    the monorepo (GitHub: the-arcane)
 │   └── archives/                  gitignored, regenerable: index.json + modules/*.txt
 │
 ├── apps/
-│   └── facility/                  Vite + vanilla ESM + canvas → Vercel
+│   └── facility/                  Vite + vanilla ESM + Three.js → Vercel
 │       ├── index.html
 │       ├── vite.config.js
 │       └── src/
 │           ├── main.js               routes: #  #room/<id>  #bridge  #warroom  #library[/<module>]  #beacon[/<view>|/draft/<id>]  #journal  #graph
 │           ├── config/floorplan.js   geometry only; meaning imported from @arcane/config
 │           ├── core/                 store (the tables' cache) · lab · money · journal (the arithmetic) · cloud + sync · operator · api · reason · sim · vigil
-│           └── render/               factory · props · sprites (the world) · panel · widgets · bridge · warroom · lab · vault · sanctum · records · control · library · beacon · journal · graph (the work)
+│           └── render/               world/ (the 3D floor: world · props3d · materials · kit) · factory · props · sprites (the pixel plan, the fallback) · tone (the palette) · hud · core · units · panel · widgets · bridge · warroom · lab · vault · sanctum · records · control · intel · library · beacon · journal · graph (the work)
 │
 └── docs/
     ├── ARCHITECTURE.md            the diagrams
@@ -101,7 +101,8 @@ ARCANEAIOSMAIN/                    the monorepo (GitHub: the-arcane)
     ├── DATA-MODEL.md              the tables and the lifecycle
     ├── SUPABASE.md                set-up, keys, the operator key
     ├── HERALD-AUTO.md             the unattended run
-    ├── SPRITES.md                 pixel direction
+    ├── VISUAL-SYSTEM.md           layers, materials, light, colour, the parts
+    ├── SPRITES.md                 pixel direction (the fallback plan view)
     ├── STRUCTURE.md               this file
     └── PLAN.md                    the plan and what is done
 ```

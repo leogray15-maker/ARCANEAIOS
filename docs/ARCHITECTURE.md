@@ -63,8 +63,8 @@ flowchart TB
     SY[(arcane_sync<br/>stock · ledger · protocol · journal, for now)]
   end
 
-  subgraph FACILITY["apps/facility — Vite, canvas, Vercel"]
-    FLOOR[Floor: 21 rooms, props, sprites]
+  subgraph FACILITY["apps/facility — Vite, Three.js, Vercel"]
+    FLOOR[Floor: 21 rooms, props, crew — lit 3D, pixel plan as fallback]
     BRI[BRIDGE<br/>today · waiting · active · signals · ventures]
     WAR[THE WAR ROOM<br/>moves · ranking · stop]
     LIB[THE LIBRARY<br/>browse · search · module · Generate]
