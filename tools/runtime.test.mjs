@@ -77,13 +77,15 @@ s = agentStatus(tally, { runs: staleRuns, orders: [], now: now.getTime() });
 ok(s.status === 'stalled' && s.stalled?.id === r2, `a heartbeat past the window means stalled, not working (${s.status})`); n++;
 
 await runs.finish(db, r2, { status: 'ok', usage: { in: 500, out: 200 } });
+// The database stamps started_at with its own clock, so "today" for the budget is the day the run actually started.
+const ranAt = new Date((await runs.list(db, { limit: 20 })).find((r) => r.id === r2).started_at);
 const budget = { agent: 'tally', tokens_daily: 600, tokens_monthly: null, runs_daily: null, active: true };
-s = agentStatus(tally, { runs: await runs.list(db, { limit: 20 }), orders: [], budgets: [budget], now: now.getTime() });
+s = agentStatus(tally, { runs: await runs.list(db, { limit: 20 }), orders: [], budgets: [budget], now: ranAt.getTime() });
 ok(s.status === 'budget_exceeded', `usage at or over the daily token ceiling is budget_exceeded (used ${s.usage.tokensToday} of ${budget.tokens_daily})`); n++;
 ok(budgetUsage([], null, now).exceeded === false, 'no budget set means nothing to exceed'); n++;
 
 const inactive = { ...budget, active: false };
-s = agentStatus(tally, { runs: await runs.list(db, { limit: 20 }), orders: [], budgets: [inactive], now: now.getTime() });
+s = agentStatus(tally, { runs: await runs.list(db, { limit: 20 }), orders: [], budgets: [inactive], now: ranAt.getTime() });
 ok(s.status !== 'budget_exceeded', 'an inactive budget does not gate the agent'); n++;
 
 /* ---- gamification: real numbers, not invented points ---- */
@@ -103,7 +105,7 @@ const achNone = achievementsOf({ okRuns: 0, streak: 0, approvals: { approved: 0,
 ok(achNone.every((a) => !a.met), 'nothing is met from nothing'); n++;
 
 /* ---- the roster counts every agent exactly once ---- */
-const roster = rosterStatus({ runs: await runs.list(db, { limit: 20 }), orders: [], budgets: [budget], now: now.getTime() });
+const roster = rosterStatus({ runs: await runs.list(db, { limit: 20 }), orders: [], budgets: [budget], now: ranAt.getTime() });
 ok(roster.agents.length === 19, 'nineteen agents, always'); n++;
 ok(Object.values(roster.counts).reduce((a, b) => a + b, 0) === 19, 'every agent lands in exactly one status bucket'); n++;
 ok(roster.counts.budget_exceeded >= 1, 'the roster counts the budget-exceeded agent'); n++;
