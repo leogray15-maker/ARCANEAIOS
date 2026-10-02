@@ -161,6 +161,9 @@ ok(cum.rows[0].month === '2026-08' && cum.total.reinvest === 985 && cum.total.pa
 /* ---- the vault: Goals.md seeds the table once, then is the mirror ---- */
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'arcane-brain-'));
 fs.cpSync(path.join(REPO, 'brain'), scratch, { recursive: true });
+// The live vault's Goals.md is already the generated mirror, so the import path is
+// tested against the hand-written table it started as, not whatever the vault holds today.
+fs.copyFileSync(path.join(REPO, 'tools', 'fixtures', 'Goals.handwritten.md'), path.join(scratch, '05-Knowledge', 'Goals.md'));
 const db2 = memoryDb();
 await state.insert(db2, 'goal_progress', { goal_id: 'g-codex', value: 40 }, { now });
 const seeded = await importGoals(db2, scratch);
