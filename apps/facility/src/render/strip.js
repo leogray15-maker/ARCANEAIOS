@@ -73,10 +73,10 @@ export class Strip {
     const today = new Date().toISOString().slice(0, 10); const done = store.protocolDone(today), items = store.protocolItems().length;
     const tradesToday = store.trades().filter((t) => (t.opened || '').startsWith(today)).length;
     this.el.innerHTML = `
-      <span class="w"><b>${time}</b> <span class="ash">${date}</span></span>
-      <span class="w">${sessions}</span>
-      <span class="w">${gold}</span>
-      <span class="w ash">${this.place} · ${weather}</span>
-      <span class="w ash"><b>${store.totalOpen()}</b> orders · <b>${waiting}</b> drafts waiting · <b>${posted}</b> posted · <b>${tradesToday}</b> trade${tradesToday === 1 ? '' : 's'} today · protocol <b>${done}/${items || '—'}</b> · <b>${sim.agents.filter((a) => a.state === 'walk').length}</b> walking</span>`;
+      <span class="w"><em>LDN</em><b>${time}</b> <span class="ash">${date}</span></span>
+      <span class="w"><em>SESSIONS</em>${sessions}</span>
+      <span class="w"><em>GOLD</em>${gold}</span>
+      <span class="w ash"><em>${this.place.toUpperCase()}</em>${weather}</span>
+      <span class="w ash"><em>DAY</em><b>${store.totalOpen()}</b> orders · <b>${waiting}</b> drafts waiting · <b>${posted}</b> posted · <b>${tradesToday}</b> trade${tradesToday === 1 ? '' : 's'} · protocol <b>${done}/${items || '—'}</b></span>`;
   }
 }

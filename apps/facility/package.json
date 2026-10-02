@@ -1,7 +1,7 @@
 {
   "name": "@arcane/facility",
   "version": "3.0.0",
-  "description": "THE ARCANE facility \u2014 the visual OS. Vite, vanilla ESM, one canvas.",
+  "description": "THE ARCANE facility — the visual OS. Vite, vanilla ESM, one canvas.",
   "type": "module",
   "private": true,
   "scripts": {
@@ -11,7 +11,8 @@
     "test": "node test/floorplan.test.mjs && node test/sprites.test.mjs && node test/props.test.mjs && node test/roomstate.test.mjs"
   },
   "dependencies": {
-    "@arcane/config": "*"
+    "@arcane/config": "*",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "vite": "^6.0.0"

@@ -10,7 +10,7 @@
  * to devicePixelRatio, and 2x means two device pixels per buffer pixel, so
  * the art stays sharp on a Retina display instead of being resampled.
  */
-import { AGENTS, ROOM_BY_ID } from '@arcane/config';
+import { AGENTS, ROOM_BY_ID, WING_BY_ID } from '@arcane/config';
 import { PW, PH, PLAN, PLAN_BY_ID, roomAt } from './config/floorplan.js';
 import { createBuffer, bakeStatic, drawLive, present } from './render/factory.js';
 import { bakeSprites } from './render/sprites.js';
@@ -31,6 +31,8 @@ import { esc } from './render/ui.js';
 import { installResponsive, markTabs, isPhone, isTouch } from './render/responsive.js';
 import { BrainGraph } from './render/graph.js';
 import { Strip } from './render/strip.js';
+import { FloorHud, paintChassis, moduleCode } from './render/hud.js';
+import { accentOf } from './render/tone.js';
 import { signals } from './core/vigil.js';
 import { roomStates } from './core/roomstate.js';
 import { Sim } from './core/sim.js';
@@ -66,8 +68,27 @@ let contentCounts = null;   // BEACON's counts by status, once it has loaded the
 // when it actually differs.
 let barHtml = '';
 const paintBar = (html) => { if (html === barHtml) return; barHtml = html; document.getElementById('bar-status').innerHTML = html; };
+// The floor as a place: a lit 3D facility when the browser can draw one,
+// the pixel plan when it cannot (or when ?flat is asked for). Both read the
+// same plan, the same sim and the same roomAt, so nothing else changes.
+let world = null;
+const params0 = new URLSearchParams(location.search);
+if (!params0.has('flat')) {
+  try {
+    const mod = await import('./render/world/world.js');
+    if (mod.webglAvailable()) {
+      const modest = isPhone() || (navigator.hardwareConcurrency || 4) < 4 || params0.has('lite');
+      world = new mod.FacilityWorld($('world'), $('world-hud'), { quality: modest ? 'low' : 'high' });
+      document.documentElement.classList.add('world');
+    }
+  } catch (e) { console.warn('The 3D floor could not start; using the plan.', e); world = null; }
+}
+if (world) window.arcane.world = world;   // for the console, like the store and the sim
+/** Which room a view belongs to — the room the world settles on behind it. */
+const VIEW_ROOM = { journal: 'trading', bridge: 'bridge', warroom: 'warroom', lab: 'apothecary', vault: 'vault', sanctum: 'sanctum', records: 'records', control: 'control', intel: 'intel', library: 'archives', beacon: 'beacon' };
 const graph = new BrainGraph($('graph-canvas'), $('graph-legend'), ctx, (roomId) => go(`#room/${roomId}`));
 const strip = new Strip($('strip'), ctx);
+const floorHud = new FloorHud($('floor-hud'), ctx);
 
 /* ============================================================
    ZOOM + PAN
@@ -88,6 +109,7 @@ function fit() {
 }
 /** Set a zoom, keeping the point under `cx,cy` (stage pixels) fixed; defaults to the centre. */
 function setZoom(mode, cx = stage.clientWidth / 2, cy = stage.clientHeight / 2) {
+  if (world) { world.setZoom(mode); for (const b of document.querySelectorAll('#hud button')) b.classList.toggle('on', b.dataset.zoom === String(mode)); return; }
   view.mode = mode;
   if (mode === 'fit') fit();
   else {
@@ -100,10 +122,12 @@ function setZoom(mode, cx = stage.clientWidth / 2, cy = stage.clientHeight / 2) 
 const MIN_SCALE = 0.12, MAX_SCALE = 4;
 /** Zoom by a factor about a point — what a pinch and the ± buttons both do. */
 function zoomBy(factor, cx = stage.clientWidth / 2, cy = stage.clientHeight / 2) {
+  if (world) { const r = stage.getBoundingClientRect(); world.zoomBy(factor, cx + r.left, cy + r.top); return; }
   const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale * factor));
   setZoom(String(next), cx, cy);
 }
 function centreOn(roomId) {
+  if (world) { world.centreOn(roomId); return; }
   const p = PLAN_BY_ID[roomId]; if (!p) return;
   const [x, y, w, h] = p.rect;
   view.x = Math.round(stage.clientWidth / 2 - (x + w / 2) * view.scale);
@@ -113,6 +137,7 @@ function centreOn(roomId) {
 }
 function resize() {
   const d = dpr();
+  if (world) { world.resize(stage.clientWidth, stage.clientHeight, d); return; }
   canvas.width = Math.round(stage.clientWidth * d); canvas.height = Math.round(stage.clientHeight * d);
   canvas.style.width = `${stage.clientWidth}px`; canvas.style.height = `${stage.clientHeight}px`;
   if (view.mode === 'fit') fit();
@@ -138,22 +163,29 @@ stage.addEventListener('pointermove', (e) => {
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pinch && touches.size === 2) {
     const s1 = spread();
+    if (world && pinch.d > 0) { world.zoomBy(s1.d / pinch.d, s1.cx, s1.cy); pinch.d = s1.d; return; }
     if (pinch.d > 0) { const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pinch.scale * (s1.d / pinch.d))); setZoom(String(next), pinch.cx, pinch.cy); }
     return;
   }
   if (e.pointerType !== 'mouse' && !drag) return;   // no hover on a finger
   if (drag) {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (Math.abs(dx) + Math.abs(dy) > 4) { drag.moved = true; stage.classList.add('dragging'); view.mode = 'pan'; view.x = drag.vx + dx; view.y = drag.vy + dy; for (const b of document.querySelectorAll('#hud button')) b.classList.remove('on'); }
+    if (world && (drag.moved || Math.abs(dx) + Math.abs(dy) > 4)) { drag.moved = true; stage.classList.add('dragging'); world.panBy(e.clientX - (drag.lx ?? drag.x), e.clientY - (drag.ly ?? drag.y)); drag.lx = e.clientX; drag.ly = e.clientY; for (const b of document.querySelectorAll('#hud button')) b.classList.remove('on'); }
+    else if (!world && Math.abs(dx) + Math.abs(dy) > 4) { drag.moved = true; stage.classList.add('dragging'); view.mode = 'pan'; view.x = drag.vx + dx; view.y = drag.vy + dy; for (const b of document.querySelectorAll('#hud button')) b.classList.remove('on'); }
     tip.style.display = 'none';
     return;
   }
-  const p = toBuffer(e); const r = roomAt(p.x, p.y);
-  const id = r ? r.id : null;
-  if (id !== state.hover) { state.hover = id; state.staticDirty = true; }
+  let id;
+  if (world) {
+    const rect = stage.getBoundingClientRect();
+    world.lean(((e.clientX - rect.left) / rect.width) * 2 - 1, ((e.clientY - rect.top) / rect.height) * 2 - 1);
+    id = world.pick(e.clientX, e.clientY)?.id || null;
+    stage.classList.toggle('over-room', !!id);
+  } else { const p = toBuffer(e); id = roomAt(p.x, p.y)?.id || null; }
+  if (id !== state.hover) { state.hover = id; state.staticDirty = true; world?.setHover(id); }
   showTip(id, e);
 });
-stage.addEventListener('pointerleave', () => { tip.style.display = 'none'; if (state.hover) { state.hover = null; state.staticDirty = true; } });
+stage.addEventListener('pointerleave', () => { tip.style.display = 'none'; world?.lean(0, 0); if (state.hover) { state.hover = null; state.staticDirty = true; world?.setHover(null); } });
 const endPointer = (e) => { touches.delete(e.pointerId); if (touches.size < 2) pinch = null; };
 stage.addEventListener('pointercancel', (e) => { endPointer(e); drag = null; stage.classList.remove('dragging'); });
 stage.addEventListener('pointerup', (e) => {
@@ -162,11 +194,18 @@ stage.addEventListener('pointerup', (e) => {
   stage.classList.remove('dragging');
   const wasDrag = drag?.moved; drag = null;
   if (wasDrag || wasPinching) return;
+  if (world) {
+    // Walk the camera into the room first, then open it: the transition is a move through the building, not a page swap.
+    const r = stage.classList.contains('entering') ? null : world.pick(e.clientX, e.clientY);
+    if (r) { sim.command(r.id); tip.style.display = 'none'; stage.classList.add('entering'); world.focus(r.id).then(() => { stage.classList.remove('entering'); go(ROOM_BY_ID[r.id].opens || `#room/${r.id}`); }); }
+    return;
+  }
   const p = toBuffer(e); const r = roomAt(p.x, p.y);
   if (r) { sim.command(r.id); go(ROOM_BY_ID[r.id].opens || `#room/${r.id}`); }
 });
 stage.addEventListener('wheel', (e) => {
   e.preventDefault();
+  if (world) { world.zoomBy(Math.pow(1.0018, -e.deltaY), e.clientX, e.clientY); for (const b of document.querySelectorAll('#hud button')) b.classList.remove('on'); return; }
   const r = stage.getBoundingClientRect();
   const steps = [1, 2, 3, 4];
   const i = steps.indexOf(view.scale);
@@ -179,6 +218,16 @@ for (const b of document.querySelectorAll('#zoomer button')) b.addEventListener(
   if (z === 'fit') setZoom('fit'); else zoomBy(z === 'in' ? 1.5 : 1 / 1.5);
 });
 window.addEventListener('resize', () => { resize(); graph.resize(); });
+// The world sits under every view as that room's environment; it renders while anything but the graph is showing.
+function worldMode(screen) {
+  if (!world) return;
+  const root = document.documentElement;
+  root.classList.toggle('on-floor', screen === 'floor');
+  if (screen === 'floor') { world.setMode('floor'); world.setSelected(null); return; }
+  const room = screen === 'dash' ? state.selected : VIEW_ROOM[screen] || null;
+  world.setMode(screen === 'graph' ? 'paused' : 'backdrop', room);
+  world.setSelected(room);
+}
 window.addEventListener('keydown', (e) => {
   if (e.target.matches('input, select, textarea') || navOpen()) return;
   if (e.key === 'Escape') { if (state.screen === 'beacon' && /^#beacon\/draft\//.test(location.hash)) go('#beacon'); else if (state.screen === 'library' && /^#library\//.test(location.hash)) go('#library'); else if (state.screen === 'lab' && /^#lab\//.test(location.hash)) go('#lab'); else if (['vault', 'sanctum', 'records'].includes(state.screen) && /^#[a-z]+\//.test(location.hash)) go(`#${state.screen}`); else if (state.screen !== 'floor') go('#'); return; }
@@ -234,6 +283,14 @@ function route() {
   if (screen === 'graph') graph.show();
   else graph.hide();
   state.staticDirty = true;
+  // The environment: the view takes its light from the room it belongs to, and its plate carries the module code.
+  const envRoom = screen === 'dash' ? state.selected : VIEW_ROOM[screen];
+  const envR = envRoom && ROOM_BY_ID[envRoom];
+  document.documentElement.style.setProperty('--env', accentOf(envR ? envR.accent || WING_BY_ID[envR.wing]?.accent : 'arcane'));
+  document.documentElement.classList.toggle('in-view', !!envR);
+  state.envRoom = envRoom || null;
+  if (views[screen]) views[screen].style.setProperty('--code', `'${envR ? moduleCode(envRoom) : screen === 'graph' ? 'MEM  /  THE BRAIN' : ''}'`);
+  worldMode(screen);
   markTabs(screen, h);
   barStatus();
 }
@@ -243,7 +300,7 @@ bindDash(views.dash, { store, getRoom: () => state.selected, go, brain });
 bindJournal(views.journal, { store, go });
 bindLibrary(views.library, { go, brain });
 bindBeacon(views.beacon, { go, onCounts: (c) => { contentCounts = c; navCounts(c); barStatus(); } });
-bindBridge(views.bridge, { store, go, brain, onCounts: (c) => { contentCounts = c; navCounts(c); barStatus(); } });
+bindBridge(views.bridge, { store, go, brain, sim, rooms: () => state.rooms, onCounts: (c) => { contentCounts = c; navCounts(c); barStatus(); } });
 bindWarroom(views.warroom, { store, go, brain });
 bindLab(views.lab, { store, go });
 bindVault(views.vault, { store, go });
@@ -343,6 +400,11 @@ function barStatus() {
     signals: sig, proposals: store.proposals(), open: (id) => store.openCount(id),
     working: (id) => sim.agents.some((a) => a.home === id && a.room === id && a.working),
   });
+  // The modules in the bar carry the lamp of the room they open.
+  for (const b of document.querySelectorAll('#views button')) { const lamp = state.rooms[VIEW_ROOM[b.dataset.view]]; if (lamp) b.style.setProperty('--lamp', lamp.colour); }
+  if (state.screen === 'floor') floorHud.paint(state.rooms, sig);
+  if (state.envRoom) paintChassis($('chassis'), state.envRoom, { sim, store, rooms: state.rooms });
+  if (world) world.setRoomStates(state.rooms, (id) => { const n = store.openCount(id), here = sim.occupants(id).length; return `${n ? `${n} open` : ''}${n && here ? ' · ' : ''}${here ? `${here} here` : ''}`; });
   const worst = sig.some((s) => s.severity === 'breach') ? 'breach' : sig.some((s) => s.severity === 'warn') ? 'flare' : 'ash';
   const waiting = contentCounts ? (contentCounts.draft || 0) + (contentCounts.review || 0) : store.drafts().filter((d) => d.status === 'draft').length;
   const sv = store.serverStatus();
@@ -360,6 +422,7 @@ function barStatus() {
   // The system pulse: ambient, not a dashboard — one dot that says whether
   // anything needs the operator, without adding a word to read.
   const pulse = sig.some((s) => s.severity === 'breach') || store.proposals().length ? 'attention' : store.totalOpen() > 0 ? 'active' : 'idle';
+  world?.setAttention(pulse);
   document.title = pulse === 'attention' ? '● THE ARCANE' : 'THE ARCANE';
   paintBar(`<span class="line"><span class="pulse ${pulse}" title="system pulse: ${pulse}"></span><span class="${sv.tone}" title="${sv.text}">●</span> ${sysChip}${brain?.brief?.date ? `<a href="#bridge">brief <b>${brain.brief.date}</b></a> · ` : ''}<a href="#bridge"><b>${store.totalOpen()}</b> open orders</a> · <a href="#beacon"><b>${waiting}</b> draft${waiting === 1 ? '' : 's'} waiting</a> · <a href="#room/observatory" class="${worst}"><b>${sig.length}</b> signal${sig.length === 1 ? '' : 's'}</a> · ${away ? `<b>${away}</b> crew away` : 'all crew at station'}${sv.tone !== 'vital' ? ` · <span class="${sv.tone}">${sv.text}</span>` : ''}</span>`);
 }
@@ -378,12 +441,14 @@ function loop(now) {
   acc += dt * 1000;
   if (acc >= FRAME) {
     acc %= FRAME;
-    if (state.screen === 'floor') {
+    if (world) { if (state.screen === 'graph') graph.draw(now / 1000); }
+    else if (state.screen === 'floor') {
       if (state.staticDirty) { bakeStatic(staticBuf, state); state.staticDirty = false; }
       drawLive(buf, staticBuf, sim, sprites, now / 1000);
       present(canvas, buf, view, state, sim, dpr());
     } else if (state.screen === 'graph') graph.draw(now / 1000);
   }
+  if (world && state.screen !== 'graph') world.frame(now, sim);
   panelClock += dt;
   if (panelClock > 0.5) {
     panelClock = 0;
@@ -399,7 +464,7 @@ function loop(now) {
 window.addEventListener('error', (e) => { $('bar-status').innerHTML = `<span class="breach">runtime error: ${e.message} (${e.filename?.split('/').pop()}:${e.lineno})</span>`; });
 
 installResponsive();
-installNav({ go, store });
+installNav({ go, store, rooms: () => state.rooms });
 // The bar's own buttons: retry or drop the write the server refused.
 $('bar-status').addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b) return;

@@ -27,6 +27,7 @@ This file routes Claude Code. The brain has its own router at
 | What each room does, and which are real | `docs/ROOMS.md` |
 | The API (the only thing that touches the database) | `api/*.js` — operator key on every call (`api/_auth.js`) |
 | The Content Machine, end to end | `docs/CONTENT-MACHINE.md` |
+| The visual system (layers, materials, light, colour, the parts) | `docs/VISUAL-SYSTEM.md` · the palette in `apps/facility/src/render/tone.js` · the 3D floor in `apps/facility/src/render/world/` |
 | Architecture, sprites, structure, plan | `docs/` |
 | The facility app | `apps/facility/` — `npm run dev` (with the API) · `npm run dev:local` (no keys needed) |
 

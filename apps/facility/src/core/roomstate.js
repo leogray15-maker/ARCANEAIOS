@@ -14,11 +14,11 @@
  */
 
 export const ROOM_STATES = {
-  blocked:   { key: 'blocked',   word: 'BLOCKED',   colour: '#f44d52', pulse: true },
-  attention: { key: 'attention', word: 'NEEDS YOU', colour: '#e8b64c', pulse: true },
-  working:   { key: 'working',   word: 'WORKING',   colour: '#a98bff', pulse: false },
-  active:    { key: 'active',    word: 'ACTIVE',    colour: '#56c9f0', pulse: false },
-  ok:        { key: 'ok',        word: 'OK',        colour: '#3ecf8e', pulse: false },
+  blocked:   { key: 'blocked',   word: 'BLOCKED',   colour: '#e2554f', pulse: true },
+  attention: { key: 'attention', word: 'NEEDS YOU', colour: '#e0a64e', pulse: true },
+  working:   { key: 'working',   word: 'WORKING',   colour: '#8f80ee', pulse: false },
+  active:    { key: 'active',    word: 'ACTIVE',    colour: '#5ec4e2', pulse: false },
+  ok:        { key: 'ok',        word: 'OK',        colour: '#4fc58a', pulse: false },
 };
 
 /**

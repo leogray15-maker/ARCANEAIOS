@@ -8,9 +8,10 @@
  *
  * Controls carry data-act attributes; `bindDash` routes them to the store.
  */
-import { ROOM_BY_ID, AGENT_BY_ID, WING_BY_ID, VENTURE_BY_ID, CAPS, SKILL_BY_ID } from '@arcane/config';
+import { ROOM_BY_ID, AGENT_BY_ID, WING_BY_ID, VENTURE_BY_ID } from '@arcane/config';
 import { WIDGETS, esc } from './widgets.js';
 import { proposalsBlock } from './ui.js';
+import { agentUnit } from './units.js';
 import { signals } from '../core/vigil.js';
 import { reason } from '../core/reason.js';
 
@@ -42,12 +43,12 @@ export function renderDash(el, roomId, { sim, store, brain }, { keepScroll = fal
         <section class="block"><h2>State</h2>
           <p class="ash">${esc(room.domain)}</p>
           ${venture ? `<p>${venture.facts.map((f) => `<span class="chip">${esc(f)}</span>`).join('')}</p>` : ''}
-          ${widget ? widget(store, brain, room) : '<p class="empty">No widget yet.</p>'}
+          ${widget ? widget(store, brain, room, sim) : '<p class="empty">No widget yet.</p>'}
         </section>
       </div>
       <div>
         <section class="block"><h2>Orders</h2>${ordersBoard(store, roomId)}</section>
-        <section class="block"><h2>Crew</h2>${crewBlock(agent, here, roomId, sim)}</section>
+        <section class="block"><h2>Crew</h2>${crewBlock(agent, here, roomId, sim, store)}</section>
         <section class="block"><h2>Files</h2>${filesList(room, brain)}</section>
       </div>
     </div>
@@ -72,13 +73,11 @@ function ordersBoard(store, roomId) {
     <p class="src">Orders are the unit of routed work: proposed · open · active · blocked · review · done · killed. An agent may propose; only you approve. Crew are drawn to rooms with open orders — P0 pulls hardest. The Bridge shows every P0 and P1 across the floor.</p>`;
 }
 
-function crewBlock(agent, here, roomId, sim) {
+function crewBlock(agent, here, roomId, sim, storeRef) {
   const verb = (a) => a.state === 'walk' ? 'arriving' : a.state === 'drift' ? 'moving about' : a.room === a.home ? 'at station' : 'visiting';
   const resident = agent ? `
-    <p><span class="dot" style="background:${agent.colour}"></span><strong>${esc(agent.name)}</strong> · ${esc(agent.role)} · <code>${esc(agent.call)}</code></p>
-    <p class="ash">${esc(agent.brief)}</p>
-    <p>${CAPS.map((c) => `<span class="chip ${agent.caps[c.id]}">${esc(c.name)}: ${agent.caps[c.id]}</span>`).join('')}</p>
-    ${agent.skills.length ? `<p>Skills: ${agent.skills.map((s) => `<span class="chip">${esc(SKILL_BY_ID[s].invoke)}</span>`).join('')}</p>` : ''}
+    ${agentUnit(agent, { sim, store: storeRef })}
+    <p class="ash" style="margin-top:12px">${esc(agent.brief)}</p>
     ${agent.asks.length ? `<p class="ash">Must ask before: ${agent.asks.map(esc).join(' · ')}</p>` : ''}`
     : '<p class="empty">No resident. Nine seats convene here.</p>';
   return `${resident}<h3>Here now</h3><p>${here.length ? here.map((a) => `<span class="dot" style="background:${a.cfg.colour}"></span>${esc(a.cfg.name)} <span class="faint">(${verb(a)})</span>`).join(' · ') : '<span class="empty">nobody</span>'}</p>`;

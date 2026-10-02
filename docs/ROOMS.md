@@ -19,30 +19,49 @@ real in every room.
 waiting, signals, crew away — each a link. The dot before them is the
 server rung: green = state on the server; amber = read-only (no operator
 key); red = the last write was refused, and why. FLOOR · BRIDGE · LIBRARY
-· BEACON · BRAIN GRAPH switch views. **DEVICE** holds this browser's sync
-code (for the blob) and the operator key (for the API): paste the key once
-per browser. FIT · 2x · 3x zoom the floor.
+· BEACON · GRAPH switch views; each carries the lamp of the room it opens.
+**DEVICE** holds this browser's sync code (for the blob) and the operator
+key (for the API): paste the key once per browser. FIT · 2× · 3× zoom the
+floor.
 
-**The floor.** Twenty rooms in four wings plus THE TRADING FLOOR annex.
-Click a room to open it; ARCANE walks there. Crew drift toward rooms
-with open orders — P0 pulls hardest — so the floor is a picture of the
-work. Keys on the floor: `b` Bridge, `w` War Room, `l` Library, `n`
-Beacon, `p` the Lab, `v` the Vault, `s` Sanctum, `r` the Records, `j` the Journal, `i` the Intelligence, `c` the Control Room, `0–4` zoom, `Esc` back. Hover a room for its open orders and who
-is there.
+**The floor.** Twenty rooms in four wings plus THE TRADING FLOOR annex,
+built and lit in three dimensions (`docs/VISUAL-SYSTEM.md`). Drag to move,
+wheel or pinch to zoom, click a room to walk into it — the camera goes in,
+ARCANE walks there, the room opens. Each room's front edge and door frame
+carry its lamp, its practical light follows its state, and a figure's ring
+glows while it works. Crew drift toward rooms with open orders — P0 pulls
+hardest — so the floor is a picture of the work. Keys on the floor: `b`
+Bridge, `w` War Room, `l` Library, `n` Beacon, `p` the Lab, `v` the Vault,
+`s` Sanctum, `r` the Records, `j` the Journal, `i` the Intelligence, `c`
+the Control Room, `0–4` zoom, `Esc` back. Hover a room for its state, its
+open orders and who is there. Without WebGL2 (or with `?flat`) the floor
+is the pixel plan.
+
+**The floor's instruments** (corners). Crew working, walking and standing;
+open orders, proposals, signals, crew away; rooms by lamp colour; a log of
+the crew's moves as they make them, and a heartbeat of agents working.
 
 **The strip** (bottom of the floor). London time, the three sessions
 (Tokyo · London · New York, lit when open), XAUUSD live, the weather, and
 the day's counts: orders, drafts waiting, posted, trades today, protocol.
 
+**Under a room's view.** The floor keeps running behind every view as
+that room's environment, and the chassis along the bottom says which
+module this is, its lamp and why, what its agent is doing, who else is in
+the room, and how much work is open in it.
+
 **The Brain Graph.** The Obsidian vault itself — every note and link,
-grouped by folder, rooms anchored to their brain folders, agents orbiting
-live. Click a note to open it in Obsidian.
+grouped by folder and set in depth, one stratum per folder, turning slowly
+in perspective; rooms anchored to their brain folders, agents orbiting
+live, and a pulse down a room's tethers while its agent works. Click a
+note to open it in Obsidian.
 
 ## C2 · COMMAND
 
 ### BRIDGE — REAL · `#bridge`
 *What it is for.* The one screen that answers: what matters today, what is waiting on me, what is moving, what changed, how each venture stands.
 *What it does.*
+- **The core** — the system in one figure: the twenty rooms as a ring lit by their lamps, the agents placed at the room each is in, a working agent tethered to the core; around it the counts that matter (open, P0·P1, blocked, due; waiting on you, proposals, signals, agent runs), each with the first thing it is counting. Click a room or an agent to go there.
 - **Today** — a one-line focus for the day (type, Enter; it is kept per day in `days`). Every P0/P1 order across the whole floor with done / block / kill; orders past their due date; moves tagged *now* from the War Room; add an order to any room from here.
 - **Waiting on you** — drafts waiting and approved-unscheduled (links into BEACON), blocked orders with their reason, orders in review, Council verdicts that have no outcome yet (record the outcome inline), P0s open more than two days.
 - **Active** — agent runs in the last two days (status, objective, error), rooms with open work and the top order in each.
@@ -127,6 +146,7 @@ live. Click a note to open it in Obsidian.
 *What it is for.* What the world did — competitors, markets, pricing, suppliers, regulation.
 *What it does.* The watchlist is yours (add, tag opportunity / threat / signal, remove) and CIPHER researches **only** what is on it. Run the watch, or ask it one question, and it reads the open web through Anthropic's search tool, then reports up to eight items: kind, headline, what it means for a venture by name, the entry it came from, the source, and how firm it is — confirmed, reported or rumour. An item may carry one proposal, the smallest next action routed to a room; it becomes an order only when you press *take it*. Every run is recorded in `agent_runs`, so the room shows the history and THE RECORDS and THE CONTROL ROOM show the watch beside HERALD's runs. A failed run says why (no credits, no key) and is recorded as failed.
 *Where it lives.* `list_items` (list `watch`) and `agent_runs`; `/api/intel` reads the watchlist from the table, not from the caller. The only outward-facing call in the system. It writes nothing but its own run.
+*The board.* Above the items, the run as relationships: the watchlist entries it read, each item it reported (coloured by kind), and the room each proposal routes to. Confirmed findings are solid lines, reported fine, rumour dashed.
 
 ### THE OBSERVATORY — WORKING
 *What it is for.* Everything that changes while nobody is looking.
@@ -143,7 +163,7 @@ live. Click a note to open it in Obsidian.
 ## C4 · NETWORK & LIFE
 
 ### THE AGENT GARAGE — WORKING (read-only)
-*What it does.* Every agent's card: role, call sign, room, brief, Council seat. Agents are defined in `packages/config/src/agents.js`; there is no editing here yet.
+*What it does.* Every agent as a unit: call sign and role, what it is doing this second (working, walking, visiting, idle — from the floor), its next action (the top open order in its room), its station and Council seat, the systems it is wired to, its skills, and its grade for every capability. Agents are defined in `packages/config/src/agents.js`; there is no editing here yet.
 
 ### THE CONTROL ROOM — REAL · `#control`
 *What it does.* The machine's own state: which keys the server holds (never their values — Anthropic, the service key, the operator key), whether the database answers and whether it is Supabase or the dev database, every table the code expects with its migration and whether it exists (the missing ones name the file to run), the knowledge sources' sync state, the last agent runs, and the permission matrix. Reads `/api/health`; nothing here is edited.
