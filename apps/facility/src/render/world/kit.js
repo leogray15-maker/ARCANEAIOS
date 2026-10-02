@@ -31,7 +31,7 @@ function worldUV(g, s) {
 }
 
 /** Per-material texture scale: how many world units one texture tile covers. */
-const UV_SCALE = { floor: 1 / 96, timber: 1 / 110, carpet: 1 / 70, atrium: 1 / 160, grate: 1 / 48, ground: 1 / 220, wall: 1 / 120, plinth: 1 / 80, wood: 1 / 40, trim: 1 / 30, steel: 1 / 30, black: 1 / 30, copper: 1 / 30 };
+const UV_SCALE = { labfloor: 1 / 140, epoxy: 1 / 140, cladding: 1 / 64, foam: 1 / 16, panel: 1 / 40, floor: 1 / 96, timber: 1 / 110, carpet: 1 / 70, atrium: 1 / 160, grate: 1 / 48, ground: 1 / 220, wall: 1 / 120, plinth: 1 / 80, wood: 1 / 40, trim: 1 / 30, steel: 1 / 30, black: 1 / 30, copper: 1 / 30 };
 
 const tmpColor = new THREE.Color();
 
@@ -79,6 +79,7 @@ export class Kit {
   sphere(r, x, y, z, key, opts = {}) {
     const g = new THREE.IcosahedronGeometry(r, opts.detail ?? 1);
     if (opts.scale) g.scale(...opts.scale);
+    if (opts.rot) { g.rotateX(opts.rot[0] || 0); g.rotateY(opts.rot[1] || 0); g.rotateZ(opts.rot[2] || 0); }
     g.translate(x, y, z);
     return this.add(g, key, opts);
   }
@@ -94,6 +95,19 @@ export class Kit {
     if (opts.rot) { g.rotateX(opts.rot[0] || 0); g.rotateY(opts.rot[1] || 0); g.rotateZ(opts.rot[2] || 0); }
     g.translate(x, y, z);
     return this.add(g, key, { cast: false, uv: 'local', ...opts });
+  }
+  /**
+   * A side profile (a THREE.Shape in x/y) extruded along z and bevelled — for bodies with a silhouette, like the car.
+   * The shape's origin lands at (x, y, z); depth is centred on z.
+   */
+  extrude(shape, depth, x, y, z, key, opts = {}) {
+    const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: opts.bevel ?? 1.2, bevelSize: opts.bevel ?? 1.2, bevelSegments: opts.segs ?? 3, curveSegments: 16 });
+    g.translate(0, 0, -depth / 2);
+    // An optional warp in shape space — the car narrows toward its nose and tail and toward its roof.
+    if (opts.warp) { const pos = g.attributes.position, v = []; for (let i = 0; i < pos.count; i++) { v[0] = pos.getX(i); v[1] = pos.getY(i); v[2] = pos.getZ(i); opts.warp(v); pos.setXYZ(i, v[0], v[1], v[2]); } g.computeVertexNormals(); }
+    if (opts.rot) { g.rotateX(opts.rot[0] || 0); g.rotateY(opts.rot[1] || 0); g.rotateZ(opts.rot[2] || 0); }
+    g.translate(x, y, z);
+    return this.add(g, key, opts);
   }
   /** A flat quad lying on the floor (y up), for pools of light and rugs that need local UVs. */
   flat(w, d, x, y, z, key, opts = {}) {

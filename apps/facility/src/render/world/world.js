@@ -30,6 +30,7 @@ import { ROOM_PROPS } from '../../config/props.js';
 import { createMaterials, accentOf, TONE } from './materials.js';
 import { Kit, wx, wz } from './kit.js';
 import { buildProp, shade } from './props3d.js';
+import { ROOM_STYLE, DRESSING } from './rooms3d.js';
 
 const WH = 46;              // wall height; a person is ~24
 const LOW = 10;             // the cut-away front walls
@@ -145,14 +146,15 @@ export class FacilityWorld {
     const [x, y, w, h] = p.rect;
     const X0 = wx(x), Z0 = wz(y), X1 = wx(x + w), Z1 = wz(y + h), cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2, T = WALL;
     const accent = accentOf(room.accent || WING_BY_ID[room.wing]?.accent);
-    const light = mix(TONE.warm, accent, 0.38);
+    const style = ROOM_STYLE[p.id] || {};
+    const light = style.light ? mix(style.light, accent, 0.1) : mix(TONE.warm, accent, 0.38);
     const doorZ = wz(p.door[1]), gap = DOOR_W + 6;
     const mid = Z0 + h * 0.52;
 
     // Floor slab — a different floor in each wing: sealed tile where things are made, oiled timber where
     // decisions are taken, a dark wool carpet where people read and rest — and the back wall, capped with steel.
     const FLOOR = { command: 'timber', knowledge: 'carpet' };
-    k.block(w, 2.2, h, cx, -2.2, cz, FLOOR[room.wing] || 'floor', { cast: false });
+    k.block(w, 2.2, h, cx, -2.2, cz, style.floor || FLOOR[room.wing] || 'floor', { cast: false });
     k.block(w, WH, T, cx, 0, Z0 + T / 2, 'wall');
     k.block(w + 0.6, 1.2, T + 0.8, cx, WH, Z0 + T / 2, 'trim');
     // Side walls step down from full height to the cut-away, so the room reads as a room and its inside stays visible.
@@ -182,8 +184,14 @@ export class FacilityWorld {
     pools.push({ x: cx, z: inner + 0.6, r: w * 0.36, colour: light.getStyle(), a: 0.22, kind: 'wall', y: WH - 14 });
     pools.push({ x: cx, z: cz, r: Math.max(w, h) * 0.45, colour: light.getStyle(), a: 0.045, kind: 'floor' });
 
+    this.finishRoom(k, p, { X0, X1, Z0, Z1, cx, cz, w, h, inner, doorZ, gap, mid, style, light, pools });
+
     const props = ROOM_PROPS[p.id];
-    for (const prop of props.props) buildProp(k, prop, { id: p.id, ox: X0, oz: Z0, backZ: inner, WH, accent, pools });
+    const pctx = { id: p.id, ox: X0, oz: Z0, rw: w, backZ: inner, WH, accent, pools };
+    for (const prop of props.props) buildProp(k, prop, pctx);
+    for (const prop of DRESSING[p.id] || []) buildProp(k, prop, pctx);
+    const hang = style.pendants || [[w * 0.32, 70], [w * 0.68, 70]];
+    for (const [px, py] of hang) buildProp(k, { type: 'pendant', x: px, y: py, w: 0, h: 0, opts: { colour: light.getStyle(), y: 32 } }, pctx);
 
     // The live parts of the room: its state strip, the door glow, the selection frame, the practical light.
     const stateMat = new THREE.MeshBasicMaterial({ color: TONE.green, toneMapped: false, transparent: true });
@@ -198,6 +206,36 @@ export class FacilityWorld {
     lamp.position.set(cx, WH - 8, Z0 + h * 0.42);
     if (this.quality === 'high') group.add(lamp);
     this.rooms[p.id] = { p, room, cx, cz, X0, X1, Z0, Z1, strip, stateMat, frame, lamp, base: 4200, level: 0, colour: TONE.green, pulse: false };
+  }
+
+  /**
+   * The inside of a room's walls and the edge of its floor: a lining where the room has one (pale cladding,
+   * dark metal), otherwise panel seams and a rail on the concrete; skirting on every wall; a fine line inset
+   * round the floor. Small, regular, and what makes a room read as finished rather than built.
+   */
+  finishRoom(k, p, { X0, X1, Z0, Z1, cx, cz, w, h, inner, doorZ, gap, mid, style }) {
+    const T = WALL;
+    const sides = ['left', 'right'].map((side) => {
+      const tallEnd = p.side === side ? doorZ - gap / 2 : mid;
+      return { side, x: side === 'left' ? X0 + T : X1 - T, dir: side === 'left' ? 1 : -1, z0: inner, z1: tallEnd, lowStart: p.side === side ? doorZ + gap / 2 : mid };
+    });
+    if (style.lining) {
+      k.block(w - 2 * T, WH - 3.4, 0.6, cx, 2.4, inner + 0.3, style.lining, { cast: false });
+      for (const sd of sides) k.block(0.6, WH - 3.4, sd.z1 - sd.z0, sd.x + sd.dir * 0.3, 2.4, (sd.z0 + sd.z1) / 2, style.lining, { cast: false });
+    } else {
+      for (let x = X0 + T + 32; x < X1 - T - 8; x += 32) k.box(0.3, WH - 6, 0.25, x, WH / 2, inner + 0.12, 'black', { cast: false });
+      for (const sd of sides) for (let z = sd.z0 + 24; z < sd.z1 - 4; z += 24) k.box(0.25, WH - 6, 0.3, sd.x + sd.dir * 0.12, WH / 2, z, 'black', { cast: false });
+    }
+    k.box(w - 2 * T, 0.6, 0.7, cx, 15, inner + 0.7, 'trim', { cast: false });
+    for (const sd of sides) {
+      k.box(0.7, 0.6, sd.z1 - sd.z0, sd.x + sd.dir * 0.7, 15, (sd.z0 + sd.z1) / 2, 'trim', { cast: false });
+      k.block(0.8, 2.4, sd.z1 - sd.z0, sd.x + sd.dir * 0.4, 0, (sd.z0 + sd.z1) / 2, 'black', { cast: false });
+      k.block(0.8, 2, Z1 - T - sd.lowStart, sd.x + sd.dir * 0.4, 0, (sd.lowStart + Z1 - T) / 2, 'black', { cast: false });
+    }
+    k.block(w - 2 * T, 2, 0.8, cx, 0, Z1 - T - 0.4, 'black', { cast: false });
+    // The floor's inset line, a hand's width in from the walls.
+    const ix0 = X0 + T + 5, ix1 = X1 - T - 5, iz0 = inner + 5, iz1 = Z1 - T - 5;
+    for (const [lw, ld, lx, lz] of [[ix1 - ix0, 0.35, (ix0 + ix1) / 2, iz0], [ix1 - ix0, 0.35, (ix0 + ix1) / 2, iz1], [0.35, iz1 - iz0, ix0, (iz0 + iz1) / 2], [0.35, iz1 - iz0, ix1, (iz0 + iz1) / 2]]) k.block(lw, 0.05, ld, lx, 0.01, lz, 'trim', { cast: false, receive: false });
   }
 
   /** The plaza where the hall crosses the atrium: the core of the system, standing on a pedestal in a shaft of light. */

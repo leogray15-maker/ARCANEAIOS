@@ -117,6 +117,34 @@ function planks() {
   }
   return c;
 }
+/** Wall cladding: large pale panels with shadow gaps, the clean finish of a lab or a clinic. */
+function cladding() {
+  const r = rng('cladding'), S = 512;
+  const [c, g] = canvas(S);
+  noise(g, S, S, r, { base: 205, amp: 6, blobs: 200, size: [20, 80] });
+  for (let x = 0; x < S; x += 128) { g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(x, 0, 3, S); g.fillStyle = 'rgba(255,255,255,0.4)'; g.fillRect(x + 3, 0, 1, S); }
+  for (let y = 0; y < S; y += 256) { g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, y, S, 3); }
+  return c;
+}
+/** Poured resin floor: smooth, a faint mottle, a seam every few metres. */
+function epoxy() {
+  const r = rng('epoxy'), S = 512;
+  const [c, g] = canvas(S);
+  noise(g, S, S, r, { base: 170, amp: 10, blobs: 500, size: [10, 70] });
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, S, 2); g.fillRect(0, 0, 2, S);
+  return c;
+}
+/** Acoustic foam: a grid of wedges, light on the top faces, dark in the troughs. */
+function foam() {
+  const S = 256, N = 8, B = S / N;
+  const [c, g] = canvas(S);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const gr = (i + j) % 2 ? g.createLinearGradient(i * B, 0, i * B + B, 0) : g.createLinearGradient(0, j * B, 0, j * B + B);
+    gr.addColorStop(0, '#5a5f66'); gr.addColorStop(0.5, '#2a2d31'); gr.addColorStop(1, '#5a5f66');
+    g.fillStyle = gr; g.fillRect(i * B, j * B, B, B);
+  }
+  return c;
+}
 /** Carpet: dense, matte, a faint woven texture and wear down the middle. */
 function carpet() {
   const r = rng('carpet'), S = 256;
@@ -224,7 +252,7 @@ export function createMaterials(renderer) {
   const T = {
     tile: tex(tileC), tileRough: tex(tileR, { srgb: false }),
     concrete: tex(concrete()), brushed: tex(brushed()), grate: tex(grating()), stone: tex(stone()), wood: tex(wood()),
-    planks: tex(planks()), carpet: tex(carpet()),
+    planks: tex(planks()), carpet: tex(carpet()), cladding: tex(cladding()), epoxy: tex(epoxy()), foam: tex(foam()),
     radial: tex(radial()), beamUp: tex(beam(true)), beamDown: tex(beam(false)),
   };
   for (const k of ['beamUp', 'beamDown']) T[k].wrapS = T[k].wrapT = THREE.ClampToEdgeWrapping;
@@ -262,6 +290,16 @@ export function createMaterials(renderer) {
       case 'paint': return std({ vertexColors: true, roughness: 0.88, metalness: 0 });
       case 'gloss': return std({ vertexColors: true, roughness: 0.38, metalness: 0.35 });
       case 'leaf': return std({ vertexColors: true, roughness: 0.75, metalness: 0, flatShading: true });
+      case 'labfloor': return std({ map: T.epoxy, color: '#b7bec7', roughness: 0.32, metalness: 0.02 });
+      case 'epoxy': return std({ map: T.epoxy, color: '#4b5058', roughness: 0.3, metalness: 0.05 });
+      case 'cladding': return std({ map: T.cladding, color: '#e6e9ed', roughness: 0.5, metalness: 0.02 });
+      case 'foam': return std({ map: T.foam, color: '#8a909a', roughness: 1, metalness: 0 });
+      case 'panel': return std({ map: T.brushed, color: '#3b424c', roughness: 0.55, metalness: 0.45 });
+      // Lacquer, chrome, clear glass and rubber: the surfaces that need the environment to read as what they are.
+      case 'carpaint': return std({ color: '#2e2668', roughness: 0.32, metalness: 0.6, envMapIntensity: 1.4 });
+      case 'chrome': return std({ color: '#c4cad1', roughness: 0.2, metalness: 1, envMapIntensity: 1.8 });
+      case 'clearglass': return std({ color: '#cfe3ee', roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.26, envMapIntensity: 1.6, depthWrite: false });
+      case 'rubber': return std({ color: '#141518', roughness: 0.92, metalness: 0 });
       case 'glass': return std({ color: '#0d1620', roughness: 0.08, metalness: 0.3, transparent: true, opacity: 0.55 });
       // Unlit: lamps, LEDs, strips. `glow` holds the constant ones; `led0..2` blink out of phase.
       case 'glow': return new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });

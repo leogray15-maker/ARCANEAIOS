@@ -15,10 +15,18 @@
  * cost one additive draw for the whole building.
  */
 import { accentOf, TONE, rng } from './materials.js';
+import { buildDetail } from './detail3d.js';
 
 const CONTENT = { queue: 'data', wave: 'wave', map: 'map', post: 'data', log: 'data' };
 
 export function buildProp(k, p, ctx) {
+  const h = helpers(k, p, ctx);
+  if (buildDetail(k, p, ctx, h)) return;
+  buildBasic(k, p, ctx, h);
+}
+
+/** The shared measurements and small builders every prop uses — here so detail3d.js builds with the same hands. */
+export function helpers(k, p, ctx) {
   const { ox, oz, backZ, WH, accent, pools } = ctx;
   const r = rng(`${ctx.id}-${p.type}-${p.x}-${p.y}`);
   const o = p.opts || {};
@@ -46,7 +54,12 @@ export function buildProp(k, p, ctx) {
   const deskTop = (h, key, d) => { const z = zOf(d); k.block(w, 1.4, d, cx, h - 1.4, z, key); return z; };
   const monitor = (x, y0, z, mw = 9, kind = 'data', colour = tint) => { k.block(1, 2.5, 1, x, y0, z, 'black'); screen(mw, mw * 0.58, x, y0 + 2.5 + mw * 0.29, z, kind, colour, { noSpill: true }); pool(x, z + 4, mw * 1.3, colour, 0.18); };
   const books = (x, y0, z, len, hmax = 6) => { let bx = x - len / 2; while (bx < x + len / 2 - 1) { const bw = 0.8 + r() * 1.2, bh = hmax * (0.6 + r() * 0.4); k.block(bw, bh, 3.2, bx + bw / 2, y0, z, 'paint', { colour: ['#5a2f2a', '#2c3a4e', '#3e4a35', '#6b5a3a', '#2a2a30', '#7a6a55'][Math.floor(r() * 6)] }); bx += bw + 0.15; } };
+  return { r, o, tint, x0, x1, cx, w, againstWall, depth, zOf, panelY, wallZ, pool, screen, panel, legs, deskTop, monitor, books };
+}
 
+function buildBasic(k, p, ctx, h0) {
+  const { oz, backZ, WH, pools } = ctx;
+  const { r, o, tint, x0, x1, cx, w, againstWall, depth, zOf, panelY, wallZ, pool, screen, panel, legs, deskTop, monitor, books } = h0;
   switch (p.type) {
     /* ---------- displays on the back wall ---------- */
     case 'screen': case 'wallscreen': case 'bigscreen': {
@@ -71,7 +84,7 @@ export function buildProp(k, p, ctx) {
       pool(cx, wallZ + 18, w * 1.1, TONE.cold, 0.22); pool(cx, wallZ + 1, w, TONE.cold, 0.1, 'wall', y);
       break;
     }
-    case 'board': case 'corkboard': {
+    case 'board': {
       const ph = Math.max(8, p.h * 0.8), y = panelY(ph);
       k.box(w, ph, 1, cx, y, wallZ, 'wood');
       k.box(w - 2, ph - 2, 0.4, cx, y, wallZ + 0.6, 'paint', { colour: o.kind === 'doctrine' ? '#1c2028' : '#6a5038' });
@@ -152,25 +165,6 @@ export function buildProp(k, p, ctx) {
     }
 
     /* ---------- standing against the wall ---------- */
-    case 'coldstore': {
-      const d = 10, z = zOf(d), h = 38;
-      k.block(w, h, d, cx, 0, z, 'ceramic');
-      k.box(w - 3, h - 8, 0.4, cx, h / 2 + 1, z + d / 2 + 0.3, 'glass', { cast: false });
-      k.box(w - 5, 0.6, 0.3, cx, h - 4, z + d / 2 + 0.5, 'glow', { colour: o.kind === 'cryo' ? TONE.cold : TONE.cyan, cast: false });
-      k.box(1, 9, 1, x1 - 3, h / 2, z + d / 2 + 0.8, 'trim');
-      k.box(2, 1, 0.3, x0 + 3, h - 2, z + d / 2 + 0.5, 'led0', { colour: TONE.green, cast: false });
-      pool(cx, z + d / 2 + 6, w * 0.8, TONE.cyan, 0.12);
-      break;
-    }
-    case 'vialrack': {
-      const d = 6, z = zOf(d), h = 18, vial = o.tint === 'green' ? TONE.green : TONE.cyan;
-      k.block(w, 0.8, d, cx, h * 0.45, z, 'steel'); k.block(w, 0.8, d, cx, h, z, 'steel');
-      k.block(0.8, h, d, x0 + 0.4, 0, z, 'steel'); k.block(0.8, h, d, x1 - 0.4, 0, z, 'steel');
-      k.block(w - 2, h * 0.45, d - 1, cx, 0, z, 'black');
-      for (const sy of [h * 0.45 + 0.8, h + 0.8]) for (let i = 0; i < w / 2.2; i++) k.cyl(0.6, 0.6, 3.2, x0 + 1.5 + i * 2.2, sy + 1.6, z + (r() - 0.5) * 2, 'glow', { colour: vial, seg: 6, cast: false, a: 0.55 });
-      pool(cx, z + 3, w * 0.7, vial, 0.12, 'wall', h);
-      break;
-    }
     case 'cabinet': case 'lockedcabinet': case 'locker': {
       const d = Math.min(9, depth(0.5)), z = zOf(d), h = p.type === 'locker' ? 26 : p.type === 'lockedcabinet' ? 24 : Math.min(24, 10 + p.h * 0.6);
       const key = p.type === 'locker' && o.colour ? 'gloss' : p.type === 'lockedcabinet' ? 'black' : 'steel';
@@ -210,12 +204,6 @@ export function buildProp(k, p, ctx) {
       pool(cx, z + d / 2 + 5, w * 0.9, tint, 0.14);
       break;
     }
-    case 'safe': case 'goldcase': {
-      const d = Math.min(12, depth(0.6)), z = zOf(d), h = p.type === 'safe' ? 20 : 14;
-      if (p.type === 'safe') { k.block(w, h, d, cx, 0, z, 'black'); k.cyl(3, 3, 1, cx, h / 2, z + d / 2 + 0.5, 'trim', { rot: [Math.PI / 2, 0, 0], seg: 18 }); k.box(1, 4, 1, cx + w / 2 - 3, h / 2, z + d / 2 + 0.6, 'steel'); k.box(1.4, 1, 0.3, x0 + 3, h - 3, z + d / 2 + 0.2, 'led2', { colour: TONE.green, cast: false }); }
-      else { k.block(w, 8, d, cx, 0, z, 'black'); k.block(w, 6, d, cx, 8, z, 'glass', { cast: false }); for (let i = 0; i < w / 4; i++) k.block(3, 1.4, 1.8, x0 + 2.5 + i * 4, 8, z, 'gloss', { colour: '#c99a3a' }); pool(cx, z, w, TONE.gold, 0.2, 'floor', 8.2); }
-      break;
-    }
     case 'archiveterminal': {
       const d = depth(0.5), z = zOf(d);
       k.block(w * 0.6, 14, d * 0.6, cx, 0, z, 'black');
@@ -234,13 +222,6 @@ export function buildProp(k, p, ctx) {
       for (let y = 4; y < WH - 8; y += 4) k.box(w - 2, 0.5, 0.5, cx, y, z + 0.5 - y * 0.12, 'steel');
       break;
     }
-    case 'lift': {
-      const d = depth(0.7), z = zOf(d);
-      for (const sx of [-1, 1]) k.block(1.2, 30, 1.2, cx + sx * (w / 2 - 1), 0, z - d / 2 + 1, 'black');
-      k.block(w, 1, d, cx, 6, z, 'grate');
-      k.box(w, 0.5, 0.5, cx, 30, z - d / 2 + 1, 'glow', { colour: TONE.amber, cast: false });
-      break;
-    }
     case 'mast': {
       const z = oz + p.y + p.h - 4;
       k.cyl(0.8, 1.2, 34, cx, 17, z, 'steel', { seg: 8 });
@@ -251,34 +232,21 @@ export function buildProp(k, p, ctx) {
     }
 
     /* ---------- tables and work surfaces ---------- */
-    case 'desk': case 'table': case 'workbench': case 'packbench': case 'coa': {
-      const d = depth(p.type === 'table' ? 0.75 : 0.62, 6), h = p.type === 'workbench' || p.type === 'packbench' ? 13 : 12;
-      const top = p.type === 'workbench' || o.tone === 'steel' || p.type === 'coa' ? 'steel' : 'wood';
-      const z = deskTop(h, top, d);
-      if (p.type === 'workbench' || p.type === 'packbench') k.block(w - 2, h - 4, d - 2, cx, 0, z, 'black');
-      else { legs(w, d, h - 1.4, cx, z, 'black'); if (p.type === 'desk') k.block(w * 0.35, h - 2, d - 1, x0 + w * 0.2, 0, z, 'black'); }
-      const items = o.items || (p.type === 'coa' ? ['instrument', 'terminal'] : p.type === 'packbench' ? ['parcels'] : p.type === 'workbench' ? ['tools'] : []);
-      let ix = x0 + 4;
-      for (const it of items) {
-        if (it === 'terminal' || it === 'secure') { monitor(ix + 5, h, z - d / 4, 9, 'data', o.accent ? accentOf(o.accent) : tint); ix += 12; }
-        else if (it === 'dual') { monitor(ix + 5, h, z - d / 4, 8, 'chart'); monitor(ix + 14, h, z - d / 4, 8, 'data'); ix += 20; }
-        else if (it === 'keyboard') { k.block(7, 0.5, 2.5, ix + 4, h, z + d / 4, 'black'); ix += 9; }
-        else if (it === 'papers') { for (let i = 0; i < 3; i++) k.block(4, 0.15, 5, ix + 3 + i * 0.6, h + i * 0.15, z + (r() - 0.5) * 2, 'paint', { colour: '#d8d4c8', cast: false, rot: [0, (r() - 0.5) * 0.5, 0] }); ix += 7; }
-        else if (it === 'mug') { k.cyl(0.9, 0.8, 2, ix + 1, h + 1, z + d / 4, 'ceramic', { seg: 8 }); ix += 4; }
-        else if (it === 'printer') { k.block(7, 4, 5, ix + 4, h, z, 'ceramic'); ix += 9; }
-        else if (it === 'instrument') { k.block(10, 7, d - 2, ix + 5, h, z, 'ceramic'); screen(5, 3, ix + 5, h + 4.5, z + (d - 2) / 2 + 0.2, 'panel', TONE.cyan, { noSpill: true }); ix += 13; }
-        else if (it === 'parcels') { for (let i = 0; i < 3; i++) k.block(5, 3 + r() * 2, 4, ix + 3 + i * 6, h, z, 'paint', { colour: '#9c7a52' }); ix += 18; }
-        else if (it === 'tools') { for (let i = 0; i < 5; i++) k.block(1 + r() * 2, 1, 1 + r() * 3, ix + i * 4, h, z + (r() - 0.5) * 3, r() < 0.5 ? 'steel' : 'copper'); ix += 20; }
-      }
+    case 'table': case 'workbench': {
+      const d = depth(p.type === 'table' ? 0.75 : 0.62, 6), h = p.type === 'workbench' ? 13 : 12;
+      const z = deskTop(h, p.type === 'workbench' ? 'steel' : 'wood', d);
+      if (p.type === 'workbench') {
+        k.block(w - 2, h - 4, d - 2, cx, 0, z, 'black');
+        for (let i = 0; i < 5; i++) k.block(1 + r() * 2, 1, 1 + r() * 3, x0 + 4 + i * 4, h, z + (r() - 0.5) * 3, r() < 0.5 ? 'steel' : 'copper');
+      } else legs(w, d, h - 1.4, cx, z, 'black');
       if (o.device) k.box(3, 1, 3, x1 - 5, h + 0.5, z, 'glow', { colour: TONE.cyan, cast: false });
-      if (p.type === 'desk' || p.type === 'coa') pool(cx, z, w * 0.7, TONE.warm, 0.1);
       break;
     }
-    case 'tradingdesk': case 'signaldesk': {
+    case 'signaldesk': {
       const d = depth(0.55, 8), h = 12, z = deskTop(h, 'black', d);
       k.block(w - 2, h - 2, d - 1, cx, 0, z, 'black');
       const n = Math.max(2, Math.round(w / 22));
-      for (let i = 0; i < n; i++) { const mx = x0 + (w / n) * (i + 0.5); monitor(mx, h, z - d / 4, Math.min(14, w / n - 3), p.type === 'tradingdesk' ? (i % 2 ? 'chart' : 'data') : (i % 2 ? 'wave' : 'map'), p.type === 'tradingdesk' ? (i % 2 ? TONE.green : TONE.amber) : tint); }
+      for (let i = 0; i < n; i++) { const mx = x0 + (w / n) * (i + 0.5); monitor(mx, h, z - d / 4, Math.min(14, w / n - 3), i % 2 ? 'wave' : 'map', tint); }
       for (let i = 0; i < w / 4; i++) k.box(1, 0.4, 1, x0 + 2 + i * 4, h + 0.2, z + d / 3, `led${i % 3}`, { colour: tint, cast: false });
       break;
     }
@@ -300,12 +268,16 @@ export function buildProp(k, p, ctx) {
       pool(cx, z, rad * 2.4, TONE.gold, 0.22);
       break;
     }
-    case 'balance': case 'instrument': case 'fraction': case 'scales': {
-      const d = depth(0.6, 5), z = zOf(d), h = p.type === 'instrument' ? 16 : 11;
-      k.block(w, h, d, cx, 0, z, p.type === 'scales' ? 'black' : 'ceramic');
-      if (p.type === 'instrument') { k.block(w * 0.5, 6, d * 0.8, x0 + w * 0.3, h, z, 'ceramic'); screen(w * 0.35, 5, x1 - w * 0.25, h - 4, z + d / 2 + 0.3, 'chart', TONE.cyan, { noSpill: true }); }
-      if (p.type === 'balance') { k.cyl(3, 3, 5, cx, h + 2.5, z, 'glass', { seg: 16, cast: false }); }
-      if (p.type === 'fraction') for (let i = 0; i < w / 2.5; i++) k.cyl(0.6, 0.6, 4, x0 + 1.5 + i * 2.5, h + 2, z, 'glow', { colour: i % 3 ? TONE.cyan : TONE.amber, seg: 6, cast: false, a: 0.6 });
+    case 'scales': {
+      const d = depth(0.6, 5), z = zOf(d);
+      k.block(w, 11, d, cx, 0, z, 'black');
+      break;
+    }
+    case 'safe': case 'goldcase': {
+      // A floor safe, or a glass case of bars; the vault-sized safe is built in detail3d.js.
+      const d = Math.min(12, depth(0.6)), z = zOf(d), h = p.type === 'safe' ? 20 : 14;
+      if (p.type === 'safe') { k.block(w, h, d, cx, 0, z, 'black'); k.cyl(3, 3, 1, cx, h / 2, z + d / 2 + 0.5, 'trim', { rot: [Math.PI / 2, 0, 0], seg: 18 }); k.box(1, 4, 1, cx + w / 2 - 3, h / 2, z + d / 2 + 0.6, 'steel'); k.box(1.4, 1, 0.3, x0 + 3, h - 3, z + d / 2 + 0.2, 'led2', { colour: TONE.green, cast: false }); }
+      else { k.block(w, 8, d, cx, 0, z, 'black'); k.block(w, 6, d, cx, 8, z, 'glass', { cast: false }); for (let i = 0; i < w / 4; i++) k.block(3, 1.4, 1.8, x0 + 2.5 + i * 4, 8, z, 'gloss', { colour: '#c99a3a' }); pool(cx, z, w, TONE.gold, 0.2, 'floor', 8.2); }
       break;
     }
     case 'lectern': case 'till': case 'stall': {
@@ -319,14 +291,9 @@ export function buildProp(k, p, ctx) {
     }
 
     /* ---------- seats ---------- */
-    case 'chair': case 'stool': case 'armchair': {
+    case 'stool': {
       const s = Math.min(p.w, p.h), z = oz + p.y + p.h - s / 2, colour = o.tone === 'wood' ? '#4a3427' : '#262a31';
-      if (p.type === 'stool') { k.cyl(s / 2.4, s / 2.4, 1, cx, 6, z, 'paint', { colour, seg: 12 }); k.cyl(0.4, 0.4, 6, cx, 3, z, 'steel', { seg: 6 }); k.cyl(s / 3, s / 3, 0.4, cx, 0.3, z, 'black', { seg: 12 }); break; }
-      k.block(s, 1.5, s, cx, 5, z, 'paint', { colour });
-      k.block(s, s * 0.9, 1.2, cx, 6.5, z + s / 2 - 0.6, 'paint', { colour });
-      k.cyl(0.4, 0.4, 5, cx, 2.5, z, 'steel', { seg: 6 });
-      k.cyl(s / 2.5, s / 2.5, 0.4, cx, 0.2, z, 'black', { seg: 10 });
-      if (p.type === 'armchair') { k.block(1.5, 4, s, cx - s / 2, 5, z, 'paint', { colour }); k.block(1.5, 4, s, cx + s / 2, 5, z, 'paint', { colour }); }
+      k.cyl(s / 2.4, s / 2.4, 1, cx, 6, z, 'paint', { colour, seg: 12 }); k.cyl(0.4, 0.4, 6, cx, 3, z, 'steel', { seg: 6 }); k.cyl(s / 3, s / 3, 0.4, cx, 0.3, z, 'black', { seg: 12 });
       break;
     }
     case 'sofa': case 'bed': {
@@ -355,13 +322,6 @@ export function buildProp(k, p, ctx) {
       else for (let i = 0; i < 2; i++) k.cyl(0.45, 0.45, w, cx, 0.5, z + i * 1.1, i ? 'copper' : 'black', { rot: [0, 0, Math.PI / 2], seg: 6, cast: false });
       break;
     }
-    case 'crate': case 'boxes': case 'parcels': {
-      const z0 = oz + p.y + p.h;
-      if (p.type === 'crate') { const s = Math.min(w, p.h * 0.8, 12), z = z0 - s / 2; k.block(s, s * 0.8, s, cx, 0, z, 'wood', { rot: [0, (r() - 0.5) * 0.3, 0] }); k.block(s + 0.3, 1, s + 0.3, cx, s * 0.4, z, 'paint', { colour: '#3a2a1e', cast: false }); break; }
-      const n = p.type === 'parcels' ? 4 : 3;
-      for (let i = 0; i < n; i++) { const bw = Math.min(w / 2, 4 + r() * 4), bh = 3 + r() * 4, bd = 3 + r() * 3, bx = x0 + bw / 2 + r() * (w - bw), stack = i === n - 1 && r() < 0.6; k.block(bw, bh, bd, bx, stack ? 5 : 0, z0 - bd / 2 - r() * 2, 'paint', { colour: r() < 0.5 ? '#8e6f4e' : '#a1825e', rot: [0, (r() - 0.5) * 0.4, 0] }); if (p.type === 'parcels') k.block(bw + 0.1, 0.2, 1, bx, (stack ? 5 : 0) + bh, z0 - bd / 2, 'paint', { colour: '#c9bfa8', cast: false }); }
-      break;
-    }
     case 'barrel': {
       const z = oz + p.y + p.h - w / 2;
       k.cyl(w / 2, w / 2, 14, cx, 7, z, 'gloss', { colour: shade(o.colour || '#4a5060', 0.8), seg: 16 });
@@ -372,12 +332,6 @@ export function buildProp(k, p, ctx) {
     case 'bin': case 'wastebin': {
       const z = oz + p.y + p.h - w / 2;
       k.cyl(w / 2, w / 2.4, 7, cx, 3.5, z, p.type === 'wastebin' ? 'gloss' : 'black', { colour: '#7a6a2a', seg: 10 });
-      break;
-    }
-    case 'plant': {
-      const z = oz + p.y + p.h - w / 2;
-      k.cyl(w / 2.4, w / 3, 5, cx, 2.5, z, 'ceramic', { seg: 10 });
-      for (let i = 0; i < 5; i++) k.sphere(w * (0.3 + r() * 0.15), cx + (r() - 0.5) * w * 0.5, 7 + r() * 6, z + (r() - 0.5) * w * 0.5, 'leaf', { colour: ['#2f4a33', '#3c5a3a', '#26402c'][i % 3], detail: 0, scale: [1, 1.3, 1] });
       break;
     }
     case 'kettlebell': {
@@ -452,17 +406,6 @@ export function buildProp(k, p, ctx) {
       else if (p.type === 'rope') { for (const sx of [0, 1]) { k.cyl(0.6, 0.6, 9, x0 + sx * w, 4.5, z, 'trim', { seg: 8 }); k.cyl(1.8, 1.8, 0.6, x0 + sx * w, 0.3, z, 'trim', { seg: 12 }); } k.cyl(0.4, 0.4, w, cx, 7.5, z, 'paint', { colour: '#7a1f24', rot: [0, 0, Math.PI / 2], seg: 6 }); }
       else if (p.type === 'journal') { k.block(w * 0.6, 8, 3, cx, 0, z, 'wood'); k.block(w * 0.7, 0.6, 5, cx, 8, z, 'paint', { colour: '#3c2a22', rot: [-0.2, 0, 0] }); }
       else for (let i = 0; i < 4; i++) k.cyl(0.8, 0.8, w * 0.6, cx, 0.8 + (i % 2) * 1.4, z - i, 'paint', { colour: '#cdbf9e', rot: [0, 0, Math.PI / 2], seg: 8 });
-      break;
-    }
-    case 'vanquish': {
-      // The car in THE AGENT GARAGE: a low grand tourer, lacquered, on the lift pad.
-      const d = depth(0.75, 14), z = zOf(d), colour = '#4a3a8a';
-      k.block(w * 0.98, 4.5, d * 0.8, cx, 2.2, z, 'gloss', { colour });
-      k.block(w * 0.5, 3.5, d * 0.66, cx - w * 0.04, 6.7, z, 'glass');
-      k.block(w * 0.98, 0.5, d * 0.82, cx, 6.6, z, 'gloss', { colour: shade(colour, 0.7) });
-      for (const sx of [-0.32, 0.32]) for (const sz of [-1, 1]) k.cyl(2.4, 2.4, 2, cx + sx * w, 2.4, z + sz * d * 0.4, 'black', { rot: [Math.PI / 2, 0, 0], seg: 14 });
-      k.box(0.5, 1, d * 0.6, x1 - 0.6, 4, z, 'glow', { colour: TONE.cold, cast: false }); k.box(0.5, 0.8, d * 0.6, x0 + 0.4, 4.5, z, 'glow', { colour: TONE.red, cast: false });
-      pool(cx, z, w * 1.1, TONE.violet, 0.12);
       break;
     }
     case 'bookstack': {

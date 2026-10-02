@@ -47,13 +47,24 @@ When the browser cannot draw WebGL2 (or `?flat` is in the URL) the floor
 falls back to the pixel plan (`render/factory.js`, `render/sprites.js`),
 with the same instruments over it. `?lite` forces the modest renderer.
 
+## How the rooms are furnished
+
+Three layers, so the shared data stays shared:
+
+- **`config/props.js`** — what furniture a room has and where. Shared with the pixel plan and its tests; the 3D floor reads the same placements.
+- **`render/world/detail3d.js`** — how a piece is built in 3D when it deserves detail: lab fridges with stocked shelves behind glass, the LN2 dewar, the analytical balance under its draught shield, the HPLC stack with solvent bottles, the fraction collector, desks with drawers, office chairs, plants with leaves, the vault door, the car (a bevelled body extruded from a side profile and pinched toward nose and tail), the two-post lift. Everything else falls back to `props3d.js`.
+- **`render/world/rooms3d.js`** — what only the 3D floor adds: each room's finish (`ROOM_STYLE`: floor, wall lining, the colour of its light, its pendant lamps) and set dressing placed in the floor space the furniture leaves free (`DRESSING`: the fume hood, lab sink and safety shower; tool chests, tyre racks, an EV charger and a trolley jack in the garage; operator consoles under the screen walls; a bar in the lounge; wall shelving; floor tape). Dressing never changes what a room is or where the crew walk.
+
+Every room also gets the same finish in `world.js` `finishRoom`: a lining or panel seams, a rail, skirting on every wall, a fine line inset round the floor.
+
 ## Materials
 
 Richness comes from contrast between materials, never from glow. Every
 3D texture is drawn once on a canvas at startup (`render/world/materials.js`)
 and mapped in world units, so it runs continuously across a wall.
 
-- **Concrete** for walls: form-lines, tie holes, staining from the top.
+- **Concrete** for walls: form-lines, tie holes, staining from the top. Rooms that call for it are lined: **pale cladding** in the lab and Vitals, **dark metal panel** in the workshops and the control rooms, **acoustic foam** in BEACON's studio.
+- **Resin** floors: pale in the lab, dark in the garage and the forge.
 - **Sealed tile** for production floors, **oiled timber** for command, **wool carpet** for knowledge. The atrium is **polished stone** and reflects the core.
 - **Brushed steel**, **black steel** and **oxidised copper** for structure, trim and pipe runs.
 - **Ceramic** for cold stores and instruments, **smoked glass** for doors and display fronts, **wood** for desks and shelving.
@@ -144,7 +155,7 @@ from above. `prefers-reduced-motion` turns the interface's animation off.
 
 ## Changing it
 
-- A room's furniture → `config/props.js` (the 3D builder reads the same placements). A new prop type needs a case in `render/world/props3d.js` and a painter in `render/props.js` for the fallback.
+- A room's furniture → `config/props.js` (the 3D builder reads the same placements). A new prop type needs a case in `render/world/props3d.js` (or `detail3d.js` for a detailed one) and a painter in `render/props.js` for the fallback. Dressing that only the 3D floor draws goes in `render/world/rooms3d.js`.
 - A room's geometry → `config/floorplan.js`; both renderers follow.
 - A material or texture → `render/world/materials.js`.
 - A colour → `render/tone.js` and the tokens at the top of `ui.css`.
