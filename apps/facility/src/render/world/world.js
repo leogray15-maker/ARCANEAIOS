@@ -54,8 +54,8 @@ export class FacilityWorld {
     const r = this.renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === 'high', powerPreference: 'high-performance', stencil: false });
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.12;
-    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
-    // Only the crew move, so the shadow map is redrawn every other frame, not every frame.
+    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFShadowMap;
+    // The building never moves, so its shadows are drawn once; the crew get a contact shadow each instead.
     r.shadowMap.autoUpdate = false; this.frames = 0;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#06080b');
@@ -87,6 +87,9 @@ export class FacilityWorld {
       this.composer.addPass(new OutputPass());
     }
     this.lastRender = 0;
+    this.tier = quality === 'high' ? 0 : 2;   // TIERS below; adapt() moves it with the measured frame rate
+    this.perf = { since: 0, frames: 0, slow: 0, fast: 0 };
+    this.busyUntil = 0;
     this.born = null;   // when the arrival move started
   }
 
@@ -182,7 +185,7 @@ export class FacilityWorld {
     k.box(w * 0.46, 1.4, 4.5, cx, WH - 2.5, inner + 2.6, 'black');
     k.box(w * 0.44, 0.3, 3.2, cx, WH - 3.3, inner + 2.8, 'glow', { colour: light.getStyle(), cast: false });
     pools.push({ x: cx, z: inner + 0.6, r: w * 0.36, colour: light.getStyle(), a: 0.22, kind: 'wall', y: WH - 14 });
-    pools.push({ x: cx, z: cz, r: Math.max(w, h) * 0.45, colour: light.getStyle(), a: 0.045, kind: 'floor' });
+    pools.push({ x: cx, z: cz, r: Math.max(w, h) * 0.5, colour: light.getStyle(), a: 0.085, kind: 'floor' });
 
     this.finishRoom(k, p, { X0, X1, Z0, Z1, cx, cz, w, h, inner, doorZ, gap, mid, style, light, pools });
 
@@ -202,10 +205,9 @@ export class FacilityWorld {
     const frameGeo = new THREE.BufferGeometry().setFromPoints([[X0 + 2, Z0 + 2], [X1 - 2, Z0 + 2], [X1 - 2, Z1 - 2], [X0 + 2, Z1 - 2], [X0 + 2, Z0 + 2]].map(([a, b]) => new THREE.Vector3(a, 0.4, b)));
     const frame = new THREE.Line(frameGeo, new THREE.LineBasicMaterial({ color: TONE.cold, transparent: true, opacity: 0, toneMapped: false }));
     group.add(frame);
-    const lamp = new THREE.PointLight(light, 0, 240, 2);
-    lamp.position.set(cx, WH - 8, Z0 + h * 0.42);
-    if (this.quality === 'high') group.add(lamp);
-    this.rooms[p.id] = { p, room, cx, cz, X0, X1, Z0, Z1, strip, stateMat, frame, lamp, base: 4200, level: 0, colour: TONE.green, pulse: false };
+    // No light per room: twenty point lights made every pixel of the floor pay for all twenty. The room is lit by its
+    // pools and fixtures; two shared lights follow the room under the pointer and the room that is open.
+    this.rooms[p.id] = { p, room, cx, cz, X0, X1, Z0, Z1, strip, stateMat, frame, light, lampAt: new THREE.Vector3(cx, WH - 8, Z0 + h * 0.42), level: 0, colour: TONE.green, pulse: false };
   }
 
   /**
@@ -310,12 +312,13 @@ export class FacilityWorld {
      ============================================================ */
 
   lights() {
-    this.scene.add(new THREE.HemisphereLight('#aebdd4', '#1a140f', 0.6));
+    this.scene.add(new THREE.HemisphereLight('#aebdd4', '#1a140f', 0.85));
+    this.focusLights = this.quality === 'high' ? [0, 1].map(() => { const L = new THREE.PointLight('#ffffff', 0, 240, 2); this.scene.add(L); return L; }) : [];
     // The key: a cool overhead from the back left, the one light that casts shadows, so every prop sits on the floor.
     const key = this.key = new THREE.DirectionalLight('#cfdcf0', 1.55);
     key.position.set(-360, 900, -520); key.target.position.set(40, 0, 60);
     key.castShadow = true;
-    const S = this.quality === 'high' ? 4096 : 2048;
+    const S = 2048;
     key.shadow.mapSize.set(S, S);
     Object.assign(key.shadow.camera, { left: -700, right: 700, top: 560, bottom: -560, near: 200, far: 2200 });
     key.shadow.bias = -0.00035; key.shadow.normalBias = 0.6; key.shadow.radius = 3;
@@ -334,25 +337,27 @@ export class FacilityWorld {
     const dark = new THREE.MeshStandardMaterial({ color: '#1b1e23', roughness: 0.7, metalness: 0.3 });
     const helm = new THREE.MeshStandardMaterial({ color: '#2c3036', roughness: 0.35, metalness: 0.6 });
     const ringGeo = new THREE.RingGeometry(5, 6.2, 40);
+    const blobGeo = new THREE.PlaneGeometry(13, 13), blobMat = new THREE.MeshBasicMaterial({ map: this.lib.T.radial, color: '#000000', transparent: true, opacity: 0.55, depthWrite: false });
     for (const a of AGENTS) {
       const big = a.kind === 'arcane' ? 1.16 : 1;
       const body = new THREE.MeshStandardMaterial({ color: shade(a.colour, 0.55), roughness: 0.62, metalness: 0.15 });
       const glow = new THREE.MeshBasicMaterial({ color: a.colour, toneMapped: false });
       const g = new THREE.Group(); g.scale.setScalar(big);
-      const part = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
+      const part = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
       const hipL = new THREE.Group(), hipR = new THREE.Group(); hipL.position.set(-1.6, 10, 0); hipR.position.set(1.6, 10, 0); g.add(hipL, hipR);
-      for (const hip of [hipL, hipR]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(2.4, 10, 2.6), dark); leg.position.y = -5; leg.castShadow = true; hip.add(leg); }
+      for (const hip of [hipL, hipR]) { const leg = new THREE.Mesh(new THREE.BoxGeometry(2.4, 10, 2.6), dark); leg.position.y = -5; hip.add(leg); }
       part(new THREE.BoxGeometry(7.2, 9, 4.4), body, 0, 14.5, 0);
       part(new THREE.BoxGeometry(7.6, 1.6, 4.8), dark, 0, 10.4, 0);
       const chest = part(new THREE.BoxGeometry(3, 0.8, 0.3), glow, 0, 16.5, 2.3); chest.castShadow = false;
       const shL = new THREE.Group(), shR = new THREE.Group(); shL.position.set(-4.6, 18.4, 0); shR.position.set(4.6, 18.4, 0); g.add(shL, shR);
-      for (const sh of [shL, shR]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(1.9, 8.4, 2.2), body); arm.position.y = -4; arm.castShadow = true; sh.add(arm); }
+      for (const sh of [shL, shR]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(1.9, 8.4, 2.2), body); arm.position.y = -4; sh.add(arm); }
       part(new THREE.BoxGeometry(4.8, 4.8, 4.8), helm, 0, 21.8, 0);
       const visor = part(new THREE.BoxGeometry(4, 1.3, 0.4), glow, 0, 22.2, 2.45); visor.castShadow = false;
       if (a.kind === 'arcane') { const halo = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.28, 6, 40), glow); halo.rotation.x = Math.PI / 2; halo.position.y = 27.5; g.add(halo); }
       const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: a.colour, toneMapped: false, transparent: true, opacity: 0.0, depthWrite: false, side: THREE.DoubleSide }));
       ring.rotation.x = -Math.PI / 2; ring.position.y = 0.35;
-      const root = new THREE.Group(); root.add(g, ring); this.scene.add(root);
+      const blob = new THREE.Mesh(blobGeo, blobMat); blob.rotation.x = -Math.PI / 2; blob.position.y = 0.2;
+      const root = new THREE.Group(); root.add(g, ring, blob); this.scene.add(root);
       this.figures[a.id] = { root, g, hipL, hipR, shL, shR, ring, glow, phase: Math.random() * 6, yaw: 0, x: null, z: null };
     }
   }
@@ -444,7 +449,10 @@ export class FacilityWorld {
 
   resize(w, h, dpr) {
     this.w = w; this.h = h; this.dpr = dpr;
-    const ratio = this.mode === 'backdrop' ? Math.min(0.75, dpr * 0.5) : Math.min(dpr, this.quality === 'high' ? 1.75 : 1.25);
+    // Pixels are the cost that scales: a Retina screen at full ratio is four times the work. The floor renders at
+    // the adaptive tier's ratio; under a view the world is a soft backdrop, so a fraction of that is enough.
+    const tier = TIERS[this.tier];
+    const ratio = this.mode === 'backdrop' ? Math.min(0.5, dpr * 0.35) : Math.min(dpr, tier.ratio);
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(1, h); this.camera.updateProjectionMatrix();
@@ -465,12 +473,14 @@ export class FacilityWorld {
     if (mode === 'fit') { this.goal.tx = 0; this.goal.tz = 22; }
   }
   zoomBy(f, clientX, clientY) {
+    this.touch();
     const next = Math.max(this.fitDist * 0.16, Math.min(this.fitDist * 1.25, this.goal.dist / f));
     // Zoom toward the point under the cursor, not the middle of the screen.
     if (clientX !== undefined) { const g = this.ground(clientX, clientY); if (g) { const k = 1 - next / this.goal.dist; this.goal.tx += (g.x - this.goal.tx) * k; this.goal.tz += (g.z - this.goal.tz) * k; } }
     this.goal.dist = next;
   }
   panBy(dx, dy) {
+    this.touch();
     const upp = (2 * this.rig.dist * Math.tan((FOV * Math.PI) / 360)) / Math.max(1, this.h);
     this.goal.tx -= dx * upp; this.goal.tz -= (dy * upp) / Math.sin(this.rig.pitch);
     this.rig.tx = this.goal.tx; this.rig.tz = this.goal.tz;
@@ -531,9 +541,12 @@ export class FacilityWorld {
   frame(now, sim) {
     const t = now / 1000;
     const dt = Math.min(0.1, t - (this.t || t)); this.t = t;
-    // Under a view, render small and slow; on the floor, every frame on a good machine, half of them on a modest one.
-    const minGap = this.mode === 'backdrop' ? 1 / 20 : this.quality === 'high' ? 0 : 1 / 30;
-    if (t - this.lastRender < minGap) return;
+    // Under a view, render small and slow. On the floor, full rate only while the camera is moving or being
+    // moved; the ambient life of the floor (crew, rings, screens) reads the same at thirty frames a second.
+    const moving = t < this.busyUntil || Math.abs(this.goal.dist - this.rig.dist) > 1 || Math.abs(this.goal.tx - this.rig.tx) + Math.abs(this.goal.tz - this.rig.tz) > 0.5 || this.born === null || t - this.born < 3;
+    const minGap = this.mode === 'backdrop' ? 1 / 12 : moving ? 0 : 1 / 30;
+    if (t - this.lastRender < minGap - 0.002) return;
+    if (this.mode === 'floor') this.adapt(t, t - this.lastRender, minGap);
     const step = Math.min(0.1, t - (this.lastRender || t));
     this.lastRender = t;
 
@@ -565,21 +578,50 @@ export class FacilityWorld {
     this.coreRings[1].material.color.set(this.coreWarm > 0.5 ? TONE.amber : TONE.cyan);
 
     // Rooms: the practical light follows the room's state; hover and selection lift it and draw the frame.
+    [this.hover, this.selected].forEach((id, i) => {
+      const L = this.focusLights[i], r = id && this.rooms[id];
+      if (!L) return;
+      if (r && L.userData.room !== id) { L.position.copy(r.lampAt); L.color.copy(r.light); L.userData.room = id; L.intensity = 0; }
+      const target = r ? 4200 * (0.6 + r.level * 0.4) : 0;
+      L.intensity += (target - L.intensity) * Math.min(1, step * 5);
+    });
     for (const [id, r] of Object.entries(this.rooms)) {
       const focus = id === this.hover ? 1 : id === this.selected ? 0.7 : 0;
-      const target = r.base * (0.45 + r.level * 0.55) * (1 + focus * 0.6);
-      r.lamp.intensity += (target - r.lamp.intensity) * Math.min(1, step * 4);
       r.stateMat.opacity = r.pulse ? 0.55 + 0.45 * Math.sin(t * 3.2) : 0.9;
       r.frame.material.opacity += ((focus ? 0.55 * focus : 0) - r.frame.material.opacity) * Math.min(1, step * 8);
     }
 
     if (sim) this.moveCrew(sim, t, step);
-    this.placeLabels();
+    // Plates follow the camera; when it has not moved they only need the crew tags, every other frame.
+    const camKey = `${c.position.x.toFixed(2)},${c.position.y.toFixed(2)},${c.position.z.toFixed(2)},${this.w},${this.h}`;
+    if (camKey !== this.camKey || this.frames % 2 === 0) { this.camKey = camKey; this.placeLabels(); }
 
-    if (this.frames++ % 2 === 0) this.renderer.shadowMap.needsUpdate = true;
-    if (this.composer && this.mode !== 'backdrop') this.composer.render(step);
+    if (this.frames++ < 2) this.renderer.shadowMap.needsUpdate = true;
+    if (this.composer && this.mode !== 'backdrop' && TIERS[this.tier].bloom) this.composer.render(step);
     else this.renderer.render(this.scene, this.camera);
   }
+
+  /**
+   * Adaptive resolution: if frames arrive late for two seconds running, step down a tier (less resolution,
+   * then no bloom). A tier that has proved too slow is never tried again — changing tier reallocates the render
+   * targets, a visible hitch, so it must settle rather than ping-pong. It only climbs back toward the best tier
+   * not yet proved slow, after a long run of comfortable frames.
+   */
+  adapt(t, gap, target) {
+    const p = this.perf;
+    // The first seconds compile shaders and run the arrival move; they say nothing about the steady frame rate.
+    if (this.born === null || t - this.born < 4) return;
+    if (!p.since) p.since = t;
+    p.frames++;
+    const late = gap > Math.max(target, 1 / 60) * 1.45;
+    p.slow = late ? p.slow + gap : Math.max(0, p.slow - gap * 0.5);
+    p.fast = late ? 0 : p.fast + gap;
+    if (this.best === undefined) this.best = this.quality === 'high' ? 0 : 2;
+    if (p.slow > 2 && this.tier < TIERS.length - 1) { this.best = this.tier + 1; this.tier++; p.slow = 0; p.fast = 0; this.resize(this.w, this.h, this.dpr); }
+    else if (p.fast > 20 && this.tier > this.best) { this.tier--; p.fast = 0; this.resize(this.w, this.h, this.dpr); }
+  }
+  /** The operator is moving the camera: render at full rate for a moment. */
+  touch() { this.busyUntil = (this.t || 0) + 1.2; }
 
   moveCrew(sim, t, dt) {
     const FACE = { front: 0, back: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 };
@@ -641,4 +683,7 @@ export class FacilityWorld {
 }
 
 /** Room states in the floor's palette (core/roomstate.js keys). */
+/** Quality tiers, best first: render resolution cap and whether bloom runs. */
+const TIERS = [{ ratio: 1.25, bloom: true }, { ratio: 1, bloom: true }, { ratio: 0.85, bloom: false }, { ratio: 0.7, bloom: false }];
+
 const STATE_TONE = { blocked: TONE.red, attention: TONE.amber, working: TONE.violet, active: TONE.cyan, ok: TONE.green };
