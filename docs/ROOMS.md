@@ -28,7 +28,7 @@ floor.
 built and lit in three dimensions (`docs/VISUAL-SYSTEM.md`). Drag to move,
 wheel or pinch to zoom, click a room to walk into it — the camera goes in,
 ARCANE walks there, the room opens. Each room's front edge and door frame
-carry its lamp, its practical light follows its state, and a figure's ring
+carry its lamp, the room under the pointer lights up, and a figure's ring
 glows while it works. Crew drift toward rooms with open orders — P0 pulls
 hardest — so the floor is a picture of the work. Keys on the floor: `b`
 Bridge, `w` War Room, `l` Library, `n` Beacon, `p` the Lab, `v` the Vault,

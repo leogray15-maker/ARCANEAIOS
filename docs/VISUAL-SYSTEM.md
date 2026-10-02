@@ -15,16 +15,16 @@ From the back of the screen to the front:
 | --- | --- | --- |
 | The hall | The space the facility stands in: a ground that falls into haze, columns, trusses, tanks and pipe runs | `render/world/world.js` `buildHall` |
 | The facility | Twenty cut-away rooms on a machined plinth, corridors, the atrium, the core | `buildRoom`, `buildPlaza` |
-| Light | A cool key with shadows, a warm fill, a practical light per room, pools of light on floors and walls | `lights`, the pools in `build` |
+| Light | A cool key with baked shadows, a warm fill, a light that follows the room under the pointer and the open room, pools of light on floors and walls | `lights`, the pools in `build` |
 | Atmosphere | Distance haze, drifting dust, the core's light | `dust`, the fog in `frame` |
-| The lens | A vignette and fine grain over the floor | `#stage::after`, `#stage::before` in `ui.css` |
+| The lens | A vignette over the floor | `#stage::after` in `ui.css` |
 | Plates and instruments | Room plates on the back walls, crew tags, the floor's corner displays | `labels` in the world, `render/hud.js` |
 | The view | A room's application, over a haze that takes the room's colour | `.view` in `ui.css` |
 | Panels and displays | Machined surfaces holding recessed displays | the primitives below |
 
 Under any view other than the floor, the world keeps running as that
 room's environment: the camera settles on the room the view belongs to,
-renders small and slow, and is softened behind the view's haze. Opening
+renders small and slow, and is dimmed behind the view's haze. Opening
 THE LAB puts you in front of the lab.
 
 ## The floor is the real one
@@ -38,7 +38,7 @@ room uses the same `roomAt`; the crew walk where the sim sends them.
 What is lit is what is true:
 
 - A room's front edge and door frame carry its lamp (`core/roomstate.js`): red blocked, amber needs you, violet working, cyan active, green quiet. A blocked or waiting room pulses.
-- A room's practical light brightens with its state and lifts when the pointer is over it.
+- The room under the pointer, and the room that is open, get a real light, as bright as their state.
 - A figure's ring glows in its colour while it works at its station, traces faintly while it walks, and is dark when it is idle. Its visor dims when it stands.
 - The core turns at the centre of the atrium and warms toward amber when something needs an answer.
 - The corner displays count working, walking and standing crew, open orders, proposals, signals, lamps by colour; the movement log writes what the crew do as they do it; the heartbeat is the number of agents working, sampled every few seconds.
@@ -82,8 +82,9 @@ In the interface the same idea is CSS (`ui.css`, the tokens at the top):
 
 One key light casts shadows (cool, overhead, back left), one warm fill
 keeps the cut-away faces from going dead, a hemisphere carries the
-ambient. Each room has one practical light, warm tinted toward the room's
-accent, falling off with the square of distance so it pools. Most of the
+ambient. Each room's light colour is warm, tinted toward the room's accent;
+the room under the pointer and the open room get a real point light in that
+colour, falling off with the square of distance. Most of the
 "lit by real things" quality is the pools: an additive quad under every
 lamp, on the wall around every screen, under every fixture. They are all
 one draw.
@@ -146,11 +147,14 @@ from above. `prefers-reduced-motion` turns the interface's animation off.
 
 ## Performance
 
-- The building is merged by material: a few dozen draw calls for twenty furnished rooms.
-- The shadow map is redrawn every other frame; only the crew move.
-- Under a view the world renders at a low resolution and at most twenty frames a second; under the graph it does not render at all.
-- Phones and small machines get the modest renderer: no bloom, a smaller shadow map, no per-room point lights (the pools still light the rooms).
-- The 3D code and Three.js are a separate chunk, loaded after the shell; the fallback never loads them.
+What costs is pixels times lights, and anything that makes the browser re-composite the canvas.
+
+- **Lights.** No light per room: twenty point lights made every pixel pay for all twenty. Rooms are lit by their pools, fixtures and the shared ambient; two point lights follow the hovered and the open room, plus the core's. Six lights in all.
+- **Shadows.** The building never moves, so its shadow map is drawn once. The crew carry a contact shadow instead of casting into the map.
+- **Resolution.** The floor renders at most at 1.25× device pixels, whatever the screen. An adaptive tier (`TIERS` in `world.js`) steps down — lower resolution, then no bloom — when frames arrive late for two seconds. A tier that proved slow is never retried, so it settles instead of hitching back and forth.
+- **Frame rate.** Full rate only while the camera is moving or being moved; otherwise thirty frames a second. Under a view the world renders at a fraction of the resolution, twelve times a second, under the graph not at all.
+- **Nothing blurs or blends over the canvas.** No `backdrop-filter` on anything over the floor (plates, instruments, bar, chassis), no blend-mode grain, and the backdrop under a view is dimmed, not blurred. A blur over a live canvas re-filters it every frame.
+- The building is merged by material: a few dozen draw calls for twenty furnished rooms. The 3D code and Three.js are a separate chunk; the fallback never loads them.
 - The graph projects each note once a frame and re-sorts by depth every eighth frame; glows are pre-rendered sprites.
 
 ## Changing it

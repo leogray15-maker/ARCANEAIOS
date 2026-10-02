@@ -69,7 +69,7 @@ b, strong { font-weight: 600; }
    itself, the modules with a lamp each, the way to anywhere.
    ============================================================ */
 #bar { position: fixed; inset: 0 0 auto 0; height: var(--bar); display: flex; align-items: center; gap: 18px; padding: 0 14px 0 16px; z-index: 20; font-family: var(--mono);
-  background: linear-gradient(180deg, rgba(20, 25, 31, 0.94), rgba(10, 13, 17, 0.94)); backdrop-filter: blur(12px) saturate(1.2); -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  background: linear-gradient(180deg, rgba(20, 25, 31, 0.94), rgba(10, 13, 17, 0.94));
   box-shadow: inset 0 -1px 0 var(--line-2), inset 0 1px 0 var(--edge), 0 12px 30px -10px rgba(0, 0, 0, 0.7); }
 #bar::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--env) 55%, transparent) 50%, transparent); opacity: .5; pointer-events: none; }
 #bar .brand { display: flex; align-items: center; gap: 10px; color: var(--ink); white-space: nowrap; }
@@ -108,26 +108,23 @@ html.world:not(.on-floor) #bar .zoom { visibility: hidden; }
 #stage.dragging { cursor: grabbing; }
 #stage.over-room { cursor: pointer; }
 #stage canvas#floor { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
-#world { position: absolute; inset: 0; width: 100%; height: 100%; display: none; transition: filter .9s var(--ease), opacity .9s var(--ease), transform 1.2s var(--ease); }
+#world { position: absolute; inset: 0; width: 100%; height: 100%; display: none; transition: opacity .9s var(--ease); }
 html.world #world { display: block; }
 html.world #floor { display: none; }
 /* Under a view, the world is the room's environment: softened, dimmed, slightly larger so the blur has no edge. */
-html.world:not(.on-floor) #world { filter: blur(3px) saturate(.85) brightness(.62); transform: scale(1.04); }
+html.world:not(.on-floor) #world { opacity: .6; }
 html.world:not(.on-floor) #stage { pointer-events: none; }
 html.world:not(.on-floor) #strip, html.world:not(.on-floor) #floor-hud, html.world:not(.on-floor) .zoomer { opacity: 0; pointer-events: none; }
-/* The lens: a vignette and a whisper of grain over the floor, so the render reads as photographed rather than drawn. */
+/* The lens: a vignette over the floor, so the render reads as photographed rather than drawn. */
 #stage::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 3;
   background: radial-gradient(ellipse 120% 90% at 50% 45%, transparent 55%, rgba(2, 3, 5, .55) 100%), linear-gradient(180deg, rgba(4, 6, 8, .35), transparent 14%, transparent 82%, rgba(4, 6, 8, .55)); }
-#stage::before { content: ''; position: absolute; inset: -50%; pointer-events: none; z-index: 4; opacity: .05; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
-#stage.entering #world { filter: brightness(1.08); }
 
 /* The room plates: set over each room's back wall, lit by its lamp. */
 #world-hud { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 2; transition: opacity .4s; }
 #world-hud.off { opacity: 0; }
 .rl, .wl, .ct { position: absolute; left: 0; top: 0; white-space: nowrap; will-change: transform; }
 .rl { display: block; font-family: var(--mono); }
-.rl-plate { display: inline-flex; align-items: center; gap: 7px; padding: 3px 8px 3px 7px; background: rgba(8, 11, 14, .74); box-shadow: inset 0 1px 0 var(--edge), inset 0 0 0 1px var(--line), 0 6px 14px -6px rgba(0, 0, 0, .8); border-radius: var(--r1); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); transition: background .2s, box-shadow .2s; }
+.rl-plate { display: inline-flex; align-items: center; gap: 7px; padding: 3px 8px 3px 7px; background: rgba(8, 11, 14, .86); box-shadow: inset 0 1px 0 var(--edge), inset 0 0 0 1px var(--line), 0 6px 14px -6px rgba(0, 0, 0, .8); border-radius: var(--r1); transition: background .2s, box-shadow .2s; }
 .rl-plate b { font-family: var(--sans); font-weight: 600; font-size: 10.5px; letter-spacing: .14em; color: var(--ink); }
 .rl-code { color: var(--faint); font-size: 9.5px; letter-spacing: .08em; }
 .rl-lamp { width: 5px; height: 5px; border-radius: 50%; background: var(--lamp, var(--green)); box-shadow: 0 0 8px var(--lamp, var(--green)); }
@@ -149,7 +146,7 @@ html.world:not(.on-floor) #strip, html.world:not(.on-floor) #floor-hud, html.wor
 /* Floor instruments: small displays in the corners, each reporting something real. */
 #floor-hud { position: absolute; inset: 14px 14px 44px 14px; pointer-events: none; z-index: 5; transition: opacity .5s; }
 .fh { position: absolute; font-family: var(--mono); font-size: var(--t-2); color: var(--ash); letter-spacing: .06em; }
-.fh-panel { background: rgba(8, 11, 14, .62); backdrop-filter: blur(10px) saturate(1.1); -webkit-backdrop-filter: blur(10px) saturate(1.1); box-shadow: var(--mat-panel-edge), var(--mat-drop); border-radius: var(--r2); padding: 10px 12px; }
+.fh-panel { background: rgba(8, 11, 14, .84); box-shadow: var(--mat-panel-edge), var(--mat-drop); border-radius: var(--r2); padding: 10px 12px; }
 .fh h4 { margin: 0 0 8px; font-weight: 500; font-size: 9.5px; letter-spacing: .22em; color: var(--faint); display: flex; align-items: center; gap: 8px; }
 .fh h4::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line-2), transparent); }
 .fh-tl { left: 0; top: 0; width: 248px; }
@@ -176,7 +173,7 @@ html.world:not(.on-floor) #strip, html.world:not(.on-floor) #floor-hud, html.wor
 .fh-beat i { flex: 1; background: var(--steel-3); min-height: 1px; transition: height .5s var(--ease); }
 .fh-beat i:last-child { background: var(--violet); box-shadow: 0 0 6px var(--violet); }
 
-#tip { position: absolute; pointer-events: none; background: rgba(10, 13, 17, .86); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: var(--mat-panel-edge), 0 18px 40px -12px rgba(0, 0, 0, .9); border-radius: var(--r3); padding: 11px 13px 10px; font-size: var(--t0); color: var(--ash); min-width: 240px; max-width: 330px; display: none; z-index: 6; }
+#tip { position: absolute; pointer-events: none; background: rgba(10, 13, 17, .95); box-shadow: var(--mat-panel-edge), 0 18px 40px -12px rgba(0, 0, 0, .9); border-radius: var(--r3); padding: 11px 13px 10px; font-size: var(--t0); color: var(--ash); min-width: 240px; max-width: 330px; display: none; z-index: 6; }
 #tip .tip-head { display: flex; align-items: baseline; gap: 10px; }
 #tip .tip-head b { color: var(--ink); font-size: var(--t2); letter-spacing: .06em; font-weight: 600; flex: 1; }
 #tip .tip-state { font-family: var(--mono); font-size: var(--t-2); letter-spacing: .16em; display: inline-flex; align-items: center; gap: 6px; }
@@ -324,7 +321,7 @@ canvas.chart { display: block; width: 100%; height: 180px; background: var(--mat
    ============================================================ */
 #graph { background: var(--void); }
 #graph-canvas { display: block; width: 100%; height: 100%; }
-.legend { position: absolute; left: 20px; bottom: 20px; width: 270px; background: rgba(9, 12, 15, .78); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--mat-panel-edge), var(--mat-drop); border-radius: var(--r4); padding: 14px 16px; font-size: var(--t-1); color: var(--ash); max-height: calc(100% - 40px); overflow: auto; }
+.legend { position: absolute; left: 20px; bottom: 20px; width: 270px; background: rgba(9, 12, 15, .94); box-shadow: var(--mat-panel-edge), var(--mat-drop); border-radius: var(--r4); padding: 14px 16px; font-size: var(--t-1); color: var(--ash); max-height: calc(100% - 40px); overflow: auto; }
 .legend .dot { width: 8px; height: 8px; }
 .legend .chk { display: flex !important; align-items: center; gap: 4px; padding: 2px 0; }
 
@@ -423,7 +420,7 @@ table.grid td.hook-cell a { display: -webkit-box; -webkit-line-clamp: 2; -webkit
 @media (max-width: 1100px) { .bridge-grid { grid-template-columns: 1fr; } }
 .bridge-main section { margin-bottom: 40px; }
 .bridge-main h3 { margin: 20px 0 8px; font-family: var(--mono); font-size: var(--t-2); letter-spacing: .18em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
-.bridge-side { position: relative; padding: 18px 18px 8px; background: linear-gradient(180deg, rgba(16, 20, 25, .72), rgba(10, 13, 16, .6)); box-shadow: var(--mat-panel-edge), var(--mat-drop); border-radius: var(--r4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.bridge-side { position: relative; padding: 18px 18px 8px; background: linear-gradient(180deg, rgba(16, 20, 25, .72), rgba(10, 13, 16, .6)); box-shadow: var(--mat-panel-edge), var(--mat-drop); border-radius: var(--r4); }
 .bridge-side h2 { margin: 22px 0 12px; }
 .bridge-side h2:first-child { margin-top: 0; }
 .focus-line { display: block; width: 100%; padding: 13px 15px; font-size: var(--t2); margin-bottom: 10px; }
@@ -576,7 +573,7 @@ a.metric:hover { transform: translateX(var(--nudge, 2px)); box-shadow: var(--mat
    THE CHASSIS — the slim rail under a room's view: which module, who is in it, what it is doing
    ============================================================ */
 #chassis { position: fixed; left: 0; right: 0; bottom: 0; height: 28px; z-index: 12; display: none; align-items: center; padding: 0 6px; font-family: var(--mono); font-size: var(--t-2); letter-spacing: .08em; color: var(--ash); white-space: nowrap; overflow: hidden;
-  background: linear-gradient(180deg, rgba(12, 15, 19, .92), rgba(7, 9, 12, .97)); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: inset 0 1px 0 var(--line-2); }
+  background: linear-gradient(180deg, rgba(12, 15, 19, .92), rgba(7, 9, 12, .97)); box-shadow: inset 0 1px 0 var(--line-2); }
 html.in-view #chassis { display: flex; }
 html.in-view .view { bottom: 28px; }
 #chassis .seg { display: inline-flex; align-items: center; gap: 7px; padding: 0 13px; height: 100%; box-shadow: inset -1px 0 0 var(--line); }
@@ -616,11 +613,11 @@ html.nav-open, html.nav-open body { overflow: hidden; }
 
 /* the zoomer on the floor: pinch is not the only way in */
 .zoomer { position: absolute; right: 14px; bottom: 48px; display: none; flex-direction: column; gap: 4px; z-index: 6; }
-.zoomer button { width: 42px; height: 42px; font-size: 17px; line-height: 1; background: rgba(12, 15, 19, .86); backdrop-filter: blur(8px); border-radius: var(--r3); }
+.zoomer button { width: 42px; height: 42px; font-size: 17px; line-height: 1; background: rgba(12, 15, 19, .86); border-radius: var(--r3); }
 html.touch .zoomer { display: flex; }
 
 /* the bottom tabs */
-#tabs { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: calc(54px + var(--safe-b)); padding-bottom: var(--safe-b); background: linear-gradient(180deg, rgba(14, 18, 22, .94), rgba(7, 9, 12, .98)); box-shadow: inset 0 1px 0 var(--line-2); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+#tabs { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: calc(54px + var(--safe-b)); padding-bottom: var(--safe-b); background: linear-gradient(180deg, rgba(14, 18, 22, .94), rgba(7, 9, 12, .98)); box-shadow: inset 0 1px 0 var(--line-2); }
 #tabs button { flex: 1; background: none; border: 0; box-shadow: none; border-radius: 0; color: var(--faint); font-size: var(--t-2); letter-spacing: .14em; padding: 0; height: 54px; }
 #tabs button.on { color: var(--ink); box-shadow: inset 0 2px 0 var(--env); background: linear-gradient(180deg, color-mix(in oklab, var(--env) 10%, transparent), transparent); }
 
