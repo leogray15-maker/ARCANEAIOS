@@ -14,7 +14,7 @@
  * and still records: the agent's reading of the state is real whether or
  * not its reasoning ran, and the room shows it either way.
  */
-import { json, client, db as openDb, systemContext, modelFailure, MODEL, withRetry } from './_lib.js';
+import { json, client, db as openDb, systemContext, modelFailure, NOT_WIRED, MODEL, withRetry } from './_lib.js';
 import { state } from '../packages/database/src/state.js';
 import { runs, nextId } from '../packages/database/src/content.js';
 
@@ -78,7 +78,7 @@ export async function agentRun(req, res, auth, spec, { d = null, c = undefined, 
     return json(res, 200, evidenceOnly('evidence'));
   }
   if (!model) {
-    const error = 'the reasoning layer is not wired: set ANTHROPIC_API_KEY in the Vercel project';
+    const error = NOT_WIRED;
     await runs.finish(dd, runId, { status: 'failed', error });
     return json(res, 503, { error, ...evidenceOnly('failed', error) });
   }

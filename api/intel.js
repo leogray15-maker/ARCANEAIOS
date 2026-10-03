@@ -19,7 +19,7 @@
  * THE CONTROL ROOM show the watch beside every other agent, and the room
  * reads its latest run back from there instead of keeping one in a blob.
  */
-import { json, guard, db, client, systemContext, modelFailure, MODEL, ROOM_LIST } from './_lib.js';
+import { json, guard, db, client, systemContext, modelFailure, NOT_WIRED, MODEL, ROOM_LIST } from './_lib.js';
 import { state } from '../packages/database/src/state.js';
 import { runs, nextId } from '../packages/database/src/content.js';
 import { propose } from './_agent.js';
@@ -74,7 +74,7 @@ export default guard(['POST'], async (req, res, auth) => {
     return json(res, 400, { error: 'nothing to watch — add a competitor, supplier, market or regulation to the watchlist in THE INTELLIGENCE' });
   }
   const c = client();
-  if (!c) return json(res, 503, { error: 'the reasoning layer is not wired: set ANTHROPIC_API_KEY in the Vercel project' });
+  if (!c) return json(res, 503, { error: NOT_WIRED });
 
   const now = new Date();
   const runId = await nextId(db(), 'agent_runs', 'CIP-R', now);

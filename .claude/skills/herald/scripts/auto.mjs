@@ -22,22 +22,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import Anthropic from '@anthropic-ai/sdk';
 import { SKILL_DIR, REPO, STAGING_DIR, FORMATS, FORMAT_IDS, loadIndex, moduleText, sourceGate, subjectAllowed } from './lib.mjs';
 import { lintPath } from './lint.mjs';
 import { brainDir } from '../../../../tools/lib/brain.mjs';
-import { writeDrafts, stageText, DEFAULT_MODEL } from '../../../../packages/content-engine/src/herald.js';
+import { writeDrafts, stageText } from '../../../../packages/content-engine/src/herald.js';
+import { modelClient, modelName, providerName, notWired } from '../../../../packages/runtime/src/model.js';
 
 /* ---------- env ---------- */
 try { for (const line of fs.readFileSync(path.join(REPO, '.env'), 'utf8').split('\n')) { const m = /^([A-Z_][A-Z0-9_]*)=(.*)$/.exec(line.trim()); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, ''); } } catch {}
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? (args[i + 1] ?? true) : d; };
 const has = (k) => args.includes(k);
-const MODEL = process.env.HERALD_MODEL || DEFAULT_MODEL;
+const MODEL = process.env.HERALD_MODEL || modelName();
 const formats = String(opt('--formats', FORMAT_IDS.join(','))).split(',').map((s) => s.trim()).filter((f) => FORMAT_IDS.includes(f));
 const count = Number(opt('--count', 1));
 const dry = has('--dry'), push = has('--push'), mock = has('--mock');
-if (!mock && !process.env.ANTHROPIC_API_KEY) { console.error('✗ ANTHROPIC_API_KEY is not set (put it in .env at the repo root).'); process.exit(1); }
+if (!mock && !providerName()) { console.error(`✗ ${notWired()} (in .env at the repo root).`); process.exit(1); }
 
 const brain = brainDir();
 const index = loadIndex();
@@ -57,7 +57,7 @@ for (let i = 0; i < count && pool.length; i++) { const w = pool.map((m) => Math.
 /* ---------- write ---------- */
 // The prompt, the schema and the call live in packages/content-engine (shared with /api/herald), so the floor and the
 // terminal write with one voice. This wraps a module from the local index in the shape the engine expects.
-const client = mock ? null : new Anthropic();
+const client = mock ? null : modelClient();
 const asModule = (mod) => ({ ...mod, body: moduleText(mod), notion_id: mod.notionId, source_path: mod.path, source_url: mod.notionId ? `https://www.notion.so/${mod.notionId}` : '' });
 
 async function write(mod, repair = null) {

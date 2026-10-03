@@ -14,9 +14,9 @@
  * the Allowed list needs `allow_open: true` from the operator (the Library
  * asks); sensitive lanes are allowed by name — the lint still bites.
  */
-import { json, guard, db, client } from './_lib.js';
+import { json, guard, db, client, MODEL, NOT_WIRED } from './_lib.js';
 import { modules, drafts } from '../packages/database/src/content.js';
-import { generate, FORMAT_IDS, DEFAULT_MODEL } from '../packages/content-engine/src/herald.js';
+import { generate, FORMAT_IDS } from '../packages/content-engine/src/herald.js';
 
 export const config = { maxDuration: 300 };
 
@@ -44,9 +44,9 @@ export default guard(['POST'], async (req, res, auth) => {
 
   const mock = process.env.HERALD_MOCK === '1' && process.env.VERCEL !== '1';
   const c = mock ? null : client();
-  if (!mock && !c) return json(res, 503, { error: 'HERALD cannot write: set ANTHROPIC_API_KEY in the Vercel project' });
+  if (!mock && !c) return json(res, 503, { error: `HERALD cannot write — ${NOT_WIRED}` });
 
-  const out = await generate({ db: db(), client: c, model: process.env.HERALD_MODEL || DEFAULT_MODEL, effort: process.env.HERALD_EFFORT || 'high', module: m, formats, device: auth.device, note: String(b.note || '').slice(0, 200), mock, parent });
+  const out = await generate({ db: db(), client: c, model: process.env.HERALD_MODEL || MODEL, effort: process.env.HERALD_EFFORT || 'high', module: m, formats, device: auth.device, note: String(b.note || '').slice(0, 200), mock, parent });
   const status = out.status === 'ok' ? 200 : out.status === 'refused' ? 422 : 502;
   return json(res, status, { ...out, module: { id: m.id, title: m.title, subject: m.subject } });
 });

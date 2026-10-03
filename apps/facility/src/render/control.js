@@ -49,7 +49,7 @@ function paint({ keepScroll = false } = {}) {
         <section>
           <h2>The server</h2>
           <table class="grid kv-table">
-            <tr><td>Anthropic key</td><td>${yes(h.env.anthropic)}</td><td class="ash">HERALD, Counsel, the Council · model ${esc(h.env.model)}${h.env.mock ? ' · <span class="flare">MOCK writer on</span>' : ''}</td></tr>
+            <tr><td>Model</td><td>${yes(!!(h.env.provider || h.env.anthropic))}</td><td class="ash">${esc(h.env.provider === 'ollama' ? 'local (Ollama), free' : h.env.provider === 'anthropic' || h.env.anthropic ? 'Claude (Anthropic)' : 'not wired')} · model ${esc(h.env.model)}${h.env.mock ? ' · <span class="flare">MOCK writer on</span>' : ''}</td></tr>
             <tr><td>Supabase service key</td><td>${yes(h.env.service_key)}</td><td class="ash">the only key that reaches the tables</td></tr>
             <tr><td>Operator key</td><td>${yes(h.env.operator_key)}</td><td class="ash">what this browser sends; set once in the Vercel project</td></tr>
             <tr><td>Database</td><td>${h.db.ok ? chip(h.db.kind === 'dev' ? 'dev database' : h.db.kind, h.db.kind === 'dev' ? 'flare' : 'vital') : chip('unreachable', 'deny')}</td><td class="ash">${esc(h.db.error || (h.db.kind === 'dev' ? 'data/dev-db.json on this machine — not Supabase' : 'Supabase Postgres through the service key'))}</td></tr>

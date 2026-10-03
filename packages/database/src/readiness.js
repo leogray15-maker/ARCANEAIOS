@@ -17,7 +17,7 @@ const worst = (a, b) => (READY_ORDER[b] > READY_ORDER[a] ? b : a);
 
 /**
  * @param {object} e evidence
- * @param {object} e.env      { anthropic, service_key, operator_key, mock, dev_db, model }
+ * @param {object} e.env      { anthropic, provider, service_key, operator_key, mock, dev_db, model }
  * @param {object} e.db       { kind, ok, error }
  * @param {Array}  e.tables   [{ table, ok, migration }]
  * @param {object} e.counts   { archive_modules, products, stock_lots, dispatch, orders, content_drafts }
@@ -61,7 +61,9 @@ export function readiness({ env = {}, db = {}, tables = [], counts = {}, lastRun
   // 6. The model. Presence of a key is not the same as a key that works, so
   //    the last run is the evidence — it is the only honest one available
   //    without spending money to find out.
-  if (!env.anthropic) add('model', 'blocked', 'No Anthropic key', 'Counsel, the Council, HERALD and CIPHER cannot run.', { fix: 'Set ANTHROPIC_API_KEY in the Vercel project.' });
+  //    `provider` is the one in use (packages/runtime/src/model.js); an older
+  //    caller that only says whether the Anthropic key is set still reads right.
+  if (!(env.provider || env.anthropic)) add('model', 'blocked', 'No model wired', 'Counsel, the Council, HERALD and CIPHER cannot run.', { fix: 'Set ARCANE_PROVIDER=ollama to run on a local model for free, or ANTHROPIC_API_KEY to use Claude.' });
   else if (env.mock) add('model', 'degraded', 'The mock writer is on', 'HERALD_MOCK=1 — drafts are cut from the module\'s own sentences, not written by Claude.', { fix: 'Unset HERALD_MOCK to use the real writer.' });
   else if (lastRun && lastRun.status === 'failed' && /credit/i.test(lastRun.error || '')) add('model', 'blocked', 'The Anthropic account has no credits', `The last run (${lastRun.id}) failed: ${lastRun.error}`, { fix: 'Top up at console.anthropic.com → Plans & Billing. API credits are bought separately from a Claude subscription.', evidence: { run: lastRun.id, at: lastRun.finished_at || lastRun.started_at, error: lastRun.error } });
   else if (lastRun && lastRun.status === 'failed') add('model', 'degraded', 'The last agent run failed', `${lastRun.id}: ${lastRun.error || 'no reason recorded'}`, { fix: 'Look at the run in THE RECORDS.', room: 'records', evidence: { run: lastRun.id, error: lastRun.error } });

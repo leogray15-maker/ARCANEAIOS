@@ -1,20 +1,24 @@
 /**
  * Shared by every API function: the roster and doctrine from config, the
- * operator gate (`_auth.js`), one database client and one Anthropic client.
+ * operator gate (`_auth.js`), one database client and one model client.
  *
  * The functions run on Vercel's Node runtime. ANTHROPIC_API_KEY,
  * ARCANE_OPERATOR_KEY and the Supabase service-role key (set by the
  * integration as storage_SUPABASE_SERVICE_ROLE_KEY) come from the
  * project's environment and never reach the browser.
  */
-import Anthropic from '@anthropic-ai/sdk';
+import { modelClient, modelName, providerName, notWired } from '../packages/runtime/src/model.js';
 import { AGENTS, COUNCIL, ROOMS, ROOM_BY_ID, VENTURES, STANDING_RULES, BRIEF_BLOCKS, VERDICTS, OPERATOR } from '../packages/config/src/index.js';
 import { openDb } from '../packages/database/src/dev.js';
 import { classify, withRetry } from '../packages/database/src/resilience.js';
 export { classify, withRetry };
 export { json, guard, operator } from './_auth.js';
 
-export const MODEL = process.env.ARCANE_MODEL || 'claude-opus-5';
+// Claude or a local model (packages/runtime/src/model.js): the client speaks
+// the same shape either way, so nothing below needs to know which.
+export const PROVIDER = providerName();
+export const MODEL = modelName();
+export const NOT_WIRED = notWired();
 
 /**
  * One database client per process. Throws a DatabaseError (503) when the
@@ -25,10 +29,7 @@ export const MODEL = process.env.ARCANE_MODEL || 'claude-opus-5';
 let DB = null;
 export function db() { return DB || (DB = openDb()); }
 
-export function client() {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
-  return new Anthropic();
-}
+export function client() { return modelClient(); }
 
 /**
  * What to tell Leo when a call to the model fails. The credit case is the

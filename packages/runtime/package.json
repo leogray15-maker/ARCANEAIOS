@@ -1,0 +1,12 @@
+{
+  "name": "@arcane/runtime",
+  "version": "3.0.0",
+  "description": "What makes the network run on its own: the model provider (Anthropic or a local Ollama), the tool executors, and the mission runner the worker drives. No dependencies beyond the Anthropic SDK already at the root.",
+  "type": "module",
+  "private": true,
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./model": "./src/model.js"
+  }
+}

@@ -6,7 +6,7 @@
  * in by name, and may propose exactly one order for a room. It never acts;
  * the operator adds the order if he wants it.
  */
-import { json, guard, client, systemContext, modelFailure, MODEL, ROOM_LIST } from './_lib.js';
+import { json, guard, client, systemContext, modelFailure, NOT_WIRED, MODEL, ROOM_LIST } from './_lib.js';
 
 const schema = {
   type: 'object', additionalProperties: false,
@@ -21,7 +21,7 @@ export default guard(['POST'], async (req, res) => {
   const { question, context = {}, history = [] } = req.body || {};
   if (!question?.trim()) return json(res, 400, { error: 'no question' });
   const c = client();
-  if (!c) return json(res, 503, { error: 'the reasoning layer is not wired: set ANTHROPIC_API_KEY in the Vercel project' });
+  if (!c) return json(res, 503, { error: NOT_WIRED });
   try {
     const system = [
       { type: 'text', text: systemContext(context), cache_control: { type: 'ephemeral' } },
