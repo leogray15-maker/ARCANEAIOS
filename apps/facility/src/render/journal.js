@@ -5,15 +5,33 @@
  * on a canvas: the equity curve and the R distribution, single-series,
  * thin marks, a readout under each on hover.
  */
-import { derive, stats, groupBy, equity, distribution, exampleTrades, fmtR, fmtPct, fmtGbp, SESSIONS, KILLZONES, GRADES, PROCESS, EMOTIONS, RULE_BREAKS, EDGES, URGES, BIAS } from '../core/journal.js';
+import { derive, stats, groupBy, equity, distribution, exampleTrades, fmtR, fmtPct, fmtGbp, SESSIONS, KILLZONES, GRADES, PROCESS, EMOTIONS, RULE_BREAKS, EDGES, URGES, BIAS, SEED_SETUPS } from '../core/journal.js';
 import { esc } from './widgets.js';
 
+// Until the playbook has been written into the database, the starter setups stand in, so the
+// card has something to choose and the trades that name them still read by name.
+const setupsOf = (store) => (store.setups().length ? store.setups() : SEED_SETUPS);
 const TABS = [['trades', 'TRADES'], ['new', 'NEW TRADE'], ['daily', 'DAILY'], ['weekly', 'WEEKLY'], ['monthly', 'MONTHLY'], ['playbook', 'PLAYBOOK'], ['psychology', 'PSYCHOLOGY']];
 const chip = (text, tone = '') => `<span class="chip ${tone}">${esc(text)}</span>`;
 const tone = (o) => (o === 'Win' ? 'vital' : o === 'Loss' ? 'deny' : o === 'Open' ? 'cyan' : 'ash');
 const opt = (list, cur, blank = false) => (blank ? '<option value=""></option>' : '') + list.map((v) => `<option ${v === cur ? 'selected' : ''}>${esc(v)}</option>`).join('');
 const field = (label, inner, cls = '') => `<label class="field ${cls}"><span>${esc(label)}</span>${inner}</label>`;
-const checks = (name, list, cur = []) => `<div class="checks">${list.map((v) => `<label class="chk"><input type="checkbox" name="${name}" value="${esc(v)}" ${cur.includes(v) ? 'checked' : ''}> ${esc(v)}</label>`).join('')}</div>`;
+// A group of checkboxes is a fieldset, not a label: a label may hold one control, and nesting
+// labels made a click anywhere in the group toggle the first box.
+const group = (label, inner, cls = '') => `<div class="field ${cls}" role="group"><span>${esc(label)}</span>${inner}</div>`;
+const checks = (name, list, cur = [], tone = '') => `<div class="checks pills ${tone}">${list.map((v) => `<label class="chk"><input type="checkbox" name="${name}" value="${esc(v)}" ${cur.includes(v) ? 'checked' : ''}><i></i>${esc(v)}</label>`).join('')}</div>`;
+const toggle = (name, on, text, tone = 'vital') => `<div class="checks pills ${tone}"><label class="chk"><input type="checkbox" name="${name}" ${on ? 'checked' : ''}><i></i>${esc(text)}</label></div>`;
+const segment = (name, list, cur) => `<div class="segment">${list.map((v, i) => `<label class="${v.toLowerCase()}"><input type="radio" name="${name}" value="${esc(v)}" ${(cur ? v === cur : i === 0) ? 'checked' : ''}><span>${esc(v)}</span></label>`).join('')}</div>`;
+const panel = (title, note, inner) => `<section class="jr-panel"><h4>${esc(title)}${note ? ` <span class="faint">${esc(note)}</span>` : ''}</h4>${inner}</section>`;
+
+/** The numbers a trade card implies, read live while it is filled in. */
+function readout(d) {
+  const cell = (k, v, cls = '') => `<div class="${cls}"><span>${k}</span><b>${v}</b></div>`;
+  return cell('Stop distance', d.stopDist !== null ? d.stopDist.toFixed(2) : '—')
+    + cell('Planned R', d.plannedR ? `${d.plannedR.toFixed(2)}R` : '—', d.plannedR >= 2 ? 'vital' : d.plannedR ? 'flare' : '')
+    + cell('Result', d.r !== null ? fmtR(d.r) : 'open', d.r > 0.2 ? 'vital' : d.r < -0.2 ? 'breach' : '')
+    + cell('P&amp;L', fmtGbp(d.pnl), d.pnl > 0 ? 'vital' : d.pnl < 0 ? 'breach' : '');
+}
 
 function statRow(s) {
   return `<div class="stat-row">
@@ -30,7 +48,7 @@ function statRow(s) {
 
 function tradeRow(t, store) {
   const d = derive(t);
-  const setup = store.setups().find((s) => s.id === t.setup)?.name || '—';
+  const setup = setupsOf(store).find((s) => s.id === t.setup)?.name || '—';
   return `<tr data-act="trade-open" data-id="${esc(t.id)}" style="cursor:pointer">
     <td class="faint">${esc(t.id)}</td><td>${esc((t.opened || '').replace('T', ' '))}</td><td>${esc(t.instrument || '')}</td>
     <td>${chip(t.direction, t.direction === 'Long' ? 'vital' : 'breach')}</td><td>${esc(setup)}</td><td>${esc(t.grade || '')}</td>
@@ -59,48 +77,58 @@ function tabNew(store, id) {
   const v = (k, d = '') => esc(t?.[k] ?? d);
   const now = new Date(); now.setSeconds(0, 0);
   const local = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  const dd = t ? derive(t) : null;
-  return `<form data-act="trade-save" data-id="${esc(t?.id || '')}">
+  const dd = derive(t || {});
+  return `<form class="jr-form" data-act="trade-save" data-id="${esc(t?.id || '')}">
     ${t ? `<p class="ash">${esc(t.id)} · ${chip(dd.outcome, tone(dd.outcome))} ${fmtR(dd.r)} · ${fmtGbp(dd.pnl)}</p>` : ''}
+    <div class="jr-live" data-live>${readout(dd)}</div>
     <h3>Before <span class="faint">fill in under sixty seconds, before the order</span></h3>
-    <div class="fields">
-      ${field('Opened', `<input type="datetime-local" name="opened" value="${v('opened', local(now))}" required>`)}
-      ${field('Instrument', `<input name="instrument" value="${v('instrument', 'XAUUSD')}">`)}
-      ${field('Direction', `<select name="direction">${opt(['Long', 'Short'], t?.direction)}</select>`)}
-      ${field('Session', `<select name="session">${opt(SESSIONS, t?.session, true)}</select>`)}
-      ${field('Killzone', `<select name="killzone">${opt(KILLZONES, t?.killzone, true)}</select>`)}
-      ${field('Setup', `<select name="setup">${store.setups().map((s) => `<option value="${esc(s.id)}" ${s.id === (t?.setup || 'unplanned') ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`)}
-      ${field('HTF bias', `<select name="bias">${opt(BIAS, t?.bias, true)}</select>`)}
-      ${field('Setup grade', `<select name="grade">${opt(GRADES, t?.grade, true)}</select>`)}
-      ${field('Conviction 1–5', `<input type="number" name="conviction" min="1" max="5" value="${v('conviction')}">`)}
-      ${field('Entry', `<input type="number" step="any" name="entry" value="${v('entry')}" required>`)}
-      ${field('Stop', `<input type="number" step="any" name="stop" value="${v('stop')}" required>`)}
-      ${field('Target', `<input type="number" step="any" name="target" value="${v('target')}">`)}
-      ${field('Risk £', `<input type="number" step="any" name="risk" value="${v('risk')}">`)}
-      ${field('Size (lots)', `<input type="number" step="any" name="size" value="${v('size')}">`)}
-      ${field('Emotion before', `<select name="emotionBefore">${opt(EMOTIONS, t?.emotionBefore, true)}</select>`)}
-      ${field('Energy 1–5', `<input type="number" name="energy" min="1" max="5" value="${v('energy')}">`)}
-      ${field('Sleep (h)', `<input type="number" step="0.5" name="sleep" value="${v('sleep')}">`)}
-      ${field('Stress 1–5', `<input type="number" name="stress" min="1" max="5" value="${v('stress')}">`)}
-      ${field('Thesis', `<textarea name="thesis" rows="2">${v('thesis')}</textarea>`, 'wide')}
-      ${field('Edge seen', checks('edges', EDGES, t?.edges), 'wide')}
+    <div class="jr-grid">
+      ${panel('The setup', '', `<div class="fields">
+        ${field('Opened', `<input type="datetime-local" name="opened" value="${v('opened', local(now))}" required>`)}
+        ${field('Instrument', `<input name="instrument" value="${v('instrument', 'XAUUSD')}">`)}
+        ${group('Direction', segment('direction', ['Long', 'Short'], t?.direction))}
+        ${field('Setup', `<select name="setup">${setupsOf(store).map((s) => `<option value="${esc(s.id)}" ${s.id === (t?.setup || 'unplanned') ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`)}
+        ${field('Session', `<select name="session">${opt(SESSIONS, t?.session, true)}</select>`)}
+        ${field('Killzone', `<select name="killzone">${opt(KILLZONES, t?.killzone, true)}</select>`)}
+        ${field('HTF bias', `<select name="bias">${opt(BIAS, t?.bias, true)}</select>`)}
+        ${field('Setup grade', `<select name="grade">${opt(GRADES, t?.grade, true)}</select>`)}
+      </div>`)}
+      ${panel('Levels and risk', '', `<div class="fields">
+        ${field('Entry', `<input class="num" type="number" step="any" name="entry" value="${v('entry')}" required>`)}
+        ${field('Stop', `<input class="num" type="number" step="any" name="stop" value="${v('stop')}" required>`)}
+        ${field('Target', `<input class="num" type="number" step="any" name="target" value="${v('target')}">`)}
+        ${field('Conviction 1–5', `<input class="num" type="number" name="conviction" min="1" max="5" value="${v('conviction')}">`)}
+        ${field('Risk £', `<input class="num" type="number" step="any" name="risk" value="${v('risk')}">`)}
+        ${field('Size (lots)', `<input class="num" type="number" step="any" name="size" value="${v('size')}">`)}
+      </div>`)}
+      ${panel('State', 'how you walked in', `<div class="fields">
+        ${field('Emotion before', `<select name="emotionBefore">${opt(EMOTIONS, t?.emotionBefore, true)}</select>`)}
+        ${field('Energy 1–5', `<input class="num" type="number" name="energy" min="1" max="5" value="${v('energy')}">`)}
+        ${field('Sleep (h)', `<input class="num" type="number" step="0.5" name="sleep" value="${v('sleep')}">`)}
+        ${field('Stress 1–5', `<input class="num" type="number" name="stress" min="1" max="5" value="${v('stress')}">`)}
+      </div>`)}
+      ${panel('The read', '', `${field('Thesis', `<textarea name="thesis" rows="3" placeholder="why this, why here, why now">${v('thesis')}</textarea>`)}
+        ${group('Edge seen', checks('edges', EDGES, t?.edges, 'arcane'))}`)}
     </div>
     <h3>After <span class="faint">fill in before the next trade</span></h3>
-    <div class="fields">
-      ${field('Closed', `<input type="datetime-local" name="closed" value="${v('closed')}">`)}
-      ${field('Exit', `<input type="number" step="any" name="exit" value="${v('exit')}">`)}
-      ${field('Emotion during', `<select name="emotionDuring">${opt(EMOTIONS, t?.emotionDuring, true)}</select>`)}
-      ${field('Emotion after', `<select name="emotionAfter">${opt(EMOTIONS, t?.emotionAfter, true)}</select>`)}
-      ${field('Process grade', `<select name="process">${opt(PROCESS, t?.process, true)}</select>`)}
-      ${field('Chart URL', `<input name="chart" value="${v('chart')}" placeholder="TradingView link">`)}
-      ${field('Plan followed', `<label class="chk"><input type="checkbox" name="planFollowed" ${t?.planFollowed ? 'checked' : ''}> yes</label>`)}
-      ${field('Streamed on Kick', `<label class="chk"><input type="checkbox" name="streamed" ${t?.streamed ? 'checked' : ''}> yes</label>`)}
-      ${field('Rule breaks', checks('ruleBreaks', RULE_BREAKS, t?.ruleBreaks), 'wide')}
-      ${field('Execution', `<textarea name="execution" rows="2">${v('execution')}</textarea>`, 'wide')}
-      ${field('Review', `<textarea name="review" rows="2">${v('review')}</textarea>`, 'wide')}
-      ${field('Lesson', `<input name="lesson" value="${v('lesson')}" placeholder="one sentence, or blank">`, 'wide')}
+    <div class="jr-grid">
+      ${panel('The exit', '', `<div class="fields">
+        ${field('Closed', `<input type="datetime-local" name="closed" value="${v('closed')}">`)}
+        ${field('Exit', `<input class="num" type="number" step="any" name="exit" value="${v('exit')}">`)}
+        ${field('Process grade', `<select name="process">${opt(PROCESS, t?.process, true)}</select>`)}
+        ${field('Chart URL', `<input name="chart" value="${v('chart')}" placeholder="TradingView link">`)}
+        ${field('Emotion during', `<select name="emotionDuring">${opt(EMOTIONS, t?.emotionDuring, true)}</select>`)}
+        ${field('Emotion after', `<select name="emotionAfter">${opt(EMOTIONS, t?.emotionAfter, true)}</select>`)}
+      </div>
+      <div class="jr-toggles">${toggle('planFollowed', t?.planFollowed, 'Plan followed')}${toggle('streamed', t?.streamed, 'Streamed on Kick', 'arcane')}</div>`)}
+      ${panel('Discipline', 'tick only what happened', group('Rule breaks', checks('ruleBreaks', RULE_BREAKS, t?.ruleBreaks, 'breach')))}
+      ${panel('Review', '', `<div class="fields two-up">
+        ${field('Execution', `<textarea name="execution" rows="3">${v('execution')}</textarea>`)}
+        ${field('Review', `<textarea name="review" rows="3">${v('review')}</textarea>`)}
+      </div>
+      ${field('Lesson', `<input name="lesson" value="${v('lesson')}" placeholder="one sentence, or blank">`)}`)}
     </div>
-    <div class="acts"><button type="submit" class="primary">${t ? 'Save trade' : 'Log trade'}</button> ${t ? `<button type="button" class="ghost" data-act="trade-delete" data-id="${esc(t.id)}">Delete</button>` : ''} <button type="button" class="ghost" data-act="tab" data-tab="trades">Cancel</button></div>
+    <div class="acts jr-acts"><button type="submit" class="primary">${t ? 'Save trade' : 'Log trade'}</button> ${t ? `<button type="button" class="ghost" data-act="trade-delete" data-id="${esc(t.id)}">Delete</button>` : ''} <button type="button" class="ghost" data-act="tab" data-tab="trades">Cancel</button></div>
   </form>`;
 }
 
@@ -120,7 +148,7 @@ function tabMonthly(store) {
   const ts = store.trades();
   const months = groupBy(ts, (t, d) => d.month);
   const cur = months[0];
-  const setupName = (id) => store.setups().find((s) => s.id === id)?.name || 'Unplanned';
+  const setupName = (id) => setupsOf(store).find((s) => s.id === id)?.name || 'Unplanned';
   return `${periodTab(store, (t, d) => d.month, 'Month')}
     ${cur ? `<h3>${esc(cur.key)} — the evidence</h3>${statRow(cur.stats)}
       <div class="two">
@@ -140,7 +168,8 @@ function tabPlaybook(store) {
       <div class="acts"><button class="tiny" data-act="setup-edit" data-id="${esc(s.id)}">Edit</button>${s.id !== 'unplanned' ? `<button class="tiny ghost" data-act="setup-delete" data-id="${esc(s.id)}">Delete</button>` : ''}</div>
     </div>`;
   }).join('');
-  return `${cards}<h3>New setup</h3>${setupForm(null)}<p class="src">Retire a setup after 20 trades of negative expectancy. Promote from Testing to Active after 20 with positive.</p>`;
+  const seed = !store.setups().length ? `<p class="ash">The playbook is empty. <button class="tiny" data-act="seed-setups">Add the four starter setups</button> London Sweep, Silver Bullet, NY Reversal and Unplanned, to edit into your own.</p>` : '';
+  return `${seed}${cards}<h3>New setup</h3>${setupForm(null)}<p class="src">Retire a setup after 20 trades of negative expectancy. Promote from Testing to Active after 20 with positive.</p>`;
 }
 function setupForm(s) {
   const v = (k) => esc(s?.[k] || '');
@@ -160,7 +189,7 @@ function tabPsychology(store) {
     <h3>Check in</h3><form data-act="checkin-save"><div class="fields">
       ${field('Type', `<select name="type">${opt(['Pre-market', 'Post-session', 'Urge'], 'Pre-market')}</select>`)}${field('Mood', `<select name="mood">${opt(EMOTIONS, '', true)}</select>`)}
       ${field('Energy 1–5', '<input type="number" name="energy" min="1" max="5">')}${field('Stress 1–5', '<input type="number" name="stress" min="1" max="5">')}${field('Sleep (h)', '<input type="number" step="0.5" name="sleep">')}
-      ${field('Urge', checks('urges', URGES), 'wide')}${field('Acted on it', '<label class="chk"><input type="checkbox" name="acted"> yes</label>')}
+      ${group('Urge', checks('urges', URGES, [], 'flare'), 'wide')}${group('Acted on it', toggle('acted', false, 'yes', 'breach'))}
       ${field('Trigger', '<input name="trigger" placeholder="what set it off">', 'wide')}${field('Note', '<textarea name="note" rows="2"></textarea>', 'wide')}
     </div><div class="acts"><button type="submit" class="primary">Log</button></div></form>
     <h3>Log</h3>${cs.length ? `<table class="grid"><thead><tr><th>When</th><th>Type</th><th>Mood</th><th class="r">E / S</th><th>Urge</th><th>Acted</th><th>Note</th><th></th></tr></thead><tbody>${cs.map((c) => `<tr><td class="faint">${new Date(c.ts).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</td><td>${chip(c.type, c.type === 'Urge' ? 'flare' : 'ash')}</td><td>${esc(c.mood || '')}</td><td class="r">${c.energy || '—'} / ${c.stress || '—'}</td><td>${(c.urges || []).map((u) => chip(u)).join('')}</td><td>${c.type === 'Urge' ? (c.acted ? chip('acted', 'deny') : chip('held', 'vital')) : ''}</td><td class="ash">${esc([c.trigger, c.note].filter(Boolean).join(' — '))}</td><td><button class="tiny ghost" data-act="checkin-delete" data-id="${c.id}">×</button></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Nothing logged. The urges you did not act on are the data that shows the discipline is working.</p>'}`;
@@ -178,20 +207,25 @@ function drawCharts(el, store) {
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, W, H);
     g.font = `11px ${c('--mono')}`; g.fillStyle = c('--faint');
-    const pad = { l: 58, r: 12, t: 14, b: 22 };
+    const pad = { l: 62, r: 16, t: 16, b: 24 };
     const read = el.querySelector(`[data-read="${cv.dataset.chart}"]`);
     if (cv.dataset.chart === 'equity') {
       const pts = equity(store.trades());
       if (pts.length < 1) { g.fillText('No closed trades yet.', pad.l, H / 2); continue; }
       const ys = [0, ...pts.map((p) => p.cum)]; const lo = Math.min(...ys), hi = Math.max(...ys); const span = hi - lo || 1;
-      const X = (i) => pad.l + (i / Math.max(1, pts.length - 1)) * (W - pad.l - pad.r), Y = (v) => pad.t + (1 - (v - lo) / span) * (H - pad.t - pad.b);
-      g.strokeStyle = c('--line-2'); g.lineWidth = 1; g.beginPath(); g.moveTo(pad.l, Y(0)); g.lineTo(W - pad.r, Y(0)); g.stroke();
-      g.fillStyle = c('--faint'); g.textAlign = 'right'; g.fillText(fmtR(hi), pad.l - 6, pad.t + 4); g.fillText(fmtR(lo), pad.l - 6, H - pad.b); g.fillText('0', pad.l - 6, Y(0) + 4); g.textAlign = 'left';
-      g.strokeStyle = c('--arcaneLt'); g.lineWidth = 2; g.lineJoin = 'round'; g.beginPath(); g.moveTo(X(0), Y(0));
-      pts.forEach((p, i) => g.lineTo(X(i), Y(p.cum))); g.stroke();
-      g.fillStyle = c('--arcaneLt'); pts.forEach((p, i) => { g.beginPath(); g.arc(X(i), Y(p.cum), 3, 0, Math.PI * 2); g.fill(); });
-      const last = pts.at(-1); g.fillStyle = c('--ink'); g.textAlign = 'right'; g.fillText(fmtR(last.cum), W - pad.r, Math.max(pad.t + 10, Y(last.cum) - 8)); g.textAlign = 'left';
-      cv.onmousemove = (e) => { const i = Math.round(((e.offsetX - pad.l) / (W - pad.l - pad.r)) * Math.max(1, pts.length - 1)); const p = pts[Math.max(0, Math.min(pts.length - 1, i))]; if (read) read.textContent = `${p.id} · ${(p.when || '').replace('T', ' ')} · ${fmtR(p.r)} · cumulative ${fmtR(p.cum)}`; };
+      const X = (i) => pad.l + (i / pts.length) * (W - pad.l - pad.r), Y = (v) => pad.t + (1 - (v - lo) / span) * (H - pad.t - pad.b);
+      g.strokeStyle = c('--line-2'); g.lineWidth = 1; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(pad.l, Y(0)); g.lineTo(W - pad.r, Y(0)); g.stroke(); g.setLineDash([]);
+      g.fillStyle = c('--faint'); g.textAlign = 'right'; g.fillText(fmtR(hi), pad.l - 8, pad.t + 4); g.fillText(fmtR(lo), pad.l - 8, H - pad.b + 4);
+      if (Math.abs(Y(0) - pad.t) > 14 && Math.abs(Y(0) - (H - pad.b)) > 14) g.fillText('0', pad.l - 8, Y(0) + 4);
+      g.textAlign = 'left';
+      const line = c('--arcaneLt') || '#a99cff';
+      const fill = g.createLinearGradient(0, pad.t, 0, H - pad.b); fill.addColorStop(0, line); fill.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      g.beginPath(); g.moveTo(X(0), Y(0)); pts.forEach((p, i) => g.lineTo(X(i + 1), Y(p.cum))); g.lineTo(X(pts.length), Y(lo)); g.lineTo(X(0), Y(lo)); g.closePath(); g.fillStyle = fill; g.globalAlpha = 0.16; g.fill(); g.globalAlpha = 1;
+      g.strokeStyle = line; g.lineWidth = 2; g.lineJoin = 'round'; g.beginPath(); g.moveTo(X(0), Y(0));
+      pts.forEach((p, i) => g.lineTo(X(i + 1), Y(p.cum))); g.stroke();
+      pts.forEach((p, i) => { g.beginPath(); g.arc(X(i + 1), Y(p.cum), 3, 0, Math.PI * 2); g.fillStyle = p.r < 0 ? c('--breach') || line : line; g.fill(); });
+      const last = pts.at(-1); g.fillStyle = c('--ink'); g.textAlign = 'right'; g.fillText(fmtR(last.cum), X(pts.length) - 8, Math.max(pad.t + 10, Y(last.cum) - 10)); g.textAlign = 'left';
+      cv.onmousemove = (e) => { const i = Math.round(((e.offsetX - pad.l) / (W - pad.l - pad.r)) * pts.length) - 1; const p = pts[Math.max(0, Math.min(pts.length - 1, i))]; if (read) read.textContent = `${p.id} · ${(p.when || '').replace('T', ' ')} · ${fmtR(p.r)} · cumulative ${fmtR(p.cum)}`; };
       cv.onmouseleave = () => { if (read) read.innerHTML = '&nbsp;'; };
     } else {
       const bs = distribution(store.trades());
@@ -217,7 +251,7 @@ export function renderJournal(el, { store }, hash = '#journal', { keepScroll = f
   const scroll = keepScroll ? el.scrollTop : 0;
   const body = tab === 'new' || tab === 'trade' ? tabNew(store, arg) : tab === 'daily' ? periodTab(store, (t, d) => d.day, 'Day') : tab === 'weekly' ? periodTab(store, (t, d) => d.week, 'Week')
     : tab === 'monthly' ? tabMonthly(store) : tab === 'playbook' ? (editingSetup ? setupForm(store.setups().find((s) => s.id === editingSetup)) : tabPlaybook(store)) : tab === 'psychology' ? tabPsychology(store) : tabTrades(store);
-  el.innerHTML = `<div class="wrap">
+  el.innerHTML = `<div class="wrap journal">
     <div class="view-head"><button class="back ghost" data-act="back">← Floor</button><h1>THE TRADING FLOOR</h1><span class="sub">the Journal · XAUUSD · ${store.trades().length} trades</span><span class="spacer"></span>
       <button class="tiny ghost" data-act="export">Export JSON</button><label class="tiny"><input type="file" accept="application/json" data-act="import" class="hidden"><button class="tiny ghost" data-act="import-click">Import</button></label></div>
     <div class="tabs">${TABS.map(([id, name]) => `<button data-act="tab" data-tab="${id}" class="${(tab === 'trade' ? 'new' : tab) === id ? 'on' : ''}">${name}</button>`).join('')}</div>
@@ -245,12 +279,19 @@ export function bindJournal(el, { store, go }) {
     else if (act === 'setup-edit') { editingSetup = id; renderJournal(el, { store }, '#journal/playbook'); }
     else if (act === 'setup-delete') { if (confirm('Delete this setup?')) store.removeSetup(id); }
     else if (act === 'checkin-delete') store.removeCheckin(id);
+    else if (act === 'seed-setups') { for (const s of SEED_SETUPS) store.saveSetup({ ...s }); }
     else if (act === 'example') { for (const t of exampleTrades()) store.saveTrade(t); }
     else if (act === 'clear-examples') { for (const t of store.trades().filter((t) => t.example)) store.removeTrade(t.id); }
     else if (act === 'export') { const blob = new Blob([JSON.stringify(store.journal(), null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `arcane-journal-${new Date().toISOString().slice(0, 10)}.json`; a.click(); }
     else if (act === 'import-click') el.querySelector('input[data-act="import"]').click();
   });
+  // The card's arithmetic updates as it is typed, so a bad R:R shows before the order, not after.
+  el.addEventListener('input', (e) => {
+    const f = e.target.form; if (f?.dataset.act !== 'trade-save') return;
+    const live = f.querySelector('[data-live]'); if (live) live.innerHTML = readout(derive(formData(f)));
+  });
   el.addEventListener('change', (e) => {
+    if (e.target.form?.dataset.act === 'trade-save' && e.target.type === 'radio') { const live = e.target.form.querySelector('[data-live]'); if (live) live.innerHTML = readout(derive(formData(e.target.form))); }
     if (e.target.dataset.act !== 'import') return;
     const f = e.target.files[0]; if (!f) return;
     f.text().then((txt) => { try { store.importJournal(JSON.parse(txt)); go('#journal'); } catch (err) { alert(err.message); } });

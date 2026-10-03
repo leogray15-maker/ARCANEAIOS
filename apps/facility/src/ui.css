@@ -271,9 +271,11 @@ input[type=checkbox] { accent-color: var(--violet); box-shadow: none; }
 select { padding-right: 24px; }
 input.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 form.inline { display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
-label.field { display: block; margin: 0 0 12px; }
-label.field > span { display: block; font-family: var(--mono); font-size: var(--t-2); color: var(--faint); letter-spacing: .16em; text-transform: uppercase; margin-bottom: 5px; }
+.field { display: block; margin: 0 0 12px; min-width: 0; }
+.field > span { display: block; font-family: var(--mono); font-size: var(--t-2); color: var(--faint); letter-spacing: .16em; text-transform: uppercase; margin-bottom: 5px; }
 label.field input, label.field select, label.field textarea { width: 100%; }
+/* A box or a dot keeps its own size: stretched to the cell it floats in the middle of it. */
+.field input[type=checkbox], .field input[type=radio] { width: auto; }
 .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 16px; }
 .fields .wide { grid-column: 1 / -1; }
 
@@ -747,3 +749,64 @@ html.touch .zoomer { display: flex; }
 #world-hud.compact .rl[data-state="ok"]:not(.hot), #world-hud.compact .wl, #world-hud.compact .rl-meta { display: none; }
 #world-hud.compact .rl-plate { padding: 2px 6px; gap: 5px; }
 #world-hud.compact .rl-plate b { font-size: 9px; letter-spacing: .1em; }
+
+/* ============================================================
+   THE TRADING FLOOR: the journal's card
+   ============================================================ */
+.journal h3 { margin: 26px 0 12px; }
+.journal .stat-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.journal canvas.chart { height: 220px; }
+.journal .two h3 { margin-top: 6px; }
+
+/* Panels side by side; each is a group of related fields with a fixed column count,
+   so labels line up instead of reflowing into eight ragged columns. */
+.jr-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.jr-panel { background: var(--mat-panel); box-shadow: var(--mat-panel-edge), var(--mat-drop); border-radius: var(--r3); padding: 14px 16px 6px; min-width: 0; }
+.jr-panel > h4 { margin: 0 0 12px; font-family: var(--mono); font-size: var(--t-1); font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-2); }
+.jr-panel > h4 .faint { letter-spacing: .06em; text-transform: none; font-family: inherit; }
+.jr-panel .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.jr-panel .fields.two-up { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.jr-grid > .jr-panel:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.jr-panel textarea { resize: vertical; min-height: 64px; }
+.jr-toggles { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 12px; }
+.jr-toggles .checks { display: contents; }
+.jr-acts { position: sticky; bottom: 0; z-index: 2; margin-top: 20px; padding: 12px 0; background: linear-gradient(0deg, var(--void, #07090c) 60%, transparent); }
+.jr-acts button { padding: 9px 18px; }
+
+/* The live arithmetic: four recessed readouts above the card. */
+.jr-live { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 6px; }
+.jr-live > div { --c: var(--ink); background: var(--mat-recess); box-shadow: var(--mat-recess-edge); border-radius: var(--r3); padding: 10px 14px; }
+.jr-live span { display: block; font-family: var(--mono); font-size: var(--t-2); letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.jr-live b { display: block; margin-top: 4px; font-family: var(--mono); font-size: 20px; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--c); }
+.jr-live .vital { --c: var(--green); } .jr-live .breach { --c: var(--red); } .jr-live .flare { --c: var(--amber); }
+
+/* Long / Short as one switch. */
+.segment { display: grid; grid-template-columns: 1fr 1fr; background: var(--mat-recess); box-shadow: var(--mat-recess-edge); border-radius: var(--r2); padding: 2px; gap: 2px; }
+.segment label { position: relative; cursor: pointer; }
+.segment input { position: absolute; opacity: 0; pointer-events: none; }
+.segment span { display: block; text-align: center; padding: 5px 8px; border-radius: calc(var(--r2) - 1px); font-family: var(--mono); font-size: var(--t-1); letter-spacing: .1em; color: var(--faint); transition: background .15s, color .15s; }
+.segment label:hover span { color: var(--ink); }
+.segment .long input:checked + span { --c: var(--green); }
+.segment .short input:checked + span { --c: var(--red); }
+.segment input:checked + span { color: var(--c); background: color-mix(in oklab, var(--c) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) 40%, transparent); }
+.segment input:focus-visible + span { outline: 1px solid var(--cyan); }
+
+/* Tick boxes as pills: the whole word is the target, and a ticked one lights in its group's colour. */
+.checks.pills { gap: 6px; --c: var(--violet-lt); }
+.checks.pills.vital { --c: var(--green); } .checks.pills.breach { --c: var(--red); } .checks.pills.flare { --c: var(--amber); } .checks.pills.arcane { --c: var(--violet-lt); }
+.checks.pills .chk { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px 5px 9px; border-radius: var(--r2); cursor: pointer; font-size: var(--t-1); color: var(--ash); background: rgba(255, 255, 255, .015); box-shadow: inset 0 0 0 1px var(--line-2); transition: color .15s, background .15s, box-shadow .15s; user-select: none; }
+.checks.pills .chk:hover { color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-3); }
+.checks.pills .chk input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.checks.pills .chk i { width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line-3); flex-shrink: 0; transition: background .15s, box-shadow .15s; }
+.checks.pills .chk:has(input:checked) { color: var(--ink); background: color-mix(in oklab, var(--c) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) 45%, transparent); }
+.checks.pills .chk:has(input:checked) i { background: var(--c); box-shadow: 0 0 6px var(--c); }
+.checks.pills .chk:has(input:focus-visible) { outline: 1px solid var(--cyan); outline-offset: 1px; }
+
+@media (max-width: 1000px) {
+  .jr-grid { grid-template-columns: 1fr; }
+  .jr-live { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .jr-panel .fields, .jr-panel .fields.two-up { grid-template-columns: 1fr; }
+  .journal canvas.chart { height: 180px; }
+}
