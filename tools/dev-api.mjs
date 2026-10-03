@@ -59,7 +59,23 @@ const server = http.createServer(async (req, res) => {
   console.log(`[api] ${req.method} ${url.pathname}${url.search} → ${res.statusCode}`);
 });
 
+// The mission worker, in this process: the dev database is a file one
+// process owns, and a laptop should not need a third thing started.
+// ARCANE_WORKER=0 leaves it off (when `npm run worker` runs elsewhere).
+async function startWorker() {
+  if (process.env.ARCANE_WORKER === '0') return;
+  const { db } = await import('../api/_lib.js');
+  const { workerContext, loop } = await import('../packages/runtime/src/worker.js');
+  const { brainDir } = await import('./lib/brain.mjs');
+  let brain = null; try { brain = brainDir(); } catch {}
+  let d; try { d = db(); } catch (e) { console.log(`[worker] off — ${e.message}`); return; }
+  const ctx = workerContext({ brain });
+  console.log(`[worker] missions run here · ${ctx.describe()}`);
+  loop(d, ctx, { everyMs: 15_000, log: (m) => console.log(`[worker] ${m}`) });
+}
+
 server.listen(PORT, '127.0.0.1', () => {
+  startWorker();
   const mode = process.env.ARCANE_DB === 'memory' ? 'dev database (data/dev-db.json, modules from data/archives)' : process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.storage_SUPABASE_SERVICE_ROLE_KEY ? 'Supabase (service key from .env)' : 'no database — set SUPABASE_SERVICE_ROLE_KEY in .env or ARCANE_DB=memory';
   console.log(`[api] http://127.0.0.1:${PORT}/api/*  ·  ${mode}  ·  HERALD ${process.env.HERALD_MOCK === '1' ? 'MOCK' : process.env.ANTHROPIC_API_KEY ? 'live' : 'no key'}  ·  operator key ${process.env.ARCANE_OPERATOR_KEY ? 'set' : 'NOT SET — every call will be refused'}`);
 });

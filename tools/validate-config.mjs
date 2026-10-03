@@ -12,6 +12,7 @@ import {
   GRADES, CAPS, CAP_IDS, SKILLS, AGENT_BY_ID, ROOM_BY_ID, VENTURES,
   DRAFT_STATES, DRAFT_TRANSITIONS, DRAFT_VIEWS,
   TOOL_POLICY, RISK_LEVELS, resolvePermission,
+  ACTIONS, MISSION_TEMPLATES, RISK_LADDER, LEVEL_OF_CAP, AUTONOMY_CEILING, GRADE_ORDER, planProblems,
 } from '../packages/config/src/index.js';
 
 const fails = [];
@@ -112,6 +113,29 @@ const viewed = DRAFT_VIEWS.flatMap((v) => v.states);
 for (const st of DRAFT_STATES) ok(viewed.includes(st), `draft state "${st}" appears in no BEACON view`);
 ok(new Set(viewed).size === viewed.length, 'a draft state appears in two BEACON views');
 
+/* ---- missions: autonomy stops at draft; above it is gated; spend is unreachable ---- */
+ok(AUTONOMY_CEILING === 2, `the autonomy ceiling is ${AUTONOMY_CEILING} — it is the standing rules (read, analyse, draft), not a setting`);
+ok(GRADE_ORDER.join() === GRADES.join(), 'missions.js GRADE_ORDER must match GRADES');
+ok(RISK_LADDER.map((r) => r.level).join() === '0,1,2,3,4,5', 'the risk ladder runs 0 to 5');
+for (const c of CAP_IDS) ok(LEVEL_OF_CAP[c] !== undefined, `capability "${c}" has no level on the risk ladder`);
+for (const a of ACTIONS) {
+  ok(CAP_IDS.includes(a.cap), `action ${a.id} needs unknown capability "${a.cap}"`);
+  ok(GRADES.includes(a.minGrade), `action ${a.id} floor "${a.minGrade}" is not a grade`);
+  ok(!a.tool || TOOL_BY_ID[a.tool], `action ${a.id} goes through unknown tool "${a.tool}"`);
+  // Reasoning is graded on write because it goes through the model tool, but
+  // what it produces stays inside the run; it is the one action allowed to sit below its capability's level.
+  ok((a.level >= LEVEL_OF_CAP[a.cap] || a.id === 'think') && a.level < 5, `action ${a.id} claims level ${a.level}, below what ${a.cap} is (${LEVEL_OF_CAP[a.cap]})`);
+  ok(a.cap !== 'spend', `action ${a.id} would spend — no action may`);
+}
+ok(new Set(MISSION_TEMPLATES.map((t) => t.id)).size === MISSION_TEMPLATES.length, 'mission template ids unique');
+for (const t of MISSION_TEMPLATES) {
+  ok(AGENT_BY_ID[t.agent], `mission ${t.id} names unknown agent "${t.agent}"`);
+  ok(ROOM_BY_ID[t.room], `mission ${t.id} names unknown room "${t.room}"`);
+  ok(!t.output || t.steps.some((s) => s.id === t.output), `mission ${t.id}'s output "${t.output}" is not a step`);
+  for (const s of t.steps) ok(!s.agent || AGENT_BY_ID[s.agent], `mission ${t.id} step ${s.id} names unknown agent "${s.agent}"`);
+  for (const p of planProblems(t.steps, { agentOf: (s) => AGENT_BY_ID[s.agent || t.agent] })) ok(false, `mission ${t.id}: ${p}`);
+}
+
 /* ---- report ---- */
 if (fails.length) {
   console.error(`\n✗ config invalid — ${fails.length} problem${fails.length > 1 ? 's' : ''}:\n`);
@@ -119,4 +143,4 @@ if (fails.length) {
   console.error();
   process.exit(1);
 }
-console.log(`✓ config valid — ${AGENTS.length} agents (${COUNCIL.length} seated), ${MAIN.length} rooms in ${WINGS.length} wings + ${ROOMS.length - MAIN.length} annex, ${SKILLS.length} skill${SKILLS.length === 1 ? '' : 's'}, ${TOOLS.filter((t) => t.state !== 'not wired').length}/${TOOLS.length} tools wired. No agent holds allow. Spend is deny everywhere. Notion is read-only.`);
+console.log(`✓ config valid — ${AGENTS.length} agents (${COUNCIL.length} seated), ${MAIN.length} rooms in ${WINGS.length} wings + ${ROOMS.length - MAIN.length} annex, ${SKILLS.length} skill${SKILLS.length === 1 ? '' : 's'}, ${TOOLS.filter((t) => t.state !== 'not wired').length}/${TOOLS.length} tools wired, ${MISSION_TEMPLATES.length} mission templates. No agent holds allow. Spend is deny everywhere. Notion is read-only.`);

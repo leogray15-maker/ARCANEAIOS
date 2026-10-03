@@ -141,9 +141,10 @@ export const drafts = {
 /* ---------- agents ---------- */
 
 export const runs = {
-  async start(db, { id, agent, skill = '', objective = '', model = '', input = {}, sources = [], device = '' }) {
+  async start(db, { id, agent, skill = '', objective = '', model = '', input = {}, sources = [], device = '', mission = '' }) {
     const now = new Date().toISOString();
-    const [row] = await db.post('agent_runs', { id, agent, skill, objective, model, input, sources, device, status: 'running', started_at: now, heartbeat_at: now, current_activity: 'starting' });
+    // mission_id (0013) is only sent when there is one, so a database a migration behind still takes every other run.
+    const [row] = await db.post('agent_runs', { id, agent, skill, objective, model, input, sources, device, status: 'running', started_at: now, heartbeat_at: now, current_activity: 'starting', ...(mission ? { mission_id: mission } : {}) });
     return row;
   },
   async finish(db, id, { status = 'ok', output = {}, usage = {}, error = '' } = {}) {

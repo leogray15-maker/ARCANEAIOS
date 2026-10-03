@@ -12,13 +12,14 @@
  * maps them to what the floor draws.
  */
 import { randomUUID } from 'node:crypto';
-import { ROOM_BY_ID, VENTURE_BY_ID, AGENT_BY_ID, ORDER_STATES, ORDER_PRIORITY, ORDER_SOURCES, ORDER_FROM_PROPOSED, VERDICTS, HORIZON_IDS, GOAL_STATES, PROJECT_STATES, REVIEW_KINDS, BOTTLENECK_STATES, RECURRENCES, TOOL_BY_ID, RISK_LEVELS } from '../../config/src/index.js';
+import { ROOM_BY_ID, VENTURE_BY_ID, AGENT_BY_ID, ORDER_STATES, ORDER_PRIORITY, ORDER_SOURCES, ORDER_FROM_PROPOSED, VERDICTS, HORIZON_IDS, GOAL_STATES, PROJECT_STATES, REVIEW_KINDS, BOTTLENECK_STATES, RECURRENCES, TOOL_BY_ID, RISK_LEVELS, MISSION_TEMPLATE_BY_ID, MISSION_SOURCES, MISSION_OPERATOR_STATES, planProblems } from '../../config/src/index.js';
 import { METRIC_IDS } from '../../../apps/facility/src/core/goals.js';
 import { pctsValid } from '../../../apps/facility/src/core/capital.js';
 import { DatabaseError } from './index.js';
 import { nextId } from './content.js';
 import { events } from './content.js';
 import { unitCost, settingsOf } from '../../../apps/facility/src/core/lab.js';
+import { parseCron, nextRun } from './cron.js';
 
 export const LISTS = ['moves', 'stop', 'watch', 'pipeline', 'ideas', 'lessons', 'manuscripts'];
 export const ALLOCATIONS = ['push', 'maintain', 'starve'];
@@ -280,13 +281,63 @@ export const TABLES = {
     defaults: { budget_gbp: null, period: 'month', goal_metric: '', goal_target: null, note: '' },
     fields: { room: room(), budget_gbp: numOrNull(0), period: oneOf(['month', 'quarter', 'year']), goal_metric: str(40), goal_target: numOrNull(), note: str(300) },
   },
+  /* ---- MISSIONS (0013): work the network does on its own ---- */
+  // The operator sets what to do and may cancel or re-queue; everything about
+  // how far it has got (progress, output, the claim, the heartbeat) is the
+  // worker's and is written by packages/runtime/src/missions.js, not here.
+  missions: {
+    key: 'id', mint: (db, now) => nextId(db, 'missions', 'MIS', now), order: 'created_at.desc', event: 'mission',
+    required: ['template'],
+    defaults: { title: '', objective: '', state: 'queued', priority: 2, source: 'floor', input: {}, schedule: '' },
+    fields: {
+      template: (v) => { const s = String(v ?? ''); if (!MISSION_TEMPLATE_BY_ID[s]) throw bad(`unknown mission template "${s}" — one of ${Object.keys(MISSION_TEMPLATE_BY_ID).join(', ')}`); return s; },
+      title: str(200), objective: str(2000), priority: int(0, 3), source: oneOf(MISSION_SOURCES),
+      input: (v) => { if (v === null || v === undefined || v === '') return {}; if (typeof v !== 'object' || Array.isArray(v)) throw bad('input must be an object'); if (JSON.stringify(v).length > 8000) throw bad('input is too large'); return v; },
+      schedule: (v) => { const s = String(v ?? '').trim(); if (s) { try { parseCron(s); } catch (e) { throw bad(e.message); } } return s; },
+      state: oneOf([...MISSION_OPERATOR_STATES, 'standing']),
+    },
+    check(row, { insert, current } = {}) {
+      if (insert && !['queued', 'standing'].includes(row.state)) throw bad('a new mission is queued, or standing on a schedule');
+      if (!insert && row.template && row.template !== current.template) throw bad('a mission keeps its template — queue a new one');
+      if (!insert && row.input !== undefined && current.state !== 'standing') throw bad('a mission in flight keeps its input — queue a new one');
+      const tpl = MISSION_TEMPLATE_BY_ID[row.template ?? current?.template];
+      const input = row.input ?? current?.input ?? {};
+      for (const [k, f] of Object.entries(tpl.input || {})) if (f.required && !String(input[k] ?? '').trim()) throw bad(`a ${tpl.name.toLowerCase()} mission needs ${k}: ${f.note}`);
+      const schedule = row.schedule ?? current?.schedule ?? '';
+      if (row.state === 'standing' && !schedule) throw bad('a standing mission needs a schedule');
+      if (current && row.state) {
+        const from = current.state; const to = row.state;
+        const ok = to === 'cancelled' ? !['done', 'cancelled'].includes(from)
+          : to === 'queued' ? ['failed', 'cancelled', 'done'].includes(from) && !schedule
+          : to === 'standing' ? ['cancelled', 'standing'].includes(from) && !!schedule : false;
+        if (!ok) throw bad(`a ${from} mission cannot be set to ${to}`);
+      }
+    },
+    // What follows from the template and the schedule, set here so every
+    // writer gets it: the plan is snapshotted, a scheduled mission stands
+    // rather than runs, and a re-queued one starts again from nothing.
+    derive(row, { insert, current, now = new Date() } = {}) {
+      if (insert) {
+        const tpl = MISSION_TEMPLATE_BY_ID[row.template];
+        const problems = planProblems(tpl.steps, { agentOf: (st) => AGENT_BY_ID[st.agent || tpl.agent] });
+        if (problems.length) throw bad(`template ${tpl.id} cannot run: ${problems[0]}`);
+        Object.assign(row, { agent: tpl.agent, room: tpl.room, plan: tpl.steps, title: row.title || `${tpl.name}${row.input?.question ? `: ${String(row.input.question).slice(0, 120)}` : ''}` });
+        if (row.schedule) { row.state = 'standing'; row.next_run_at = nextRun(row.schedule, now).toISOString(); }
+      } else if (row.state === 'queued') {
+        Object.assign(row, { progress: {}, output: {}, error: '', pending_order: '', claimed_by: '', current_step: '', steps_run: 0, started_at: null, finished_at: null, heartbeat_at: null });
+      } else if (row.state === 'standing' || (row.schedule && current?.state === 'standing')) {
+        row.next_run_at = nextRun(row.schedule ?? current.schedule, now).toISOString();
+      }
+      if (row.state === 'cancelled') row.finished_at = now.toISOString();
+    },
+  },
 };
 export const TABLE_IDS = Object.keys(TABLES);
 
 function spec(table) { const t = TABLES[table]; if (!t) throw new DatabaseError(`no such table "${table}"`, { status: 404 }); return t; }
 
 /** Validate a patch against the registry: unknown columns are refused, known ones are coerced. */
-export function clean(table, input, { insert = false, current = null } = {}) {
+export function clean(table, input, { insert = false, current = null, now = new Date() } = {}) {
   const t = spec(table); const out = {};
   for (const [k, v] of Object.entries(input || {})) {
     if (k === t.key && t.natural) { out[k] = t.fields[k] ? t.fields[k](v) : String(v); continue; }
@@ -301,6 +352,7 @@ export function clean(table, input, { insert = false, current = null } = {}) {
   // A rule that spans columns (a proposal must name its agent) belongs here,
   // once, rather than in whichever surface happens to write the row.
   if (t.check) t.check(out, { insert, current });
+  if (t.derive) t.derive(out, { insert, current, now });
   return out;
 }
 
@@ -327,7 +379,7 @@ export const state = {
   },
   async insert(db, table, input, { actor = 'leo', now = new Date() } = {}) {
     const t = spec(table);
-    const row = clean(table, input, { insert: true });
+    const row = clean(table, input, { insert: true, now });
     if (t.verify) await t.verify(db, row, { insert: true });
     // A table that allows a caller's id (the seeded goals keep their slugs) takes it as a slug; otherwise the id is minted.
     if (!t.natural) row[t.key] = t.allowId && input?.id ? slug()(input.id) : await t.mint(db, now);
@@ -345,7 +397,7 @@ export const state = {
     const t = spec(table);
     const cur0 = await db.get(table, { select: '*', [t.key]: `eq.${id}` }, { single: true });
     if (!cur0) throw new DatabaseError(`no ${table} ${id}`, { status: 404 });
-    const patch = clean(table, input, { current: cur0 });
+    const patch = clean(table, input, { current: cur0, now });
     delete patch[t.key];
     if (!Object.keys(patch).length) throw bad('nothing to change');
     const cur = cur0;
@@ -391,6 +443,7 @@ export const state = {
     if (table === 'goals' || table === 'projects') throw bad(`${table} are never deleted — set status to dropped`);
     if (table === 'bottlenecks') throw bad('bottlenecks are never deleted — set status to cleared');
     if (table === 'reviews') { const r = await db.get(table, { select: 'status', id: `eq.${id}` }, { single: true }); if (r?.status === 'kept') throw bad('a kept review is part of the record'); }
+    if (table === 'missions') throw bad('missions are never deleted — cancel it');
     if (table === 'capital_allocations') { const r = await db.get(table, { select: 'confirmed_at', id: `eq.${id}` }, { single: true }); if (r?.confirmed_at) throw bad('a confirmed allocation is part of the record'); }
     const cur = await db.get(table, { select: '*', [t.key]: `eq.${id}` }, { single: true });
     if (!cur) throw new DatabaseError(`no ${table} ${id}`, { status: 404 });
@@ -486,6 +539,7 @@ function summarise(table, r) {
     case 'bottlenecks': return `[${r.severity}] ${r.area}: ${r.text}${r.status !== 'open' ? ` (${r.status})` : ''}`;
     case 'capital_rules': return `rule ${r.name}: from £${r.min_available}${r.active === false ? ' (off)' : ''}`;
     case 'capital_allocations': return `allocation ${r.month}${r.confirmed_at ? ' confirmed' : ' proposed'}`;
+    case 'missions': return `${r.title || r.template} (${r.state})`;
     default: return table;
   }
 }
