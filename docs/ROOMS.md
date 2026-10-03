@@ -168,6 +168,10 @@ note to open it in Obsidian.
 ### THE CONTROL ROOM — REAL · `#control`
 *What it does.* The machine's own state: which keys the server holds (never their values — Anthropic, the service key, the operator key), whether the database answers and whether it is Supabase or the dev database, every table the code expects with its migration and whether it exists (the missing ones name the file to run), the knowledge sources' sync state, the last agent runs, and the permission matrix. Reads `/api/health`; nothing here is edited.
 
+### MISSIONS — REAL · `#missions` (from THE CONTROL ROOM)
+*What it does.* Work the network does on its own. WAITING ON YOU: missions paused at an approval, answered here (approve or stop). RUNNING AND QUEUED: each mission's steps as a graph, a column per wave, every step lit by its state with its agent and its level (L0 to L5), refreshed every few seconds while one moves. FINISHED: what each did, why it stopped, run it again. NEW MISSION: research, a content run or the weekly review, now or on a schedule. STANDING: what runs on a clock. THE WORKER: whether anything is picking up the queue. AUTONOMY: the ladder, with the ceiling at draft. One mission opens to its research packet (findings with sources), the critic's scores, or the week's lessons, and every step with what it returned.
+*Where it lives.* `missions` (0013); each step is an `agent_runs` row with `mission_id`. Runs on the worker (`npm run worker`, or inside `npm run dev`); `docs/MISSIONS.md`. Mirrored to `04-Records/Missions.md`, research packets to `05-Knowledge/Research/`.
+
 ### THE INVENTOR'S ROOM — WORKING (lists REAL)
 *What it does.* An idea queue tagged BUILD / WATCH / KILL, and the count of items in the brain's inbox. SPARK's evaluation is not wired; the tags are Leo's.
 
@@ -180,8 +184,8 @@ note to open it in Obsidian.
 
 ## Under every room
 
-- **`/api/*`** — the only door to the database. Every call carries the operator key; without it the API refuses and the rooms say so. Counsel, the Council and HERALD need `ANTHROPIC_API_KEY` on the server too.
+- **`/api/*`** — the only door to the database. Every call carries the operator key; without it the API refuses and the rooms say so. Counsel, the Council and HERALD need a model on the server too: `ANTHROPIC_API_KEY`, or `ARCANE_PROVIDER=ollama` where Ollama can be reached (a laptop).
 - **The store** — the browser's cache of the tables plus the blob. A change shows at once, goes up, and if refused the store reloads, the bar says why, and offers the same change again — the intent is kept, not retyped. Every fifteen seconds it asks for the stamp of the last change and re-reads only when it has moved, so another device's write arrives within a poll.
 - **Readiness** — `/api/health` judges the machine from the tables (migrations by table and by column, the imports, stock, the model by its last real run); the bar shows the worst thing and THE CONTROL ROOM the whole list, each with its evidence and its fix.
 - **The brain** — `npm run vault:sync` lands the tables in Obsidian (orders by number, lists, focus, the Lab, money, drafts, decisions, counsel, trades, the protocol — never Sanctum's entries) and `npm run brief` writes the four-block brief from the same aggregate the Bridge reads.
-- **Local** — `npm run dev` is the production loop on a laptop; `npm run dev:local` runs it all on the dev database with the mock writer, no keys needed.
+- **Local** — `npm run dev` is the production loop on a laptop, with the mission worker running inside the API; `npm run dev:local` runs it all on the dev database with the mock writer, no keys needed. `ARCANE_PROVIDER=ollama` puts every agent on a local model for free (`packages/runtime/src/model.js`).

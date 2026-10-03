@@ -94,6 +94,15 @@ if (draftsChanged) spawnSync('node', [path.join(REPO, 'tools', 'content-board.mj
   } catch (e) { console.error(`  ~ protocol/journal/money not mirrored: ${e.message}`); note('protocol', 'skipped'); }
 }
 
+/* ---------- missions: the log, and the research packets as knowledge ---------- */
+{
+  try {
+    const { mirrorMissions } = await import('./lib/state-mirror.mjs');
+    const r = await mirrorMissions(db, brain, now);
+    note('missions', r.log); if (r.packets) note('research', `${r.packets} packets written`);
+  } catch (e) { console.error(`  ~ missions not mirrored: ${e.message} (run supabase/migrations/0013_missions.sql)`); note('missions', 'skipped'); }
+}
+
 /* ---------- decisions and counsel: from the tables ---------- */
 {
   try {

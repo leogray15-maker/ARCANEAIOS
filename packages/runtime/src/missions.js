@@ -16,7 +16,7 @@
  * mission waits on Leo's answer to it — the same answer as any proposal.
  */
 import { AGENT_BY_ID, ACTION_BY_ID, MISSION_TEMPLATE_BY_ID, MISSION_STALE_MS, MISSION_MAX_STEPS, AUTONOMY_CEILING, STANDING_RULES, VENTURES, ROOM_BY_ID, planProblems, stepLevel, upstreamOf, resolvePermission, GRADE_ORDER } from '../../config/src/index.js';
-import { run as runWorkflow, progress as workflowProgress } from '../../database/src/workflow.js';
+import { run as runWorkflow } from '../../database/src/workflow.js';
 import { runs, events } from '../../database/src/content.js';
 import { state } from '../../database/src/state.js';
 import { nextRun } from '../../database/src/cron.js';
@@ -304,16 +304,5 @@ export async function tick(db, ctx) {
   return report;
 }
 
-/** The picture a room shows of a mission: its steps with their state, what it is waiting on, how far it got. */
-export function missionView(m) {
-  const plan = m.plan || [];
-  const p = { ...EMPTY(), ...(m.progress || {}) };
-  const view = workflowProgress(plan.map((s) => ({ id: s.id, after: s.after || [] })), p);
-  return {
-    ...view,
-    steps: plan.map((s) => ({
-      id: s.id, kind: s.kind, action: s.action || (s.kind === 'think' ? 'think' : ''), agent: s.agent || m.agent, after: s.after || [], level: stepLevel(s),
-      status: p.failed?.id === s.id ? 'failed' : p.pending?.id === s.id ? 'waiting' : p.skipped.includes(s.id) ? 'skipped' : s.id in p.done ? 'done' : m.state === 'running' && m.current_step === s.id ? 'running' : 'todo',
-    })),
-  };
-}
+// The view a room draws lives with the templates (config), so the browser can use it too.
+export { missionView } from '../../config/src/missions.js';

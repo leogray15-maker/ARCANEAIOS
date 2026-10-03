@@ -29,7 +29,9 @@ This file routes Claude Code. The brain has its own router at
 | The Content Machine, end to end | `docs/CONTENT-MACHINE.md` |
 | The visual system (layers, materials, light, colour, the parts) | `docs/VISUAL-SYSTEM.md` · the palette in `apps/facility/src/render/tone.js` · the 3D floor in `apps/facility/src/render/world/` |
 | Architecture, sprites, structure, plan | `docs/` |
-| The facility app | `apps/facility/` — `npm run dev` (with the API) · `npm run dev:local` (no keys needed) |
+| Missions: the network working on its own (templates, the risk ladder, the worker) | `packages/config/src/missions.js` · `packages/runtime/` · `docs/MISSIONS.md` — `npm run worker` |
+| The model (Ollama for free, or Claude) | `packages/runtime/src/model.js` — `ARCANE_PROVIDER` |
+| The facility app | `apps/facility/` — `npm run dev` (with the API and the worker) · `npm run dev:local` (no keys needed) |
 
 ## Standing rules (enforced in code — do not work around them)
 
@@ -52,6 +54,7 @@ If a task needs one of these to bend, stop and say so. Do not edit
 - **Add operating state a room edits** (a list, a table of things Leo types) → a table in the next migration, its entry in the registry in `state.js` (columns, validators, defaults), the store methods that call `api.state`, and its mirror in `tools/lib/state-mirror.mjs`. Not a new key in the blob.
 - **Change how a draft may move** → `DRAFT_TRANSITIONS` / `DRAFT_VIEWS` in `packages/config/src/loop.js`; BEACON and the API both read it.
 - **Change HERALD's voice or gate** → `references/*.md` (voice) or, for the gate, stop: the lint patterns are a standing rule.
+- **Add a mission template or an action** → `MISSION_TEMPLATES` / `ACTIONS` in `packages/config/src/missions.js` (an action also needs its executor in `packages/runtime/src/tools.js`), then `npm run check`. Anything above L2 must sit behind an approval step; the ceiling itself is a standing rule.
 - **Add a room application** → `apps/facility/src/render/<room>.js` with `render<Room>` / `bind<Room>`, a route in `main.js`, and `opens: '#<room>'` on the room in `rooms.js`. Data comes through `core/api.js`, never a second store.
 
 ## Commands
@@ -72,6 +75,8 @@ npm run herald:pick    choose source modules  (-- --lane mindset --count 3 | --s
 npm run herald:lint    gate the staged drafts
 npm run herald:emit    land the batch and log the run
 npm run facility       dev server for the facility
+npm run worker         the mission worker (--once for launchd); ARCANE_PROVIDER=ollama runs it free
+npm run mission        queue a mission  (-- research "question" | content --lane mindset | review --every "0 18 * * 0")
 ```
 
 ## Voice in this repo

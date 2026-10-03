@@ -133,7 +133,7 @@ ok(runRows.some((x) => x.agent === 'ORACLE') && runRows.some((x) => x.agent === 
 let ev = await db.get('system_events', { select: 'kind', subject_id: `eq.${m1.id}` });
 ok(ev.some((e) => e.kind === 'mission.started') && ev.some((e) => e.kind === 'mission.done'), 'started and done are events');
 const view = missionView(m);
-ok(view.finished && view.steps.every((s) => s.status === 'done') && view.steps.find((s) => s.id === 'propose').level === 2, 'the room\'s view of it: finished, every step done, levels shown');
+ok(view.finished && view.settled === view.total && view.steps.every((s) => s.status === 'done') && view.steps.find((s) => s.id === 'propose').level === 2, 'the room\'s view of it: finished, every step done, levels shown');
 
 /* ---- a re-queue starts again ---- */
 const again = await state.update(db, 'missions', m1.id, { state: 'queued' }, { now });
@@ -231,6 +231,16 @@ await db.post('agent_runs', { id: 'ARC-X-1', agent: 'ARCANE', status: 'ok', star
 await tick(db, ctx);
 m = await db.get('missions', { select: '*', id: `eq.${m10.id}` }, { single: true });
 ok(m.state === 'failed' && /today's 1 runs/.test(m.error), `an agent over its daily runs stops (${m.error})`);
+
+/* ---- the brain keeps what was found ---- */
+const { mirrorMissions } = await import('./lib/state-mirror.mjs');
+const mirrored = await mirrorMissions(db, brain, clock);
+const packet = fs.readFileSync(path.join(brain, '05-Knowledge', 'Research', `${m5.id}.md`), 'utf8');
+ok(mirrored.packets >= 1 && /generated: true/.test(packet) && packet.includes('[source](https://example.com/prices)'), 'each research packet is a generated note in the brain, sources linked');
+const log = fs.readFileSync(path.join(brain, '04-Records', 'Missions.md'), 'utf8');
+ok(log.includes('## Standing') && log.includes(`[[${m5.id}]]`), 'the log lists the standing schedule and links the packets');
+const found = await EXECUTORS['memory.search'].run({ q: 'GHK-Cu suppliers under £30' }, { brain });
+ok(found.notes.some((n) => n.path.startsWith('05-Knowledge/Research')), 'and the next mission\'s brain search finds them');
 
 fs.rmSync(brain, { recursive: true, force: true });
 if (fails.length) { console.error(`✗ missions: ${fails.length} failed\n  - ${fails.join('\n  - ')}`); process.exit(1); }

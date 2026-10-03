@@ -36,7 +36,7 @@ const LOG_MAX = 80;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const PRIORITY = { P0: 0, P1: 1, P2: 2, P3: 3 };
 /** The parts of the state that live on the server; never written into the blob. */
-const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'dispatchItems', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal', 'goalsTable', 'projects', 'reviews', 'bottlenecks', 'capitalRules', 'capitalAllocations', 'runs', 'agentBudgets', 'roomBudgets', 'permissionMemory'];
+const SERVER_KEYS = ['orders', 'lists', 'decisions', 'counsel', 'focus', 'goalProgress', 'days', 'products', 'lots', 'dispatch', 'dispatchItems', 'settings', 'ledger', 'fixedCosts', 'cash', 'pots', 'protocolItems', 'protocolTicks', 'entries', 'journal', 'goalsTable', 'projects', 'reviews', 'bottlenecks', 'capitalRules', 'capitalAllocations', 'runs', 'agentBudgets', 'roomBudgets', 'permissionMemory', 'missions'];
 const OPEN_STATES = ORDER_OPEN_STATES;   // a proposal is not open work: it is waiting to be answered
 const ts = (iso) => (iso ? new Date(iso).getTime() : 0);
 
@@ -56,7 +56,7 @@ function seedState(brain) {
   }
   const goals = {};
   for (const g of brain?.goals?.length ? brain.goals : GOALS_FALLBACK) goals[g.id] = { progress: Number(String(g.progress).replace(/[^\d.]/g, '')) || 0 };
-  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], dispatchItems: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] }, goalsTable: [], projects: [], reviews: [], bottlenecks: [], capitalRules: [], capitalAllocations: [], runs: [], agentBudgets: [], roomBudgets: [], permissionMemory: [] };
+  return { v: 3, updated: 0, brainBuilt: brain?.built || '', orders, goals, drafts: {}, positions: {}, log: [], lists: {}, counsel: [], decisions: [], focus: {}, goalProgress: {}, days: {}, products: [], lots: [], dispatch: [], dispatchItems: [], settings: [], ledger: [], fixedCosts: [], cash: [], pots: [], protocolItems: [], protocolTicks: [], entries: [], journal: { trades: [], setups: [], checkins: [] }, goalsTable: [], projects: [], reviews: [], bottlenecks: [], capitalRules: [], capitalAllocations: [], runs: [], agentBudgets: [], roomBudgets: [], permissionMemory: [], missions: [] };
 }
 
 export class Store {
@@ -144,6 +144,7 @@ export class Store {
     s.journal = { trades: saved.journal?.trades || [], setups: saved.journal?.setups || [], checkins: saved.journal?.checkins || [] };
     s.goalsTable = saved.goalsTable || []; s.projects = saved.projects || []; s.reviews = saved.reviews || []; s.bottlenecks = saved.bottlenecks || []; s.capitalRules = saved.capitalRules || []; s.capitalAllocations = saved.capitalAllocations || []; s.runs = saved.runs || [];
     s.agentBudgets = saved.agentBudgets || []; s.roomBudgets = saved.roomBudgets || []; s.permissionMemory = saved.permissionMemory || [];
+    s.missions = saved.missions || [];
     // Once the server has answered, its rows are the truth for its keys; a blob or cache never overwrites them.
     if (this.server?.ready) for (const k of SERVER_KEYS) s[k] = fresh[k];
     this.state = s;
@@ -213,6 +214,7 @@ export class Store {
     // The operating system's tables are kept as their rows: the pure modules read them as they are.
     s.goalsTable = t.goals || []; s.projects = t.projects || []; s.reviews = t.reviews || []; s.bottlenecks = t.bottlenecks || []; s.capitalRules = t.capital_rules || []; s.capitalAllocations = t.capital_allocations || [];
     s.agentBudgets = t.agent_budgets || []; s.roomBudgets = t.room_budgets || []; s.permissionMemory = t.permission_memory || [];
+    s.missions = t.missions || [];
     this.save();
   }
   /** The first time the server answers empty, what this device kept in its blob goes up once, so nothing typed before the tables existed is lost. */
@@ -691,6 +693,29 @@ export class Store {
   }
   permissionMemory() { return this.state.permissionMemory; }
   forgetPermission(key) { return this.commit(() => { this.state.permissionMemory = this.state.permissionMemory.filter((p) => p.permission_key !== key); }, () => api.state.remove('permission_memory', key), 'permission'); }
+
+  /* ---------- missions: kept as their rows; the worker writes how far each has got ---------- */
+  missions() { return this.state.missions; }
+  mission(id) { return this.state.missions.find((m) => m.id === id) || null; }
+  /** Queue a mission (or stand one on a schedule). The worker on Leo's machine picks it up. */
+  queueMission({ template, input = {}, schedule = '', priority = 2, title = '' }) {
+    const local = { id: `tmp-${uid()}`, template, input, schedule, priority, title, state: schedule ? 'standing' : 'queued', plan: [], progress: {}, output: {}, created_at: new Date().toISOString() };
+    return this.commit(
+      () => { this.state.missions.unshift(local); },
+      async () => { const { row } = await api.state.insert('missions', { template, input, schedule, priority, ...(title ? { title } : {}) }); Object.assign(local, row); return local; },
+      'mission',
+    );
+  }
+  /** Cancel, re-queue, or put a cancelled schedule back on its feet. */
+  setMissionState(id, state) {
+    const m = this.mission(id); if (!m) return null;
+    return this.commit(() => { m.state = state; }, async () => { const { row } = await api.state.update('missions', id, { state }); Object.assign(m, row); return m; }, 'mission');
+  }
+  /** Just the missions, for a room that is watching one run: a whole reload every few seconds would be waste. */
+  async refreshMissions() {
+    if (!this.server.ready) return false;
+    try { const t = await api.state.all(['missions']); this.state.missions = t.missions || []; this.save(); this.emit(); return true; } catch { return false; }
+  }
 
   /* ---------- counsel and the council ---------- */
   counsel() { return this.state.counsel; }

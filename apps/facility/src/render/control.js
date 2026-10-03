@@ -40,6 +40,7 @@ function paint({ keepScroll = false } = {}) {
       <span class="sub">permissions · keys · the database · the sources</span>
       <span class="spacer"></span>
       <span class="${sv.tone}" title="${esc(sv.text)}">● ${esc(sv.tone === 'vital' ? 'state on the server' : sv.text)}</span>
+      <a class="button-link" href="#missions">MISSIONS →</a>
       <button class="tiny ghost" data-act="reload">refresh</button>
     </div>
     ${st.error ? failed(st.error, { retry: 'reload' }) : !h ? loading('the machine') : `

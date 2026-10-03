@@ -202,5 +202,23 @@ export function planProblems(steps, { agentOf = () => null } = {}) {
   }
   return out;
 }
+/**
+ * The picture a room draws of a mission: each step with where it stands,
+ * what it is waiting on, whether it finished. Pure, so the floor and the
+ * worker read a mission the same way.
+ */
+export function missionView(m) {
+  const plan = m.plan || [];
+  const p = { done: {}, skipped: [], failed: null, pending: null, ...(m.progress || {}) };
+  const status = (s) => (p.failed?.id === s.id ? 'failed'
+    : p.pending?.id === s.id && m.state === 'paused' ? 'waiting'
+    : p.skipped.includes(s.id) ? 'skipped'
+    : s.id in p.done ? 'done'
+    : m.state === 'running' && m.current_step === s.id ? 'running' : 'todo');
+  const steps = plan.map((s) => ({ id: s.id, kind: s.kind, action: s.action || (s.kind === 'think' ? 'think' : s.kind), agent: s.agent || m.agent, after: s.after || [], level: stepLevel(s), status: status(s) }));
+  const settled = steps.filter((s) => ['done', 'skipped'].includes(s.status)).length;
+  return { steps, settled, total: steps.length, finished: m.state === 'done', failed: p.failed, pending: m.state === 'paused' ? p.pending : null };
+}
+
 // Kept local rather than imported so this file stays importable on its own; the validator checks it matches GRADES.
 export const GRADE_ORDER = ['deny', 'read', 'analyse', 'draft', 'recommend', 'approval', 'allow'];

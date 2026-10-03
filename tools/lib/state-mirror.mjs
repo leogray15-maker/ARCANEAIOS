@@ -9,6 +9,7 @@
  *   mirrorFocus     database → vault   05-Knowledge/Focus.md from `venture_focus` and `days`
  *   importGoals     vault → database   05-Knowledge/Goals.md rows the `goals` table has not seen (by id), once
  *   mirrorGoals     database → vault   05-Knowledge/Goals.md rebuilt from `goals` as the hierarchy, with each target read against the tables
+ *   mirrorMissions  database → vault   04-Records/Missions.md from `missions`; each finished research packet as 05-Knowledge/Research/<id>.md
  *
  * The database is where the floor writes; these files are the record a
  * person reads in Obsidian. Orders.md keeps its prose above the tables
@@ -256,5 +257,27 @@ export async function mirrorOperating(db, brain, now = new Date()) {
   }
   const bBody = `# Bottlenecks\n\nWhat binds, with its evidence. Cleared ones stay for the record.\n\n| Bottleneck | Area | Severity | Venture | Owner | Status | Evidence | Since |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n${bottlenecks.map((b) => `| ${cell(b.text)} | ${b.area} | ${b.severity} | ${b.venture ? VENTURE_BY_ID[b.venture]?.name || b.venture : '—'} | ${cell(b.owner)} | ${b.status} | ${cell(b.evidence || '—')} | ${day(b.created_at)} |`).join('\n') || '| — | | | | | | | |'}\n`;
   out.bottlenecks = writeGenerated(path.join(brain, '05-Knowledge', 'Bottlenecks.md'), fm(now, { type: 'bottlenecks', agent: 'VECTOR', tags: ['knowledge', 'bottlenecks'] }) + bBody, { write: true });
+  return out;
+}
+
+/**
+ * MISSIONS → 04-Records/Missions.md (the log), and every finished research
+ * packet as its own note in 05-Knowledge/Research. The packets are the
+ * point: the brain is what `memory.search` reads, so what one mission
+ * found is something the next one can find.
+ */
+export async function mirrorMissions(db, brain, now = new Date()) {
+  const missions = await state.list(db, 'missions', { limit: 500 });
+  const rows = missions.filter((m) => m.state !== 'standing').slice(0, 200);
+  const standing = missions.filter((m) => m.state === 'standing');
+  const body = `# Missions\n\nWork the network did on its own, from the database (THE CONTROL ROOM → MISSIONS). Steps above a draft wait for an approval; every step is a run in the Trace.\n\n${standing.length ? `## Standing\n\n| Mission | Schedule | Next |\n| --- | --- | --- |\n${standing.map((m) => `| ${cell(m.title)} | \`${cell(m.schedule)}\` | ${m.next_run_at ? stamp(new Date(m.next_run_at)) : '—'} |`).join('\n')}\n\n` : ''}## Log\n\n| Mission | Template | Agent | State | Steps | Finished | Note |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows.map((m) => `| ${m.state === 'done' && m.template === 'research' ? `[[${m.id}]]` : m.id} ${cell(m.title)} | ${m.template} | ${AGENT_BY_ID[m.agent] ? `[[${AGENT_BY_ID[m.agent].name}]]` : cell(m.agent)} | ${m.state} | ${m.steps_run || 0} | ${day(m.finished_at)} | ${cell(m.error || m.output?.summary || '')} |`).join('\n') || '| — | | | | | | |'}\n`;
+  const out = { log: writeGenerated(path.join(brain, '04-Records', 'Missions.md'), fm(now, { type: 'missions', agent: 'ARCANE', tags: ['records', 'missions'] }) + body, { write: true }), packets: 0 };
+  const dir = path.join(brain, '05-Knowledge', 'Research');
+  for (const m of missions.filter((x) => x.template === 'research' && x.state === 'done' && x.output?.summary)) {
+    const o = m.output;
+    const note = `# ${o.question || m.input?.question || m.title}\n\n${o.summary}\n\n## Findings\n\n${(o.findings || []).map((f) => `- ${f.claim} — ${f.source ? (/^https?:/.test(f.source) ? `[source](${f.source})` : `[[${String(f.source).replace(/\.md$/, '').split('/').pop()}]]`) : 'no source'} (${f.confidence})`).join('\n') || '—'}\n\n## What the evidence could not say\n\n${(o.gaps || []).map((g) => `- ${g}`).join('\n') || '—'}\n\nResearched by [[${AGENT_BY_ID[m.agent]?.name || 'CIPHER'}]] on ${day(m.finished_at)}, mission ${m.id}. Proposals it made wait on the board in their rooms.\n`;
+    const r = writeGenerated(path.join(dir, `${m.id}.md`), fm(new Date(m.finished_at || m.created_at), { type: 'research', agent: AGENT_BY_ID[m.agent]?.name || 'CIPHER', mission: m.id, tags: ['knowledge', 'research'] }) + note, { write: true });
+    if (r !== 'unchanged') out.packets++;
+  }
   return out;
 }
